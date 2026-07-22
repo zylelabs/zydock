@@ -19,6 +19,8 @@ const { router, get, post, delete: del } = createRouter();
 
 const containers = resolveContainerProvider();
 
+const LOG_KEEPALIVE_MS = 5000;
+
 /** Each `label` query parameter carries one `key=value` pair. */
 const parseLabels = (values: string[]) =>
   Object.fromEntries(
@@ -173,6 +175,21 @@ get(
     return streamSSE(c, async stream => {
       stream.onAbort(() => controller.abort());
 
+      // Writes are chained so that a `ping` never lands in the middle of a log line, and the ping
+      // itself exists because the server closes a connection left idle — a container can stay quiet
+      // far longer than that without the stream being dead.
+      let queue = Promise.resolve();
+
+      const write = (event: string, data: unknown) => {
+        queue = queue.then(() => stream.writeSSE({ event, data: JSON.stringify(data) }));
+
+        return queue;
+      };
+
+      const keepalive = setInterval(() => {
+        void write('ping', {});
+      }, LOG_KEEPALIVE_MS);
+
       try {
         for await (const entry of containers.streamLogs(id, {
           tail,
@@ -180,10 +197,12 @@ get(
           until,
           signal: controller.signal,
         })) {
-          await stream.writeSSE({ event: 'log', data: JSON.stringify(entry) });
+          await write('log', entry);
         }
       } catch (error) {
         logWarn('Log stream ended', { container: id, error: errorMessage(error) });
+      } finally {
+        clearInterval(keepalive);
       }
     });
   },

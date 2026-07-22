@@ -12,6 +12,17 @@ const imageSchema = {
 };
 
 export const imagesDocs = {
+  list: {
+    tags: ['Images'],
+    summary: 'List images',
+    description:
+      'Includes images that lost their tag, listed as `<none>`: they still occupy the disk.',
+    security: agentAuth,
+    responses: {
+      200: jsonRes('Images.', { type: 'array', items: imageSchema }),
+      401: errorRes('Invalid agent token.'),
+    },
+  },
   pull: {
     tags: ['Images'],
     summary: 'Pull an image',
@@ -39,6 +50,9 @@ export const imagesDocs = {
   remove: {
     tags: ['Images'],
     summary: 'Remove an image',
+    description:
+      'Forced, so removing an absent image succeeds. A tag still used by a container is only ' +
+      'untagged — the layers stay until no container refers to them.',
     security: agentAuth,
     parameters: [{ name: 'reference', in: 'query', required: true, schema: { type: 'string' } }],
     responses: {

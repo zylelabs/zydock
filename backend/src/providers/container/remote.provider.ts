@@ -145,6 +145,8 @@ export const createRemoteContainerProvider = (
     removeImage: reference =>
       discard('/images', { method: 'DELETE', query: searchParams({ reference }) }),
 
+    listImages: () => json<ImageInfo[]>('/images'),
+
     createNetwork: name => json<NetworkInfo>('/networks', { method: 'POST', body: { name } }),
 
     removeNetwork: name => discard(`/networks/${encodeURIComponent(name)}`, { method: 'DELETE' }),

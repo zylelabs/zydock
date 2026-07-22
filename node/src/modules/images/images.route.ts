@@ -12,9 +12,13 @@ import {
   imageReferenceSchema,
 } from './images.schema';
 
-const { router, post, delete: del } = createRouter();
+const { router, get, post, delete: del } = createRouter();
 
 const containers = resolveContainerProvider();
+
+get('/', imagesDocs.list, agentAuthMiddleware, async (c: Context) =>
+  c.json(await containers.listImages()),
+);
 
 post(
   '/pull',

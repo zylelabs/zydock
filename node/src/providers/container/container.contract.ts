@@ -140,6 +140,7 @@ export type ContainerProvider = {
   buildImage: (spec: BuildImageSpec) => Promise<ImageInfo>;
   pullImage: (reference: string) => Promise<ImageInfo>;
   removeImage: (reference: string) => Promise<void>;
+  listImages: () => Promise<ImageInfo[]>;
   createNetwork: (name: string) => Promise<NetworkInfo>;
   removeNetwork: (name: string) => Promise<void>;
   listNetworks: () => Promise<NetworkInfo[]>;

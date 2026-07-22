@@ -439,6 +439,47 @@ export const createDockerProvider = (): ContainerProvider => ({
     await runChecked(['rmi', '--force', reference], `Failed to remove image ${reference}`);
   },
 
+  listImages: async (): Promise<ImageInfo[]> => {
+    // `--all` because an image that lost its tag still occupies the disk, and the default listing
+    // hides it. `image ls` reports the size already formatted for humans, so the ids come first and
+    // the sizes in bytes come from a single inspect over all of them.
+    const listed = await runChecked(
+      ['image', 'ls', '--all', '--quiet', '--no-trunc'],
+      'Failed to list images',
+    );
+
+    const ids = [...new Set(listed.split('\n').filter(Boolean))];
+
+    if (!ids.length) {
+      return [];
+    }
+
+    const raw = await runChecked(
+      [
+        'image',
+        'inspect',
+        ...ids,
+        '--format',
+        '{{.Id}}|{{.Size}}|{{.Created}}|{{if .RepoTags}}{{index .RepoTags 0}}{{else}}<none>{{end}}',
+      ],
+      'Failed to inspect images',
+    );
+
+    return raw
+      .split('\n')
+      .filter(Boolean)
+      .map(line => {
+        const [id, size, created, tag] = line.split('|');
+
+        return {
+          id: id ?? '',
+          tag: tag ?? '<none>',
+          sizeBytes: Number(size) || 0,
+          createdAt: created ?? '',
+        };
+      });
+  },
+
   createNetwork: async (name): Promise<NetworkInfo> => {
     const existing = await run(['network', 'inspect', name, '--format', '{{.Id}}|{{.Driver}}']);
 

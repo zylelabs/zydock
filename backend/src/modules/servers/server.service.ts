@@ -40,6 +40,9 @@ export const findServer = (organizationId: string, serverId: string) =>
 export const findServerById = (serverId: string) =>
   serverModel.findById(serverId).select('+agent.token');
 
+export const findServerWithAgentToken = (organizationId: string, serverId: string) =>
+  serverModel.findOne({ _id: serverId, organizationId }).select('+agent.token');
+
 /**
  * Connection to the agent installed on the server. Requires a document loaded with the secrets —
  * the token is `select: false`.

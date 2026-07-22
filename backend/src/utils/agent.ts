@@ -105,6 +105,19 @@ export const readAgentEvents = async function* (response: Response): AsyncGenera
 export const isAbortError = (error: unknown) =>
   error instanceof Error && error.name === 'AbortError';
 
+/** A failure the agent itself answered carries the status it used. */
+type AgentFailure = Error & { agentStatus?: number };
+
+/**
+ * Status the API should answer for a failed agent call: a refusal (400/404) blames the request,
+ * anything else — including no answer at all — blames the gateway between us and the runtime.
+ */
+export const agentFailureStatus = (error: unknown): 400 | 404 | 502 => {
+  const status = error instanceof Error ? (error as AgentFailure).agentStatus : undefined;
+
+  return status === 400 || status === 404 ? status : 502;
+};
+
 /**
  * HTTP client of the agent, shared by every provider that delegates to a managed server. Failures
  * carry the server id, so an error surfaces where it happened.
@@ -140,9 +153,13 @@ export const createAgentClient = (connection: AgentConnection) => {
     }
 
     if (!response.ok && !allowedStatuses.includes(response.status)) {
-      throw new Error(
+      const failure: AgentFailure = new Error(
         `Agent of server ${connection.serverId} refused ${method} ${path}: ${await describeFailure(response)}`,
       );
+
+      failure.agentStatus = response.status;
+
+      throw failure;
     }
 
     return response;
