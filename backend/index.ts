@@ -5,7 +5,7 @@ import { logInfo } from './src/utils/logger';
 
 const app = createApp();
 
-logInfo('Nexus backend started', { port: config.port, mode: config.mode });
+logInfo('Zydock backend started', { port: config.port, mode: config.mode });
 
 export default {
   port: config.port,
