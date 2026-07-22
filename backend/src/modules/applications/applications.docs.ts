@@ -117,6 +117,21 @@ export const applicationsDocs = {
       404: errorRes('Application not found.'),
     },
   },
+  deploy: {
+    tags: ['Applications'],
+    summary: 'Deploy the application now',
+    description:
+      'Creates the deployment and hands it to the queue: the answer comes back before the ' +
+      'pipeline runs. Follow the progress on the `deployment:<id>:steps` WebSocket topic.',
+    security: bearerOrApiKeyAuth,
+    responses: {
+      202: jsonRes('Deployment queued.', {
+        type: 'object',
+        properties: { deployment: { type: 'object' } },
+      }),
+      404: errorRes('Application not found.'),
+    },
+  },
   remove: {
     tags: ['Applications'],
     summary: 'Remove an application',

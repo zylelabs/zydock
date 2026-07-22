@@ -2,6 +2,9 @@ import type { Context } from 'hono';
 import { createRouter, validator } from 'hono-route-docs';
 import { paginationQuery } from '../../utils/pagination';
 import { authMiddleware } from '../auth/auth.middleware';
+import { serializeDeployment } from '../deployments/deployment.service';
+import { TriggerDeploymentDTO, triggerDeploymentSchema } from '../deployments/deployment.schema';
+import { enqueueDeployment } from '../deployments/pipeline.service';
 import { OrganizationIdParam, organizationIdParamSchema } from '../organizations/membership.schema';
 import { createOrganizationRoleGuard } from '../organizations/organizations.middleware';
 import { findEnvironmentOfOrganization } from '../projects/environment.service';
@@ -23,11 +26,14 @@ import {
   decryptVariables,
   findApplication,
   findApplicationWithSecrets,
+  removeApplication,
   replaceVariables,
   serializeApplication,
   updateApplication,
 } from './application.service';
 import { applicationsDocs } from './applications.docs';
+import { webhookDocs } from './webhook.docs';
+import { configureWebhook, removeWebhook } from './webhook.service';
 
 const { router, get, post, patch, put, delete: del } = createRouter();
 
@@ -177,6 +183,86 @@ put(
   },
 );
 
+post(
+  '/:applicationId/deploy',
+  applicationsDocs.deploy,
+  authMiddleware,
+  validator('param', applicationIdParamSchema),
+  createOrganizationRoleGuard('admin'),
+  validator('json', triggerDeploymentSchema),
+  async (c: Context) => {
+    const { organizationId, applicationId } = c.req.valid('param' as never) as ApplicationIdParam;
+    const body = c.req.valid('json' as never) as TriggerDeploymentDTO;
+    const auth = c.get('auth');
+
+    const application = await findApplication(organizationId, applicationId);
+
+    if (!application) {
+      return c.json({ error: 'Application not found' }, 404);
+    }
+
+    const deployment = await enqueueDeployment({
+      application,
+      trigger: 'manual',
+      triggeredBy: auth.sub,
+      branch: body.branch,
+      commit: body.commit,
+    });
+
+    return c.json({ deployment: serializeDeployment(deployment) }, 202);
+  },
+);
+
+post(
+  '/:applicationId/webhook',
+  webhookDocs.configure,
+  authMiddleware,
+  validator('param', applicationIdParamSchema),
+  createOrganizationRoleGuard('admin'),
+  async (c: Context) => {
+    const { organizationId, applicationId } = c.req.valid('param' as never) as ApplicationIdParam;
+
+    const application = await findApplicationWithSecrets(organizationId, applicationId);
+
+    if (!application) {
+      return c.json({ error: 'Application not found' }, 404);
+    }
+
+    try {
+      return c.json({ webhook: await configureWebhook(application) }, 201);
+    } catch (error) {
+      return c.json({ error: error instanceof Error ? error.message : String(error) }, 400);
+    }
+  },
+);
+
+del(
+  '/:applicationId/webhook',
+  webhookDocs.remove,
+  authMiddleware,
+  validator('param', applicationIdParamSchema),
+  createOrganizationRoleGuard('admin'),
+  async (c: Context) => {
+    const { organizationId, applicationId } = c.req.valid('param' as never) as ApplicationIdParam;
+
+    const application = await findApplicationWithSecrets(organizationId, applicationId);
+
+    if (!application) {
+      return c.json({ error: 'Application not found' }, 404);
+    }
+
+    try {
+      if (!(await removeWebhook(application))) {
+        return c.json({ error: 'This application has no webhook configured' }, 404);
+      }
+
+      return c.json({ message: 'Webhook removed successfully' });
+    } catch (error) {
+      return c.json({ error: error instanceof Error ? error.message : String(error) }, 400);
+    }
+  },
+);
+
 del(
   '/:applicationId',
   applicationsDocs.remove,
@@ -186,11 +272,11 @@ del(
   async (c: Context) => {
     const { organizationId, applicationId } = c.req.valid('param' as never) as ApplicationIdParam;
 
-    const result = await applicationModel.deleteOne({ _id: applicationId, organizationId });
-
-    if (!result.deletedCount) {
+    if (!(await findApplication(organizationId, applicationId))) {
       return c.json({ error: 'Application not found' }, 404);
     }
+
+    await removeApplication(applicationId);
 
     return c.json({ message: 'Application removed successfully' });
   },

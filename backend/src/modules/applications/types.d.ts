@@ -7,6 +7,8 @@ interface ApplicationGit {
   autoDeploy: boolean;
   token?: string;
   hasToken: boolean;
+  webhookId?: string;
+  webhookSecret?: string;
 }
 
 interface ApplicationVariable {

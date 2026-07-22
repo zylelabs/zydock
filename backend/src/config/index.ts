@@ -97,6 +97,19 @@ export default {
     offlineAfterSeconds: readNumber('NODE_AGENT_OFFLINE_AFTER_SECONDS', 90),
     bundlePath: readString('NODE_AGENT_BUNDLE_PATH', '../node/dist/agent.js'),
   },
+  queue: {
+    enabled: readBoolean('QUEUE_ENABLED', true),
+    pollIntervalMs: readNumber('QUEUE_POLL_INTERVAL_MS', 1000),
+    concurrency: readNumber('QUEUE_CONCURRENCY', 2),
+    maxAttempts: readNumber('QUEUE_MAX_ATTEMPTS', 3),
+    retryDelayMs: readNumber('QUEUE_RETRY_DELAY_MS', 5000),
+    jobTimeoutSeconds: readNumber('QUEUE_JOB_TIMEOUT_SECONDS', 1800),
+  },
+  deploy: {
+    workspacePath: readString('DEPLOY_WORKSPACE_PATH', '/var/lib/zydock/builds'),
+    healthcheckTimeoutSeconds: readNumber('DEPLOY_HEALTHCHECK_TIMEOUT_SECONDS', 180),
+    buildLogLines: readNumber('DEPLOY_BUILD_LOG_LINES', 500),
+  },
   providers: {
     container: { runtime: readString('CONTAINER_RUNTIME', 'docker') },
     reverseProxy: { implementation: readString('REVERSE_PROXY', 'caddy') },

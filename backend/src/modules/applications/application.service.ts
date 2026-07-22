@@ -1,5 +1,6 @@
 import { generateUniqueSlug } from '../../utils';
 import { decryptSecret, encryptSecret } from '../../utils/crypto';
+import { removeDeploymentsOfApplications } from '../deployments/deployment.service';
 import applicationModel from './application.model';
 import type { CreateApplicationDTO, UpdateApplicationDTO } from './application.schema';
 
@@ -125,11 +126,26 @@ export const updateApplication = async (
   return applicationModel.findById(application._id);
 };
 
+/** Applications never disappear alone: their deployment history goes with them. */
+const removeApplicationsWhere = async (filter: Record<string, unknown>) => {
+  const applications = await applicationModel.find(filter).select('_id');
+
+  if (!applications.length) {
+    return;
+  }
+
+  await removeDeploymentsOfApplications(applications.map(application => String(application._id)));
+  await applicationModel.deleteMany(filter);
+};
+
+export const removeApplication = (applicationId: string) =>
+  removeApplicationsWhere({ _id: applicationId });
+
 export const removeApplicationsOfEnvironment = (environmentId: string) =>
-  applicationModel.deleteMany({ environmentId });
+  removeApplicationsWhere({ environmentId });
 
 export const removeApplicationsOfProject = (projectId: string) =>
-  applicationModel.deleteMany({ projectId });
+  removeApplicationsWhere({ projectId });
 
 export const countApplicationsOfServer = (serverId: string) =>
   applicationModel.countDocuments({ serverId });

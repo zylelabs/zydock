@@ -52,6 +52,9 @@ const applicationSchema = new Schema(
       // the reads that only need to know whether a credential is configured.
       token: { type: String, select: false },
       hasToken: { type: Boolean, required: true, default: false },
+      webhookId: { type: String },
+      // Encrypted: verifying an incoming signature needs the secret itself, not a hash of it.
+      webhookSecret: { type: String, select: false },
     },
     port: { type: Number, required: true },
     variables: { type: [variableSchema], default: [] },

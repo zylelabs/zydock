@@ -8,6 +8,7 @@ import { openAPIDoc } from 'hono-route-docs';
 import config from './config';
 import { connectDatabase, disconnectDatabase } from './config/mongodb';
 import routes from './modules/routes';
+import { startWorker, stopWorker } from './modules/queue/queue.service';
 import { logError, logInfo } from './utils/logger';
 
 type AppEnv = { Variables: RequestIdVariables };
@@ -15,13 +16,17 @@ type AppEnv = { Variables: RequestIdVariables };
 let isShuttingDown = false;
 
 const connect = () => {
-  connectDatabase().catch(error => {
-    logError('Failed to connect to MongoDB', error);
-  });
+  connectDatabase()
+    // The worker only starts after the database is up: every job lives in MongoDB.
+    .then(startWorker)
+    .catch(error => {
+      logError('Failed to connect to MongoDB', error);
+    });
 };
 
 const cleanup = async () => {
   try {
+    stopWorker();
     await disconnectDatabase();
   } catch (error) {
     logError('Failed to release resources during shutdown', error);

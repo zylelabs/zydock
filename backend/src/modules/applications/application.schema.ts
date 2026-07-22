@@ -27,8 +27,8 @@ export const applicationIdParamSchema = organizationIdParamSchema.extend({
 
 export type ApplicationIdParam = z.infer<typeof applicationIdParamSchema>;
 
-const gitSchema = z.object({
-  host: z.enum(GIT_HOSTS).default('github'),
+const gitBaseSchema = z.object({
+  host: z.enum(GIT_HOSTS),
   /** `owner/repository`, as every supported host names it. */
   repository: z
     .string()
@@ -36,12 +36,26 @@ const gitSchema = z.object({
     .min(3)
     .max(200)
     .regex(/^[^/\s]+\/[^/\s]+$/, 'Repository must be in the "owner/name" format'),
-  branch: z.string().trim().min(1).max(200).default('main'),
-  dockerfilePath: z.string().trim().min(1).max(512).default('Dockerfile'),
-  buildContext: z.string().trim().min(1).max(512).default('.'),
-  autoDeploy: z.boolean().default(true),
+  branch: z.string().trim().min(1).max(200),
+  dockerfilePath: z.string().trim().min(1).max(512),
+  buildContext: z.string().trim().min(1).max(512),
+  autoDeploy: z.boolean(),
   token: z.string().min(1).max(512).optional(),
 });
+
+const gitSchema = gitBaseSchema.extend({
+  host: gitBaseSchema.shape.host.default('github'),
+  branch: gitBaseSchema.shape.branch.default('main'),
+  dockerfilePath: gitBaseSchema.shape.dockerfilePath.default('Dockerfile'),
+  buildContext: gitBaseSchema.shape.buildContext.default('.'),
+  autoDeploy: gitBaseSchema.shape.autoDeploy.default(true),
+});
+
+/**
+ * Updates must not carry defaults: `.partial()` keeps them, so a patch touching a single field
+ * would silently reset every other one — the branch included.
+ */
+const gitUpdateSchema = gitBaseSchema.partial();
 
 const volumeSchema = z.object({
   source: z.string().trim().min(1).max(512),
@@ -97,7 +111,7 @@ export type CreateApplicationDTO = z.infer<typeof createApplicationSchema>;
 export const updateApplicationSchema = z.object({
   name: z.string().trim().min(1).max(120).optional(),
   serverId: z.string().length(24).optional(),
-  git: gitSchema.partial().optional(),
+  git: gitUpdateSchema.optional(),
   port: z.coerce.number().int().min(1).max(65535).optional(),
   volumes: z.array(volumeSchema).max(50).optional(),
   networks: z.array(z.string().trim().min(1).max(128)).max(20).optional(),

@@ -1,6 +1,8 @@
 import { createRouter } from 'hono-route-docs';
 import applicationsRoute from './applications/applications.route';
+import webhookRoute from './applications/webhook.route';
 import apiKeyRoute from './auth/api-key.route';
+import deploymentsRoute from './deployments/deployments.route';
 import authRoute from './auth/auth.route';
 import sessionRoute from './auth/session.route';
 import healthRoute from './health/health.route';
@@ -9,6 +11,7 @@ import membershipRoute from './organizations/membership.route';
 import organizationsRoute from './organizations/organizations.route';
 import environmentRoute from './projects/environment.route';
 import projectsRoute from './projects/projects.route';
+import queueRoute from './queue/queue.route';
 import heartbeatRoute from './servers/heartbeat.route';
 import serversRoute from './servers/servers.route';
 import usersRoute from './users/users.route';
@@ -31,8 +34,12 @@ route('/organizations/:organizationId/servers', serversRoute);
 route('/organizations/:organizationId/projects', projectsRoute);
 route('/organizations/:organizationId/projects/:projectId/environments', environmentRoute);
 route('/organizations/:organizationId/applications', applicationsRoute);
+route('/organizations/:organizationId/deployments', deploymentsRoute);
+
+route('/queue', queueRoute);
 
 route('/agent', heartbeatRoute);
+route('/webhooks', webhookRoute);
 
 route('/ws', websocketRoute);
 

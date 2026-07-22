@@ -72,6 +72,27 @@ ${prefix}systemctl enable --now docker
 docker --version
 `;
 
+/** The deploy clones on the server itself, so git has to be there before any application arrives. */
+const installGit = (prefix: string) => `
+set -e
+if ! command -v git >/dev/null 2>&1; then
+  if command -v apt-get >/dev/null 2>&1; then
+    ${prefix}apt-get update -qq
+    ${prefix}DEBIAN_FRONTEND=noninteractive apt-get install -y -qq git
+  elif command -v dnf >/dev/null 2>&1; then
+    ${prefix}dnf install -y -q git
+  elif command -v yum >/dev/null 2>&1; then
+    ${prefix}yum install -y -q git
+  elif command -v apk >/dev/null 2>&1; then
+    ${prefix}apk add --no-cache git
+  else
+    echo "No supported package manager found to install git" >&2
+    exit 1
+  fi
+fi
+git --version
+`;
+
 const installRuntime = (prefix: string) => `
 set -e
 if ! command -v bun >/dev/null 2>&1 && [ ! -x /usr/local/bin/bun ]; then
@@ -108,6 +129,7 @@ LOG_LEVEL="info"
 SERVER_ID="${params.serverId}"
 AGENT_TOKEN="${params.token}"
 BACKEND_URL="${config.backendUrl}"
+WORKSPACE_PATH="${config.deploy.workspacePath}"
 `;
 
 const readAgentBundle = async () => {
@@ -161,7 +183,10 @@ export const provisionServer = async (server: Server & Document) => {
       installRuntime(prefix),
       'Failed to install the Bun runtime',
     );
-    record({ step: 'install-runtime', ok: true, detail: runtimeVersion });
+
+    const gitVersion = await runChecked(session, installGit(prefix), 'Failed to install git');
+
+    record({ step: 'install-runtime', ok: true, detail: `${runtimeVersion} · ${gitVersion}` });
 
     currentStep = 'upload-agent';
 
@@ -169,7 +194,7 @@ export const provisionServer = async (server: Server & Document) => {
 
     await runChecked(
       session,
-      `${prefix}mkdir -p ${AGENT_DIR} ${AGENT_ENV_DIR} && ${prefix}chmod 700 ${AGENT_ENV_DIR}`,
+      `${prefix}mkdir -p ${AGENT_DIR} ${AGENT_ENV_DIR} ${config.deploy.workspacePath} && ${prefix}chmod 700 ${AGENT_ENV_DIR}`,
       'Failed to create the agent directories',
     );
     await session.uploadFile(AGENT_BUNDLE, bundle, 0o755);

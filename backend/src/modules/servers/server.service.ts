@@ -37,6 +37,25 @@ export const decryptSshCredentials = (ssh: ServerSshCredentials): SshCredentials
 export const findServer = (organizationId: string, serverId: string) =>
   serverModel.findOne({ _id: serverId, organizationId });
 
+export const findServerById = (serverId: string) =>
+  serverModel.findById(serverId).select('+agent.token');
+
+/**
+ * Connection to the agent installed on the server. Requires a document loaded with the secrets —
+ * the token is `select: false`.
+ */
+export const buildAgentConnection = (server: Server) => {
+  if (!server.agent.token) {
+    throw new Error(`Server ${String(server._id)} has no agent token: provision it first`);
+  }
+
+  return {
+    serverId: String(server._id),
+    endpoint: `http://${server.ssh.host}:${server.agent.port}`,
+    token: decryptSecret(server.agent.token),
+  };
+};
+
 export const findServerWithSecrets = (organizationId: string, serverId: string) =>
   serverModel
     .findOne({ _id: serverId, organizationId })
