@@ -110,6 +110,9 @@ export default {
     healthcheckTimeoutSeconds: readNumber('DEPLOY_HEALTHCHECK_TIMEOUT_SECONDS', 180),
     buildLogLines: readNumber('DEPLOY_BUILD_LOG_LINES', 500),
   },
+  logs: {
+    streamTail: readNumber('LOGS_STREAM_TAIL', 100),
+  },
   providers: {
     container: { runtime: readString('CONTAINER_RUNTIME', 'docker') },
     reverseProxy: { implementation: readString('REVERSE_PROXY', 'caddy') },

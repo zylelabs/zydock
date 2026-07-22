@@ -1,6 +1,10 @@
 import { generateUniqueSlug } from '../../utils';
 import { decryptSecret, encryptSecret } from '../../utils/crypto';
+import type { AuthPayload } from '../auth/auth.middleware';
 import { removeDeploymentsOfApplications } from '../deployments/deployment.service';
+import { findMembership } from '../organizations/membership.service';
+import { isSuperuser } from '../users/user.service';
+import { registerTopicAuthorizer } from '../websocket/websocket.service';
 import applicationModel from './application.model';
 import type { CreateApplicationDTO, UpdateApplicationDTO } from './application.schema';
 
@@ -149,6 +153,22 @@ export const removeApplicationsOfProject = (projectId: string) =>
 
 export const countApplicationsOfServer = (serverId: string) =>
   applicationModel.countDocuments({ serverId });
+
+const authorizeApplicationTopic = async (auth: AuthPayload, applicationId: string) => {
+  const application = await applicationModel.findById(applicationId);
+
+  if (!application) {
+    return false;
+  }
+
+  if (isSuperuser(auth.email)) {
+    return true;
+  }
+
+  return Boolean(await findMembership(String(application.organizationId), auth.sub));
+};
+
+registerTopicAuthorizer('application', authorizeApplicationTopic);
 
 export const serializeApplication = (application: Application) => ({
   id: String(application._id),

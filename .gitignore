@@ -10,7 +10,10 @@ dist
 node_modules
 
 # Logs
-logs
+# Diretório de saída de log na raiz de cada aplicação — sem barra, a regra também esconderia
+# `backend/src/modules/logs/`, que é código.
+/logs
+/*/logs
 *.log
 
 # Misc

@@ -29,6 +29,9 @@ const { router, get, post, delete: del } = createRouter();
 
 const LOG_KEEPALIVE_MS = 5000;
 
+/** A keepalive that does not complete in this time means nobody is reading the other end. */
+const LOG_STALL_TIMEOUT_MS = 15000;
+
 /** Each `label` query parameter carries one `key=value` pair. */
 const parseLabels = (values: string[]) =>
   Object.fromEntries(
@@ -207,12 +210,11 @@ get(
     const controller = new AbortController();
 
     return streamSSE(c, async stream => {
-      stream.onAbort(() => controller.abort());
-
       // Writes are chained so that a `ping` never lands in the middle of a log line, and the ping
       // itself exists because the server closes a connection left idle — a container can stay quiet
       // far longer than that without the stream being dead.
       let queue = Promise.resolve();
+      let keepalive: ReturnType<typeof setInterval> | undefined;
 
       const write = (event: string, data: unknown) => {
         queue = queue.then(() => stream.writeSSE({ event, data: JSON.stringify(data) }));
@@ -220,8 +222,22 @@ get(
         return queue;
       };
 
-      const keepalive = setInterval(() => {
-        void write('ping', {});
+      /** Aborting releases the stream held against the agent, even if this handler is stuck. */
+      const stop = () => {
+        clearInterval(keepalive);
+        controller.abort();
+      };
+
+      stream.onAbort(stop);
+
+      keepalive = setInterval(() => {
+        const pending = write('ping', {});
+        // A client can vanish while the response is still being set up, and neither the write nor
+        // Hono ever reports it: the write simply stops completing. That silence is the only
+        // evidence left, and without it this stream would hold the agent's one open forever.
+        const stalled = setTimeout(stop, LOG_STALL_TIMEOUT_MS);
+
+        void pending.finally(() => clearTimeout(stalled));
       }, LOG_KEEPALIVE_MS);
 
       try {
@@ -236,7 +252,7 @@ get(
       } catch (error) {
         logWarn('Log stream ended', { container: containerId, error: errorMessage(error) });
       } finally {
-        clearInterval(keepalive);
+        stop();
       }
     });
   },
