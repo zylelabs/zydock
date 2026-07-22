@@ -51,4 +51,11 @@ export default {
   mongodb: {
     uri: readRequired('MONGO_URI'),
   },
+  providers: {
+    container: { runtime: readString('CONTAINER_RUNTIME', 'docker') },
+    reverseProxy: { implementation: readString('REVERSE_PROXY', 'caddy') },
+    storage: { implementation: readString('STORAGE_PROVIDER', 'local') },
+    dns: { implementation: readString('DNS_PROVIDER', 'cloudflare') },
+    git: { defaultHost: readString('GIT_DEFAULT_HOST', 'github') },
+  },
 };
