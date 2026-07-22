@@ -23,6 +23,12 @@ export const containersDocs = {
     parameters: [
       { name: 'state', in: 'query', schema: { type: 'string' } },
       { name: 'namePrefix', in: 'query', schema: { type: 'string' } },
+      {
+        name: 'label',
+        in: 'query',
+        description: 'One `key=value` pair; repeat the parameter to filter by several labels.',
+        schema: { type: 'array', items: { type: 'string' } },
+      },
     ],
     responses: {
       200: jsonRes('Containers.', { type: 'array', items: containerSchema }),
@@ -81,6 +87,7 @@ export const containersDocs = {
     parameters: [
       { name: 'tail', in: 'query', schema: { type: 'integer' } },
       { name: 'since', in: 'query', schema: { type: 'string' } },
+      { name: 'until', in: 'query', schema: { type: 'string' } },
       { name: 'follow', in: 'query', schema: { type: 'boolean' } },
     ],
     responses: {

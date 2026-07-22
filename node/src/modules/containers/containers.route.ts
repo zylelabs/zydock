@@ -2,6 +2,7 @@ import type { Context } from 'hono';
 import { createRouter, validator } from 'hono-route-docs';
 import { streamSSE } from 'hono/streaming';
 import { resolveContainerProvider } from '../../providers/container';
+import { errorMessage } from '../../utils';
 import { logWarn } from '../../utils/logger';
 import { agentAuthMiddleware } from '../agent/agent.middleware';
 import { containersDocs } from './containers.docs';
@@ -18,7 +19,15 @@ const { router, get, post, delete: del } = createRouter();
 
 const containers = resolveContainerProvider();
 
-const failed = (error: unknown) => (error instanceof Error ? error.message : String(error));
+/** Each `label` query parameter carries one `key=value` pair. */
+const parseLabels = (values: string[]) =>
+  Object.fromEntries(
+    values.flatMap(value => {
+      const separator = value.indexOf('=');
+
+      return separator > 0 ? [[value.slice(0, separator), value.slice(separator + 1)]] : [];
+    }),
+  );
 
 get('/', containersDocs.list, agentAuthMiddleware, async (c: Context) => {
   const state = c.req.query('state');
@@ -28,6 +37,7 @@ get('/', containersDocs.list, agentAuthMiddleware, async (c: Context) => {
     await containers.listContainers({
       state: state as never,
       namePrefix,
+      labels: parseLabels(c.req.queries('label') ?? []),
     }),
   );
 });
@@ -43,7 +53,7 @@ post(
     try {
       return c.json(await containers.createContainer(body), 201);
     } catch (error) {
-      return c.json({ error: failed(error) }, 400);
+      return c.json({ error: errorMessage(error) }, 400);
     }
   },
 );
@@ -79,7 +89,7 @@ post(
 
       return c.json({ message: 'Container started' });
     } catch (error) {
-      return c.json({ error: failed(error) }, 400);
+      return c.json({ error: errorMessage(error) }, 400);
     }
   },
 );
@@ -97,7 +107,7 @@ post(
 
       return c.json({ message: 'Container stopped' });
     } catch (error) {
-      return c.json({ error: failed(error) }, 400);
+      return c.json({ error: errorMessage(error) }, 400);
     }
   },
 );
@@ -115,7 +125,7 @@ post(
 
       return c.json({ message: 'Container restarted' });
     } catch (error) {
-      return c.json({ error: failed(error) }, 400);
+      return c.json({ error: errorMessage(error) }, 400);
     }
   },
 );
@@ -152,9 +162,10 @@ get(
 
     const tail = Number(c.req.query('tail')) || undefined;
     const since = c.req.query('since');
+    const until = c.req.query('until');
 
     if (c.req.query('follow') !== 'true') {
-      return c.json(await containers.getLogs(id, { tail, since }));
+      return c.json(await containers.getLogs(id, { tail, since, until }));
     }
 
     const controller = new AbortController();
@@ -166,12 +177,13 @@ get(
         for await (const entry of containers.streamLogs(id, {
           tail,
           since,
+          until,
           signal: controller.signal,
         })) {
           await stream.writeSSE({ event: 'log', data: JSON.stringify(entry) });
         }
       } catch (error) {
-        logWarn('Log stream ended', { container: id, error: failed(error) });
+        logWarn('Log stream ended', { container: id, error: errorMessage(error) });
       }
     });
   },
@@ -190,7 +202,7 @@ del(
 
       return c.json({ message: 'Container removed' });
     } catch (error) {
-      return c.json({ error: failed(error) }, 400);
+      return c.json({ error: errorMessage(error) }, 400);
     }
   },
 );

@@ -6,8 +6,11 @@ import {
   type ContainerProviderFactory,
   type ContainerRuntime,
 } from './container.contract';
+import { createRemoteContainerProvider } from './remote.provider';
 
-const factories: Partial<Record<ContainerRuntime, ContainerProviderFactory>> = {};
+const factories: Partial<Record<ContainerRuntime, ContainerProviderFactory>> = {
+  docker: createRemoteContainerProvider,
+};
 
 const isContainerRuntime = (value: string): value is ContainerRuntime =>
   CONTAINER_RUNTIMES.some(runtime => runtime === value);
