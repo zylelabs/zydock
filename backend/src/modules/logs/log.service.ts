@@ -1,5 +1,10 @@
 import config from '../../config';
-import { resolveContainerProvider, type LogEntry } from '../../providers/container';
+import {
+  resolveContainerProvider,
+  type ContainerInfo,
+  type ContainerProvider,
+  type LogEntry,
+} from '../../providers/container';
 import { errorMessage } from '../../utils';
 import { logDebug, logError } from '../../utils/logger';
 import applicationModel from '../applications/application.model';
@@ -11,6 +16,7 @@ import {
   registerTopicListener,
   type TopicEvent,
 } from '../websocket/websocket.service';
+import { classifyEntry, filterLogs, type ClassifiedLog, type LogFilters } from './log.filter';
 
 const CHANNEL = 'logs';
 
@@ -33,6 +39,34 @@ const remember = (stream: LiveStream, entry: LogEntry) => {
 };
 
 /**
+ * Resolves the container currently running an application, by the same label the deploy stamps.
+ * Shared by the live stream and the history query, so both look at exactly one container.
+ */
+const resolveApplicationContainer = async (
+  applicationId: string,
+): Promise<{ containers: ContainerProvider; container: ContainerInfo | null }> => {
+  const application = await applicationModel.findById(applicationId);
+
+  if (!application) {
+    throw new Error('Application not found');
+  }
+
+  const server = await findServerById(String(application.serverId));
+
+  if (!server) {
+    throw new Error('Server not found');
+  }
+
+  const containers = resolveContainerProvider(buildAgentConnection(server));
+
+  const [container] = await containers.listContainers({
+    labels: { [APPLICATION_LABEL]: applicationId },
+  });
+
+  return { containers, container: container ?? null };
+};
+
+/**
  * Follows the logs of the container currently running the application and republishes every line to
  * the topic. One stream serves every subscriber: the agent is asked once, no matter how many people
  * are watching.
@@ -43,23 +77,7 @@ const openStream = async (topic: string, applicationId: string) => {
   streams.set(topic, stream);
 
   try {
-    const application = await applicationModel.findById(applicationId);
-
-    if (!application) {
-      throw new Error('Application not found');
-    }
-
-    const server = await findServerById(String(application.serverId));
-
-    if (!server) {
-      throw new Error('Server not found');
-    }
-
-    const containers = resolveContainerProvider(buildAgentConnection(server));
-
-    const [container] = await containers.listContainers({
-      labels: { [APPLICATION_LABEL]: applicationId },
-    });
+    const { containers, container } = await resolveApplicationContainer(applicationId);
 
     if (!container) {
       publish(topic, 'ended', { reason: 'This application has no container running' });
@@ -139,4 +157,39 @@ export const stopLogStreams = () => {
   for (const topic of [...streams.keys()]) {
     closeStream(topic);
   }
+};
+
+export type ApplicationLogsQuery = LogFilters & {
+  since?: string;
+  until?: string;
+  tail: number;
+};
+
+export type ApplicationLogs = {
+  containerId: string | null;
+  entries: ClassifiedLog[];
+};
+
+/**
+ * The history of an application's logs is the retained output of the container running it now —
+ * Docker keeps it, so the platform does not persist a copy ([ADR-0026]). `since`, `until` and `tail`
+ * are applied by the agent; search, stream and level are applied here, over what came back.
+ */
+export const fetchApplicationLogs = async (
+  applicationId: string,
+  query: ApplicationLogsQuery,
+): Promise<ApplicationLogs> => {
+  const { containers, container } = await resolveApplicationContainer(applicationId);
+
+  if (!container) {
+    return { containerId: null, entries: [] };
+  }
+
+  const raw = await containers.getLogs(container.id, {
+    tail: query.tail,
+    since: query.since,
+    until: query.until,
+  });
+
+  return { containerId: container.id, entries: filterLogs(raw.map(classifyEntry), query) };
 };

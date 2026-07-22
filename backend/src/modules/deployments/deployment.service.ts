@@ -2,6 +2,8 @@ import config from '../../config';
 import type { AuthPayload } from '../auth/auth.middleware';
 import { isSuperuser } from '../users/user.service';
 import { findMembership } from '../organizations/membership.service';
+import { classifyLine, filterLogs, type ClassifiedLog } from '../logs/log.filter';
+import type { LogsQuery } from '../logs/logs.schema';
 import { publish, registerTopicAuthorizer } from '../websocket/websocket.service';
 import deploymentModel from './deployment.model';
 import type { DeploymentStep, DeploymentStepStatus, DeploymentTrigger } from './deployment.schema';
@@ -146,3 +148,11 @@ export const serializeDeploymentDetail = (deployment: Deployment) => ({
   ...serializeDeployment(deployment),
   buildLog: deployment.buildLog,
 });
+
+/**
+ * The build log of a deploy as classified entries — the same shape as an application's runtime
+ * logs, so search, level highlight and download work the same way. Build lines carry no timestamp
+ * or stream, so `since`/`until` do not apply here; `tail` keeps the last lines.
+ */
+export const buildLogEntries = (deployment: Deployment, query: LogsQuery): ClassifiedLog[] =>
+  filterLogs(deployment.buildLog.slice(-query.tail).map(classifyLine), query);

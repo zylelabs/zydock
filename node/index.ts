@@ -1,6 +1,7 @@
 import { createApp } from './src/app-server';
 import config from './src/config';
 import { logInfo } from './src/utils/logger';
+import { websocket } from './src/utils/ws';
 
 const app = createApp();
 
@@ -13,4 +14,5 @@ logInfo('Zydock agent started', {
 export default {
   port: config.port,
   fetch: app.fetch,
+  websocket,
 };

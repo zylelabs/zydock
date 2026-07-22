@@ -1,5 +1,6 @@
 import { createRouter } from 'hono-route-docs';
 import commandsRoute from './commands/commands.route';
+import consoleRoute from './containers/console.route';
 import containersRoute from './containers/containers.route';
 import healthRoute from './health/health.route';
 import imagesRoute from './images/images.route';
@@ -14,6 +15,7 @@ const { router, route } = createRouter();
 route('/health', healthRoute);
 route('/metrics', metricsRoute);
 route('/containers', containersRoute);
+route('/containers', consoleRoute);
 route('/images', imagesRoute);
 route('/networks', networksRoute);
 route('/volumes', volumesRoute);

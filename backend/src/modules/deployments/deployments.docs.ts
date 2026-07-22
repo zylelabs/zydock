@@ -1,6 +1,25 @@
 import type { DocOptions } from 'hono-route-docs';
 import { bearerOrApiKeyAuth, errorRes, jsonRes, paginatedSchema } from '../../utils/openapi';
 
+const buildLogEntrySchema = {
+  type: 'object',
+  properties: {
+    message: { type: 'string' },
+    stream: { type: 'string', enum: ['stdout', 'stderr'] },
+    level: { type: 'string', enum: ['error', 'warn', 'info'] },
+  },
+};
+
+const buildLogParameters = [
+  { name: 'search', in: 'query' as const, schema: { type: 'string' } },
+  {
+    name: 'level',
+    in: 'query' as const,
+    schema: { type: 'string', enum: ['error', 'warn', 'info'] },
+  },
+  { name: 'tail', in: 'query' as const, schema: { type: 'integer', default: 200 } },
+];
+
 const deploymentSchema = {
   type: 'object',
   properties: {
@@ -71,6 +90,41 @@ export const deploymentsDocs = {
           },
         },
       }),
+      404: errorRes('Deployment not found.'),
+    },
+  },
+  logs: {
+    tags: ['Logs'],
+    summary: 'Read the build log of a deploy',
+    description:
+      'The build output of a specific deploy, as classified entries — the same shape as an ' +
+      "application's runtime logs, so `search`, `level` and download work the same way. Build " +
+      'lines carry no timestamp, so `since`/`until`/`stream` do not apply; `tail` keeps the last ' +
+      'lines.',
+    security: bearerOrApiKeyAuth,
+    parameters: buildLogParameters,
+    responses: {
+      200: jsonRes('Build log.', {
+        type: 'object',
+        properties: {
+          deploymentId: { type: 'string' },
+          entries: { type: 'array', items: buildLogEntrySchema },
+        },
+      }),
+      404: errorRes('Deployment not found.'),
+    },
+  },
+  logsDownload: {
+    tags: ['Logs'],
+    summary: 'Download the build log of a deploy',
+    description: 'Same filters as the listing, returned as a `text/plain` attachment.',
+    security: bearerOrApiKeyAuth,
+    parameters: buildLogParameters,
+    responses: {
+      200: {
+        description: 'Build log file.',
+        content: { 'text/plain': { schema: { type: 'string' } } },
+      },
       404: errorRes('Deployment not found.'),
     },
   },
