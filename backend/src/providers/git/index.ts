@@ -6,8 +6,11 @@ import {
   type GitProvider,
   type GitProviderFactory,
 } from './git.contract';
+import { createGithubProvider } from './github.provider';
 
-const factories: Partial<Record<GitHost, GitProviderFactory>> = {};
+const factories: Partial<Record<GitHost, GitProviderFactory>> = {
+  github: createGithubProvider,
+};
 
 const isGitHost = (value: string): value is GitHost => GIT_HOSTS.some(host => host === value);
 

@@ -1,4 +1,4 @@
-import config from '../../config';
+import { createAgentClient, isAbortError, readAgentEvents, searchParams } from '../../utils/agent';
 import type {
   BuildImageSpec,
   ContainerConnection,
@@ -16,104 +16,6 @@ import type {
   VolumeInfo,
 } from './container.contract';
 
-type RequestOptions = {
-  method?: 'GET' | 'POST' | 'DELETE';
-  query?: URLSearchParams;
-  body?: unknown;
-  /** Streamed calls answer with an event stream, so they use the caller's signal instead of a timeout. */
-  signal?: AbortSignal;
-  streamed?: boolean;
-  allowedStatuses?: number[];
-};
-
-type ServerEvent = {
-  event: string;
-  data: string;
-};
-
-const messageOf = (error: unknown) => (error instanceof Error ? error.message : String(error));
-
-const isAbort = (error: unknown) => error instanceof Error && error.name === 'AbortError';
-
-const searchParams = (values: Record<string, string | number | boolean | undefined>) => {
-  const params = new URLSearchParams();
-
-  for (const [key, value] of Object.entries(values)) {
-    if (value !== undefined) {
-      params.set(key, String(value));
-    }
-  }
-
-  return params;
-};
-
-const describeFailure = async (response: Response) => {
-  const body = await response.text();
-
-  try {
-    const parsed = JSON.parse(body) as { error?: unknown };
-
-    return typeof parsed.error === 'string' ? parsed.error : body;
-  } catch {
-    return body.trim() || `HTTP ${response.status}`;
-  }
-};
-
-const parseEvent = (raw: string): ServerEvent | null => {
-  const data: string[] = [];
-
-  let event = 'message';
-
-  for (const line of raw.split('\n')) {
-    if (line.startsWith('event:')) {
-      event = line.slice('event:'.length).trim();
-    } else if (line.startsWith('data:')) {
-      data.push(line.slice('data:'.length).trimStart());
-    }
-  }
-
-  return data.length ? { event, data: data.join('\n') } : null;
-};
-
-const readEvents = async function* (response: Response): AsyncGenerator<ServerEvent> {
-  if (!response.body) {
-    return;
-  }
-
-  const reader = response.body.getReader();
-  const decoder = new TextDecoder();
-
-  let buffer = '';
-
-  try {
-    for (;;) {
-      const { done, value } = await reader.read();
-
-      if (done) {
-        break;
-      }
-
-      buffer += decoder.decode(value, { stream: true }).replace(/\r\n/g, '\n');
-
-      let boundary = buffer.indexOf('\n\n');
-
-      while (boundary !== -1) {
-        const parsed = parseEvent(buffer.slice(0, boundary));
-
-        buffer = buffer.slice(boundary + 2);
-
-        if (parsed) {
-          yield parsed;
-        }
-
-        boundary = buffer.indexOf('\n\n');
-      }
-    }
-  } finally {
-    await reader.cancel().catch(() => undefined);
-  }
-};
-
 /**
  * Talks to the agent installed on the server. Every Docker operation runs there — the backend never
  * reaches a container runtime directly.
@@ -121,48 +23,7 @@ const readEvents = async function* (response: Response): AsyncGenerator<ServerEv
 export const createRemoteContainerProvider = (
   connection: ContainerConnection,
 ): ContainerProvider => {
-  const send = async (path: string, options: RequestOptions = {}) => {
-    const { method = 'GET', query, body, signal, streamed = false, allowedStatuses = [] } = options;
-
-    const url = new URL(`/api${path}`, connection.endpoint);
-
-    if (query) {
-      url.search = query.toString();
-    }
-
-    let response: Response;
-
-    try {
-      response = await fetch(url, {
-        method,
-        headers: {
-          'X-Agent-Token': connection.token,
-          ...(body === undefined ? {} : { 'Content-Type': 'application/json' }),
-        },
-        body: body === undefined ? undefined : JSON.stringify(body),
-        signal: streamed ? signal : AbortSignal.timeout(config.node.requestTimeoutMs),
-      });
-    } catch (error) {
-      throw new Error(
-        `Agent of server ${connection.serverId} did not answer ${method} ${path}: ${messageOf(error)}`,
-      );
-    }
-
-    if (!response.ok && !allowedStatuses.includes(response.status)) {
-      throw new Error(
-        `Agent of server ${connection.serverId} refused ${method} ${path}: ${await describeFailure(response)}`,
-      );
-    }
-
-    return response;
-  };
-
-  const json = async <T>(path: string, options: RequestOptions = {}) =>
-    (await send(path, options)).json() as Promise<T>;
-
-  const discard = async (path: string, options: RequestOptions = {}) => {
-    await send(path, options);
-  };
+  const { send, json, discard } = createAgentClient(connection);
 
   const containerPath = (id: string) => `/containers/${encodeURIComponent(id)}`;
 
@@ -225,14 +86,14 @@ export const createRemoteContainerProvider = (
         });
 
         try {
-          for await (const entry of readEvents(response)) {
+          for await (const entry of readAgentEvents(response)) {
             if (entry.event === 'log') {
               yield JSON.parse(entry.data) as LogEntry;
             }
           }
         } catch (error) {
           // Aborting is how a caller closes the stream — the local provider ends quietly too.
-          if (!isAbort(error)) {
+          if (!isAbortError(error)) {
             throw error;
           }
         }
@@ -255,7 +116,7 @@ export const createRemoteContainerProvider = (
       let image: ImageInfo | null = null;
       let failure: string | null = null;
 
-      for await (const entry of readEvents(response)) {
+      for await (const entry of readAgentEvents(response)) {
         if (entry.event === 'log') {
           onLog?.(JSON.parse(entry.data) as LogEntry);
         } else if (entry.event === 'result') {

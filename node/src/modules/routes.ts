@@ -5,6 +5,7 @@ import healthRoute from './health/health.route';
 import imagesRoute from './images/images.route';
 import metricsRoute from './metrics/metrics.route';
 import networksRoute from './networks/networks.route';
+import proxyRoute from './proxy/proxy.route';
 import volumesRoute from './volumes/volumes.route';
 
 const { router, route } = createRouter();
@@ -15,6 +16,7 @@ route('/containers', containersRoute);
 route('/images', imagesRoute);
 route('/networks', networksRoute);
 route('/volumes', volumesRoute);
+route('/proxy', proxyRoute);
 route('/commands', commandsRoute);
 
 export default router;

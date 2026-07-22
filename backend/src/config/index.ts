@@ -22,6 +22,16 @@ const readNumber = (name: string, fallback: number) => {
   return value;
 };
 
+const readBoolean = (name: string, fallback: boolean) => {
+  const value = process.env[name];
+
+  if (value === undefined || value.trim() === '') {
+    return fallback;
+  }
+
+  return value.trim().toLowerCase() === 'true';
+};
+
 const readRequired = (name: string) => {
   const value = process.env[name];
 
@@ -90,7 +100,20 @@ export default {
   providers: {
     container: { runtime: readString('CONTAINER_RUNTIME', 'docker') },
     reverseProxy: { implementation: readString('REVERSE_PROXY', 'caddy') },
-    storage: { implementation: readString('STORAGE_PROVIDER', 'local') },
+    storage: {
+      implementation: readString('STORAGE_PROVIDER', 'local'),
+      localPath: readString('STORAGE_LOCAL_PATH', './storage'),
+    },
+    notification: {
+      smtp: {
+        host: readString('SMTP_HOST', ''),
+        port: readNumber('SMTP_PORT', 587),
+        secure: readBoolean('SMTP_SECURE', false),
+        user: readString('SMTP_USER', ''),
+        password: readString('SMTP_PASSWORD', ''),
+        from: readString('SMTP_FROM', 'Zydock <no-reply@localhost>'),
+      },
+    },
     dns: { implementation: readString('DNS_PROVIDER', 'cloudflare') },
     git: { defaultHost: readString('GIT_DEFAULT_HOST', 'github') },
     ssh: { implementation: readString('SSH_PROVIDER', 'ssh2') },

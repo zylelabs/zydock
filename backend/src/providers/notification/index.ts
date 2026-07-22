@@ -7,8 +7,13 @@ import {
   type NotificationResult,
   type NotificationTarget,
 } from './notification.contract';
+import { createEmailProvider } from './email.provider';
+import { createWebhookProvider } from './webhook.provider';
 
-const factories: Partial<Record<NotificationChannel, NotificationProviderFactory>> = {};
+const factories: Partial<Record<NotificationChannel, NotificationProviderFactory>> = {
+  email: createEmailProvider,
+  webhook: createWebhookProvider,
+};
 
 export const resolveNotificationProvider = (channel: NotificationChannel): NotificationProvider => {
   const factory = factories[channel];

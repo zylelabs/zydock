@@ -6,8 +6,11 @@ import {
   type ReverseProxyProvider,
   type ReverseProxyProviderFactory,
 } from './reverse-proxy.contract';
+import { createRemoteReverseProxyProvider } from './remote.provider';
 
-const factories: Partial<Record<ReverseProxyImplementation, ReverseProxyProviderFactory>> = {};
+const factories: Partial<Record<ReverseProxyImplementation, ReverseProxyProviderFactory>> = {
+  caddy: createRemoteReverseProxyProvider,
+};
 
 const isReverseProxyImplementation = (value: string): value is ReverseProxyImplementation =>
   REVERSE_PROXY_IMPLEMENTATIONS.some(implementation => implementation === value);

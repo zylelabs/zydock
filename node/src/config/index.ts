@@ -53,4 +53,9 @@ export default {
   heartbeatIntervalSeconds: readNumber('HEARTBEAT_INTERVAL_SECONDS', 30),
   healthCheckIntervalSeconds: readNumber('HEALTH_CHECK_INTERVAL_SECONDS', 30),
   metricsCacheTtlSeconds: readNumber('METRICS_CACHE_TTL_SECONDS', 5),
+  proxy: {
+    // The proxy runs on this same host; its admin API must never be exposed to the network.
+    adminUrl: readString('CADDY_ADMIN_URL', 'http://127.0.0.1:2019'),
+    httpsPort: readNumber('PROXY_HTTPS_PORT', 443),
+  },
 };

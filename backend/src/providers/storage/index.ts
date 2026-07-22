@@ -5,8 +5,11 @@ import {
   type StorageProvider,
   type StorageProviderFactory,
 } from './storage.contract';
+import { createLocalStorageProvider } from './local.provider';
 
-const factories: Partial<Record<StorageImplementation, StorageProviderFactory>> = {};
+const factories: Partial<Record<StorageImplementation, StorageProviderFactory>> = {
+  local: createLocalStorageProvider,
+};
 
 const isStorageImplementation = (value: string): value is StorageImplementation =>
   STORAGE_IMPLEMENTATIONS.some(implementation => implementation === value);

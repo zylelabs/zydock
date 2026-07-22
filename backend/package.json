@@ -19,12 +19,14 @@
     "hono": "^4.12.28",
     "hono-route-docs": "^1.0.1",
     "mongoose": "^8.24.1",
+    "nodemailer": "^9.0.3",
     "ssh2": "^1.17.0",
     "zod": "^4.4.3"
   },
   "devDependencies": {
     "@types/bun": "latest",
     "@types/node": "^26.1.1",
+    "@types/nodemailer": "^8.0.1",
     "@types/ssh2": "^1.15.5",
     "prettier": "^3.9.5",
     "typescript": "^5.9.3"
