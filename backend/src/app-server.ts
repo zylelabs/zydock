@@ -74,9 +74,9 @@ const loadRoutes = (app: Hono<AppEnv>) => {
   app.get(
     '/openapi.json',
     openAPIDoc(routes, {
-      title: 'Nexus API',
+      title: 'Zydock API',
       version: '0.1.0',
-      description: 'Nexus deployment platform API documentation',
+      description: 'Zydock deployment platform API documentation',
       prefix: '/api',
     }),
   );
