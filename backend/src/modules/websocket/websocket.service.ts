@@ -1,18 +1,27 @@
 import { createBunWebSocket } from 'hono/bun';
 import type { WSContext } from 'hono/ws';
 import { logDebug } from '../../utils/logger';
+import type { AuthPayload } from '../auth/auth.middleware';
 import { clientMessageSchema } from './websocket.schema';
 
 type Client = {
   id: string;
-  userId: string;
+  auth: AuthPayload;
   socket: WSContext;
   topics: Set<string>;
 };
 
+export type TopicAuthorizer = (
+  auth: AuthPayload,
+  resourceId: string,
+  channel: string,
+) => Promise<boolean>;
+
 const { upgradeWebSocket, websocket } = createBunWebSocket();
 
 const clients = new Map<string, Client>();
+
+const authorizers = new Map<string, TopicAuthorizer>();
 
 export { upgradeWebSocket, websocket };
 
@@ -24,14 +33,44 @@ const parseJson = (raw: string): unknown => {
   }
 };
 
+const parseTopic = (topic: string) => {
+  const [resource, resourceId, channel] = topic.split(':');
+
+  if (!resource || !resourceId || !channel) {
+    return null;
+  }
+
+  return { resource, resourceId, channel };
+};
+
+export const registerTopicAuthorizer = (resource: string, authorizer: TopicAuthorizer) => {
+  authorizers.set(resource, authorizer);
+};
+
+export const authorizeTopic = async (auth: AuthPayload, topic: string) => {
+  const parsed = parseTopic(topic);
+
+  if (!parsed) {
+    return false;
+  }
+
+  const authorizer = authorizers.get(parsed.resource);
+
+  if (!authorizer) {
+    return false;
+  }
+
+  return authorizer(auth, parsed.resourceId, parsed.channel);
+};
+
 export const countClients = () => clients.size;
 
-export const registerClient = (socket: WSContext, userId: string) => {
+export const registerClient = (socket: WSContext, auth: AuthPayload) => {
   const id = crypto.randomUUID();
 
-  clients.set(id, { id, userId, socket, topics: new Set() });
+  clients.set(id, { id, auth, socket, topics: new Set() });
 
-  logDebug('WebSocket client connected', { clientId: id, userId, clients: clients.size });
+  logDebug('WebSocket client connected', { clientId: id, userId: auth.sub, clients: clients.size });
 
   return id;
 };
@@ -56,30 +95,6 @@ export const sendToClient = (id: string, event: string, data: unknown) => {
   return true;
 };
 
-export const subscribeClient = (id: string, topic: string) => {
-  const client = clients.get(id);
-
-  if (!client) {
-    return false;
-  }
-
-  client.topics.add(topic);
-
-  return true;
-};
-
-export const unsubscribeClient = (id: string, topic: string) => {
-  const client = clients.get(id);
-
-  if (!client) {
-    return false;
-  }
-
-  client.topics.delete(topic);
-
-  return true;
-};
-
 export const publish = (topic: string, event: string, data: unknown) => {
   const payload = JSON.stringify({ topic, event, data });
 
@@ -97,7 +112,13 @@ export const publish = (topic: string, event: string, data: unknown) => {
   return delivered;
 };
 
-export const handleClientMessage = (id: string, raw: unknown) => {
+export const handleClientMessage = async (id: string, raw: unknown) => {
+  const client = clients.get(id);
+
+  if (!client) {
+    return;
+  }
+
   if (typeof raw !== 'string') {
     sendToClient(id, 'error', { message: 'Only text messages are supported' });
     return;
@@ -124,12 +145,17 @@ export const handleClientMessage = (id: string, raw: unknown) => {
     return;
   }
 
-  if (message.action === 'subscribe') {
-    subscribeClient(id, message.topic);
-    sendToClient(id, 'subscribed', { topic: message.topic });
+  if (message.action === 'unsubscribe') {
+    client.topics.delete(message.topic);
+    sendToClient(id, 'unsubscribed', { topic: message.topic });
     return;
   }
 
-  unsubscribeClient(id, message.topic);
-  sendToClient(id, 'unsubscribed', { topic: message.topic });
+  if (!(await authorizeTopic(client.auth, message.topic))) {
+    sendToClient(id, 'error', { message: 'Not allowed to subscribe to this topic' });
+    return;
+  }
+
+  client.topics.add(message.topic);
+  sendToClient(id, 'subscribed', { topic: message.topic });
 };

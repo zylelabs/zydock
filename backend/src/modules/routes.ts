@@ -6,6 +6,8 @@ import healthRoute from './health/health.route';
 import inviteRoute from './organizations/invite.route';
 import membershipRoute from './organizations/membership.route';
 import organizationsRoute from './organizations/organizations.route';
+import heartbeatRoute from './servers/heartbeat.route';
+import serversRoute from './servers/servers.route';
 import usersRoute from './users/users.route';
 import websocketRoute from './websocket/websocket.route';
 
@@ -22,6 +24,9 @@ route('/users', usersRoute);
 route('/organizations', organizationsRoute);
 route('/organizations/:organizationId/members', membershipRoute);
 route('/organizations/:organizationId/invites', inviteRoute);
+route('/organizations/:organizationId/servers', serversRoute);
+
+route('/agent', heartbeatRoute);
 
 route('/ws', websocketRoute);
 

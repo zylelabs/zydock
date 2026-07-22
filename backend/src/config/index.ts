@@ -38,6 +38,16 @@ const readList = (name: string) =>
     .map(entry => entry.trim().toLowerCase())
     .filter(Boolean);
 
+const readEncryptionKey = () => {
+  const value = readRequired('ENCRYPTION_KEY');
+
+  if (!/^[0-9a-fA-F]{64}$/.test(value)) {
+    throw new Error('ENCRYPTION_KEY must be 32 bytes encoded as 64 hexadecimal characters');
+  }
+
+  return value.toLowerCase();
+};
+
 const readLogLevel = (): LogLevel => {
   const value = readString('LOG_LEVEL', 'info');
   const level = LOG_LEVELS.find(candidate => candidate === value);
@@ -55,6 +65,7 @@ export default {
   logLevel: readLogLevel(),
   corsOrigin: readString('CORS_ORIGIN', 'http://localhost:3000'),
   appUrl: readString('APP_URL', 'http://localhost:3000'),
+  backendUrl: readString('BACKEND_URL', 'http://localhost:8000'),
   mongodb: {
     uri: readRequired('MONGO_URI'),
   },
@@ -67,11 +78,21 @@ export default {
     superusers: readList('SUPERUSER_EMAILS'),
     passwordResetTtlMinutes: readNumber('PASSWORD_RESET_TTL_MINUTES', 30),
   },
+  security: {
+    encryptionKey: readEncryptionKey(),
+  },
+  node: {
+    port: readNumber('NODE_AGENT_PORT', 9000),
+    requestTimeoutMs: readNumber('NODE_AGENT_TIMEOUT_MS', 15000),
+    offlineAfterSeconds: readNumber('NODE_AGENT_OFFLINE_AFTER_SECONDS', 90),
+    bundlePath: readString('NODE_AGENT_BUNDLE_PATH', '../node/dist/agent.js'),
+  },
   providers: {
     container: { runtime: readString('CONTAINER_RUNTIME', 'docker') },
     reverseProxy: { implementation: readString('REVERSE_PROXY', 'caddy') },
     storage: { implementation: readString('STORAGE_PROVIDER', 'local') },
     dns: { implementation: readString('DNS_PROVIDER', 'cloudflare') },
     git: { defaultHost: readString('GIT_DEFAULT_HOST', 'github') },
+    ssh: { implementation: readString('SSH_PROVIDER', 'ssh2') },
   },
 };

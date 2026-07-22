@@ -1,0 +1,199 @@
+import type { DocOptions } from 'hono-route-docs';
+import {
+  bearerOrApiKeyAuth,
+  errorRes,
+  jsonRes,
+  messageRes,
+  paginatedSchema,
+} from '../../utils/openapi';
+
+export const serverSchema = {
+  type: 'object',
+  properties: {
+    id: { type: 'string' },
+    organizationId: { type: 'string' },
+    name: { type: 'string' },
+    status: {
+      type: 'string',
+      enum: ['pending', 'validating', 'provisioning', 'online', 'offline', 'failed'],
+    },
+    online: { type: 'boolean' },
+    ssh: {
+      type: 'object',
+      properties: {
+        host: { type: 'string' },
+        port: { type: 'integer' },
+        username: { type: 'string' },
+        fingerprint: { type: 'string', nullable: true },
+      },
+    },
+    agent: {
+      type: 'object',
+      properties: {
+        port: { type: 'integer' },
+        version: { type: 'string', nullable: true },
+        installedAt: { type: 'string', format: 'date-time', nullable: true },
+        lastHeartbeatAt: { type: 'string', format: 'date-time', nullable: true },
+      },
+    },
+    resources: {
+      type: 'object',
+      properties: {
+        cpuCount: { type: 'integer', nullable: true },
+        memoryMb: { type: 'integer', nullable: true },
+        diskGb: { type: 'integer', nullable: true },
+        osRelease: { type: 'string', nullable: true },
+        dockerVersion: { type: 'string', nullable: true },
+      },
+    },
+    lastError: { type: 'string', nullable: true },
+    createdAt: { type: 'string', format: 'date-time' },
+  },
+};
+
+const serverWrapped = { type: 'object', properties: { server: serverSchema } };
+
+const probeSchema = {
+  type: 'object',
+  properties: {
+    reachable: { type: 'boolean' },
+    fingerprint: { type: 'string', nullable: true },
+    osRelease: { type: 'string', nullable: true },
+    cpuCount: { type: 'integer', nullable: true },
+    memoryMb: { type: 'integer', nullable: true },
+    diskGb: { type: 'integer', nullable: true },
+    dockerVersion: { type: 'string', nullable: true },
+    error: { type: 'string', nullable: true },
+  },
+};
+
+const provisioningSchema = {
+  type: 'object',
+  properties: {
+    steps: {
+      type: 'array',
+      items: {
+        type: 'object',
+        properties: {
+          step: { type: 'string' },
+          ok: { type: 'boolean' },
+          detail: { type: 'string', nullable: true },
+        },
+      },
+    },
+  },
+};
+
+export const serversDocs = {
+  list: {
+    tags: ['Servers'],
+    summary: 'List servers',
+    description: 'Lists the servers of an organization (paginated). Any member can read.',
+    security: bearerOrApiKeyAuth,
+    parameters: [
+      { name: 'page', in: 'query', schema: { type: 'integer' } },
+      { name: 'size', in: 'query', schema: { type: 'integer' } },
+    ],
+    responses: {
+      200: jsonRes('Servers.', paginatedSchema(serverSchema)),
+      404: errorRes('Organization not found or not accessible.'),
+    },
+  },
+  validate: {
+    tags: ['Servers'],
+    summary: 'Validate an SSH connection',
+    description:
+      'Opens an SSH connection with the given credentials and reports the host fingerprint and ' +
+      'the detected resources, without persisting anything. Admin or owner.',
+    security: bearerOrApiKeyAuth,
+    responses: {
+      200: jsonRes('Probe result.', probeSchema),
+      403: errorRes('Permission denied.'),
+    },
+  },
+  create: {
+    tags: ['Servers'],
+    summary: 'Register a server',
+    description:
+      'Validates the SSH connection, stores the credentials encrypted with AES-256-GCM and pins ' +
+      'the host fingerprint. The server starts as `pending` — call the provision endpoint next. ' +
+      'Admin or owner.',
+    security: bearerOrApiKeyAuth,
+    responses: {
+      201: jsonRes('Server registered.', serverWrapped),
+      400: errorRes('The SSH connection failed.'),
+      403: errorRes('Permission denied.'),
+    },
+  },
+  get: {
+    tags: ['Servers'],
+    summary: 'Get a server',
+    security: bearerOrApiKeyAuth,
+    responses: {
+      200: jsonRes('Server.', serverWrapped),
+      404: errorRes('Server not found.'),
+    },
+  },
+  update: {
+    tags: ['Servers'],
+    summary: 'Update a server',
+    description: 'Updates the name and/or the SSH credentials. Admin or owner.',
+    security: bearerOrApiKeyAuth,
+    responses: {
+      200: jsonRes('Updated server.', serverWrapped),
+      400: errorRes('The SSH connection failed.'),
+      403: errorRes('Permission denied.'),
+      404: errorRes('Server not found.'),
+    },
+  },
+  remove: {
+    tags: ['Servers'],
+    summary: 'Remove a server',
+    description: 'Removes the server from the organization. Admin or owner.',
+    security: bearerOrApiKeyAuth,
+    responses: {
+      200: messageRes('Server removed.'),
+      403: errorRes('Permission denied.'),
+      404: errorRes('Server not found.'),
+    },
+  },
+  provision: {
+    tags: ['Servers'],
+    summary: 'Provision a server',
+    description:
+      'Runs the bootstrap over SSH: installs Docker and the Bun runtime (both idempotent), ' +
+      'uploads the agent bundle, writes the environment file and the systemd unit, starts the ' +
+      'service and verifies its health. Progress is published to the ' +
+      '`server:<id>:provisioning` WebSocket topic. Admin or owner.',
+    security: bearerOrApiKeyAuth,
+    responses: {
+      200: jsonRes('Provisioning finished — inspect each step.', provisioningSchema),
+      403: errorRes('Permission denied.'),
+      404: errorRes('Server not found.'),
+    },
+  },
+  refresh: {
+    tags: ['Servers'],
+    summary: 'Refresh server resources',
+    description: 'Reconnects over SSH and updates CPU, memory, disk and Docker version.',
+    security: bearerOrApiKeyAuth,
+    responses: {
+      200: jsonRes('Probe result.', probeSchema),
+      403: errorRes('Permission denied.'),
+      404: errorRes('Server not found.'),
+    },
+  },
+  heartbeat: {
+    tags: ['Servers'],
+    summary: 'Agent heartbeat',
+    description:
+      'Called by the agent installed on the server, authenticated with its own token via the ' +
+      '`X-Agent-Token` header. Updates the status and the reported metrics, and republishes them ' +
+      'to the `server:<id>:metrics` WebSocket topic.',
+    responses: {
+      200: messageRes('Heartbeat accepted.'),
+      401: errorRes('Invalid agent token.'),
+      404: errorRes('Server not found.'),
+    },
+  },
+} satisfies Record<string, DocOptions>;

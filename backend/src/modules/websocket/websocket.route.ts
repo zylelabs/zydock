@@ -24,12 +24,12 @@ get(
 
     return {
       onOpen: (_event, ws) => {
-        clientId = registerClient(ws, auth.sub);
+        clientId = registerClient(ws, auth);
 
         sendToClient(clientId, 'connected', { clientId });
       },
       onMessage: event => {
-        handleClientMessage(clientId, event.data);
+        void handleClientMessage(clientId, event.data);
       },
       onClose: () => {
         unregisterClient(clientId);

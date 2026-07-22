@@ -1,6 +1,7 @@
 import { slugify } from '../../utils';
 import inviteModel from './invite.model';
 import { type OrganizationRole } from './membership.schema';
+import { removeServersOfOrganization } from '../servers/server.service';
 import { createMembership, removeAllMemberships } from './membership.service';
 import organizationModel from './organization.model';
 
@@ -47,6 +48,7 @@ export const createOrganization = async (
 };
 
 export const deleteOrganization = async (organizationId: string) => {
+  await removeServersOfOrganization(organizationId);
   await removeAllMemberships(organizationId);
   await inviteModel.deleteMany({ organizationId });
   await organizationModel.deleteOne({ _id: organizationId });
