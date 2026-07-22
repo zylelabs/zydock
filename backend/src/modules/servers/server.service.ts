@@ -34,6 +34,9 @@ export const decryptSshCredentials = (ssh: ServerSshCredentials): SshCredentials
   passphrase: ssh.passphrase ? decryptSecret(ssh.passphrase) : undefined,
 });
 
+export const findServer = (organizationId: string, serverId: string) =>
+  serverModel.findOne({ _id: serverId, organizationId });
+
 export const findServerWithSecrets = (organizationId: string, serverId: string) =>
   serverModel
     .findOne({ _id: serverId, organizationId })

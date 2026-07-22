@@ -1,6 +1,7 @@
 import type { Context } from 'hono';
 import { createRouter, validator } from 'hono-route-docs';
 import { paginationQuery } from '../../utils/pagination';
+import { countApplicationsOfServer } from '../applications/application.service';
 import { authMiddleware } from '../auth/auth.middleware';
 import { OrganizationIdParam, organizationIdParamSchema } from '../organizations/membership.schema';
 import { createOrganizationRoleGuard } from '../organizations/organizations.middleware';
@@ -18,6 +19,7 @@ import {
 } from './server.schema';
 import {
   encryptSshCredentials,
+  findServer,
   findServerWithSecrets,
   probeConnection,
   serializeServer,
@@ -198,6 +200,22 @@ del(
   createOrganizationRoleGuard('admin'),
   async (c: Context) => {
     const { organizationId, serverId } = c.req.valid('param' as never) as ServerIdParam;
+
+    if (!(await findServer(organizationId, serverId))) {
+      return c.json({ error: 'Server not found' }, 404);
+    }
+
+    // Removing the server would leave its applications pointing nowhere.
+    const applications = await countApplicationsOfServer(serverId);
+
+    if (applications > 0) {
+      return c.json(
+        {
+          error: `This server still runs ${applications} application(s). Move or remove them first`,
+        },
+        409,
+      );
+    }
 
     const result = await serverModel.deleteOne({ _id: serverId, organizationId });
 

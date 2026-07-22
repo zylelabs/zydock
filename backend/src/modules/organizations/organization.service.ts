@@ -1,33 +1,15 @@
-import { slugify } from '../../utils';
+import { generateUniqueSlug } from '../../utils';
 import inviteModel from './invite.model';
 import { type OrganizationRole } from './membership.schema';
+import { removeProjectsOfOrganization } from '../projects/project.service';
 import { removeServersOfOrganization } from '../servers/server.service';
 import { createMembership, removeAllMemberships } from './membership.service';
 import organizationModel from './organization.model';
 
-const SLUG_SUFFIX_BYTES = 3;
-
-const generateUniqueSlug = async (name: string) => {
-  const base = slugify(name) || 'organization';
-
-  if (!(await organizationModel.exists({ slug: base }))) {
-    return base;
-  }
-
-  for (let attempt = 0; attempt < 5; attempt += 1) {
-    const buffer = new Uint8Array(SLUG_SUFFIX_BYTES);
-
-    crypto.getRandomValues(buffer);
-
-    const candidate = `${base}-${Buffer.from(buffer).toString('hex')}`;
-
-    if (!(await organizationModel.exists({ slug: candidate }))) {
-      return candidate;
-    }
-  }
-
-  throw new Error('Could not generate a unique slug for the organization');
-};
+const uniqueSlug = (name: string) =>
+  generateUniqueSlug(name, 'organization', async slug =>
+    Boolean(await organizationModel.exists({ slug })),
+  );
 
 export const findOrganizationById = (id: string) => organizationModel.findById(id);
 
@@ -38,7 +20,7 @@ export const createOrganization = async (
 ) => {
   const organization = await organizationModel.create({
     name,
-    slug: await generateUniqueSlug(name),
+    slug: await uniqueSlug(name),
     branding: branding ?? {},
   });
 
@@ -48,6 +30,7 @@ export const createOrganization = async (
 };
 
 export const deleteOrganization = async (organizationId: string) => {
+  await removeProjectsOfOrganization(organizationId);
   await removeServersOfOrganization(organizationId);
   await removeAllMemberships(organizationId);
   await inviteModel.deleteMany({ organizationId });
