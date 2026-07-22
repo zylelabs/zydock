@@ -2,6 +2,7 @@ import type { Context } from 'hono';
 import { createRouter } from 'hono-route-docs';
 import { logWarn } from '../../utils/logger';
 import { websocketDocs } from './websocket.docs';
+import { websocketAuthMiddleware } from './websocket.middleware';
 import {
   handleClientMessage,
   registerClient,
@@ -15,12 +16,15 @@ const { router, get } = createRouter();
 get(
   '/',
   websocketDocs.connect,
-  upgradeWebSocket(() => {
+  websocketAuthMiddleware,
+  upgradeWebSocket((c: Context) => {
+    const auth = c.get('auth');
+
     let clientId = '';
 
     return {
       onOpen: (_event, ws) => {
-        clientId = registerClient(ws);
+        clientId = registerClient(ws, auth.sub);
 
         sendToClient(clientId, 'connected', { clientId });
       },

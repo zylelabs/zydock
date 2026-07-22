@@ -32,6 +32,12 @@ const readRequired = (name: string) => {
   return value.trim();
 };
 
+const readList = (name: string) =>
+  readString(name, '')
+    .split(',')
+    .map(entry => entry.trim().toLowerCase())
+    .filter(Boolean);
+
 const readLogLevel = (): LogLevel => {
   const value = readString('LOG_LEVEL', 'info');
   const level = LOG_LEVELS.find(candidate => candidate === value);
@@ -48,8 +54,18 @@ export default {
   mode: readString('MODE', 'prod'),
   logLevel: readLogLevel(),
   corsOrigin: readString('CORS_ORIGIN', 'http://localhost:3000'),
+  appUrl: readString('APP_URL', 'http://localhost:3000'),
   mongodb: {
     uri: readRequired('MONGO_URI'),
+  },
+  jwt: {
+    secret: readRequired('JWT_SECRET'),
+    accessTokenTtlSeconds: readNumber('JWT_ACCESS_TTL_SECONDS', 60 * 15),
+    refreshTokenTtlDays: readNumber('JWT_REFRESH_TTL_DAYS', 30),
+  },
+  auth: {
+    superusers: readList('SUPERUSER_EMAILS'),
+    passwordResetTtlMinutes: readNumber('PASSWORD_RESET_TTL_MINUTES', 30),
   },
   providers: {
     container: { runtime: readString('CONTAINER_RUNTIME', 'docker') },

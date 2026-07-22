@@ -5,6 +5,7 @@ import { clientMessageSchema } from './websocket.schema';
 
 type Client = {
   id: string;
+  userId: string;
   socket: WSContext;
   topics: Set<string>;
 };
@@ -25,12 +26,12 @@ const parseJson = (raw: string): unknown => {
 
 export const countClients = () => clients.size;
 
-export const registerClient = (socket: WSContext) => {
+export const registerClient = (socket: WSContext, userId: string) => {
   const id = crypto.randomUUID();
 
-  clients.set(id, { id, socket, topics: new Set() });
+  clients.set(id, { id, userId, socket, topics: new Set() });
 
-  logDebug('WebSocket client connected', { clientId: id, clients: clients.size });
+  logDebug('WebSocket client connected', { clientId: id, userId, clients: clients.size });
 
   return id;
 };

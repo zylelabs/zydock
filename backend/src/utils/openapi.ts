@@ -1,3 +1,10 @@
+export const bearerAuth: Record<string, string[]>[] = [{ BearerAuth: [] }];
+
+export const bearerOrApiKeyAuth: Record<string, string[]>[] = [
+  { BearerAuth: [] },
+  { ApiKeyAuth: [] },
+];
+
 export const errorSchema = {
   type: 'object',
   properties: { error: { type: 'string' } },

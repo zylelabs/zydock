@@ -5,6 +5,7 @@
   "scripts": {
     "dev": "bun run --hot index.ts",
     "start": "bun run index.ts",
+    "seed": "bun run src/seeds/index.ts",
     "build": "bun build index.ts --compile --outfile server",
     "typecheck": "tsc --noEmit",
     "prettier": "prettier ./ --check",

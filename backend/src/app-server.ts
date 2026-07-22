@@ -78,6 +78,12 @@ const loadRoutes = (app: Hono<AppEnv>) => {
       version: '0.1.0',
       description: 'Zydock deployment platform API documentation',
       prefix: '/api',
+      components: {
+        securitySchemes: {
+          BearerAuth: { type: 'http', scheme: 'bearer', bearerFormat: 'JWT' },
+          ApiKeyAuth: { type: 'apiKey', in: 'header', name: 'X-API-Key' },
+        },
+      },
     }),
   );
 
