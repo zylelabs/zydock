@@ -3,6 +3,9 @@ import apiKeyRoute from './auth/api-key.route';
 import authRoute from './auth/auth.route';
 import sessionRoute from './auth/session.route';
 import healthRoute from './health/health.route';
+import inviteRoute from './organizations/invite.route';
+import membershipRoute from './organizations/membership.route';
+import organizationsRoute from './organizations/organizations.route';
 import usersRoute from './users/users.route';
 import websocketRoute from './websocket/websocket.route';
 
@@ -15,6 +18,10 @@ route('/auth/sessions', sessionRoute);
 route('/auth/api-keys', apiKeyRoute);
 
 route('/users', usersRoute);
+
+route('/organizations', organizationsRoute);
+route('/organizations/:organizationId/members', membershipRoute);
+route('/organizations/:organizationId/invites', inviteRoute);
 
 route('/ws', websocketRoute);
 

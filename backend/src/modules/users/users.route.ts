@@ -1,5 +1,6 @@
 import type { Context } from 'hono';
 import { createRouter, validator } from 'hono-route-docs';
+import { escapeRegex } from '../../utils';
 import { paginationQuery } from '../../utils/pagination';
 import { revokeAllUserApiKeys } from '../auth/api-key.service';
 import { authMiddleware, requireSuperuser, requireUserSession } from '../auth/auth.middleware';
@@ -19,8 +20,6 @@ import { hashPassword, serializeUser, verifyPassword } from './user.service';
 import { usersDocs } from './users.docs';
 
 const { router, get, post, patch, delete: del } = createRouter();
-
-const escapeRegex = (value: string) => value.replace(/[.*+?^${}()|[\]\\]/g, '\\$&');
 
 const applyProfileUpdate = (body: UpdateMeDTO | UpdateUserDTO) => {
   const update: Record<string, unknown> = {};
