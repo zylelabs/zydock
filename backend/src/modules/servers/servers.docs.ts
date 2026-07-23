@@ -209,4 +209,20 @@ export const serversDocs = {
       404: errorRes('Server not found.'),
     },
   },
+  applicationStatus: {
+    tags: ['Servers'],
+    summary: 'Application status (agent auto-heal check)',
+    description:
+      'Called by the agent before reviving an exited/unhealthy container, authenticated with the ' +
+      'token of the server the application runs on via `X-Agent-Token`. Lets the health sweep ' +
+      'tell an intentional Stop apart from a crash, without keeping any local state.',
+    responses: {
+      200: jsonRes('Application status.', {
+        type: 'object',
+        properties: { status: { type: 'string' } },
+      }),
+      401: errorRes('Invalid agent token.'),
+      404: errorRes('Application not found.'),
+    },
+  },
 } satisfies Record<string, DocOptions>;
