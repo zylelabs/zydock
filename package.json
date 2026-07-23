@@ -1,0 +1,18 @@
+{
+  "name": "zydock",
+  "version": "0.1.0",
+  "private": true,
+  "scripts": {
+    "install:all": "cd backend && bun install && cd ../frontend && bun install && cd ../node && bun install",
+    "dev": "concurrently -n backend,frontend,node -c blue,green,yellow \"cd backend && bun run dev\" \"cd frontend && bun run dev\" \"cd node && bun run dev\"",
+    "build": "concurrently -n backend,frontend,node -c blue,green,yellow \"cd backend && bun run build\" \"cd frontend && bun run build\" \"cd node && bun run build\"",
+    "test": "concurrently -n backend,frontend,node -c blue,green,yellow \"cd backend && bun run test\" \"cd frontend && bun run test\" \"cd node && bun run test\"",
+    "typecheck": "concurrently -n backend,frontend,node -c blue,green,yellow \"cd backend && bun run typecheck\" \"cd frontend && bun run typecheck\" \"cd node && bun run typecheck\"",
+    "prettier": "concurrently -n backend,frontend,node -c blue,green,yellow \"cd backend && bun run prettier\" \"cd frontend && bun run prettier\" \"cd node && bun run prettier\"",
+    "lint": "concurrently -n backend,frontend,node -c blue,green,yellow \"cd backend && bun run lint\" \"cd frontend && bun run lint\" \"cd node && bun run lint\"",
+    "fix": "concurrently -n backend,frontend,node -c blue,green,yellow \"cd backend && bun run fix\" \"cd frontend && bun run fix\" \"cd node && bun run fix\""
+  },
+  "devDependencies": {
+    "concurrently": "^9.2.1"
+  }
+}
