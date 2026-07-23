@@ -5,6 +5,7 @@ import { resolveContainerProvider } from '../../providers/container';
 import { errorMessage } from '../../utils';
 import { logWarn } from '../../utils/logger';
 import { agentAuthMiddleware } from '../agent/agent.middleware';
+import { clearManualStop, markManuallyStopped } from '../agent/monitor.service';
 import { containersDocs } from './containers.docs';
 import {
   ContainerIdParam,
@@ -91,6 +92,7 @@ post(
 
     try {
       await containers.startContainer(id);
+      clearManualStop(id);
 
       return c.json({ message: 'Container started' });
     } catch (error) {
@@ -109,6 +111,7 @@ post(
 
     try {
       await containers.stopContainer(id, Number(c.req.query('timeout')) || undefined);
+      markManuallyStopped(id);
 
       return c.json({ message: 'Container stopped' });
     } catch (error) {
@@ -127,6 +130,7 @@ post(
 
     try {
       await containers.restartContainer(id);
+      clearManualStop(id);
 
       return c.json({ message: 'Container restarted' });
     } catch (error) {
@@ -234,6 +238,7 @@ del(
 
     try {
       await containers.removeContainer(id, c.req.query('volumes') === 'true');
+      clearManualStop(id);
 
       return c.json({ message: 'Container removed' });
     } catch (error) {

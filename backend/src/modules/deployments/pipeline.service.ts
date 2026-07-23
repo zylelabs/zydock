@@ -70,7 +70,7 @@ const specOf = (application: Application, deploymentId: string, image: string): 
   labels: {
     [APPLICATION_LABEL]: String(application._id),
     [DEPLOYMENT_LABEL]: deploymentId,
-    [AUTOHEAL_LABEL]: 'true',
+    ...(application.restartPolicy !== 'no' ? { [AUTOHEAL_LABEL]: 'true' } : {}),
   },
   restartPolicy: application.restartPolicy,
   ...(application.healthcheck?.path
