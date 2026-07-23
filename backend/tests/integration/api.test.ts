@@ -205,3 +205,141 @@ describe('servers (local)', () => {
     expect(response.status).toBe(401);
   });
 });
+
+describe('applications (private repo token)', () => {
+  let organizationId = '';
+  let serverId = '';
+  let environmentId = '';
+  let applicationId = '';
+
+  test('setup: org, local server, project and environment', async () => {
+    const org = await json('/organizations', 'POST', { name: 'Apps Co' }, accessToken);
+    organizationId = ((await org.json()) as { organization: { id: string } }).organization.id;
+
+    const server = await json(
+      `/organizations/${organizationId}/servers`,
+      'POST',
+      { type: 'local', name: 'local-1' },
+      accessToken,
+    );
+    serverId = ((await server.json()) as { server: { id: string } }).server.id;
+
+    const project = await json(
+      `/organizations/${organizationId}/projects`,
+      'POST',
+      { name: 'App Project' },
+      accessToken,
+    );
+    const projectId = ((await project.json()) as { project: { id: string } }).project.id;
+
+    // createProject seeds a default environment.
+    const envs = await json(
+      `/organizations/${organizationId}/projects/${projectId}/environments`,
+      'GET',
+      undefined,
+      accessToken,
+    );
+    environmentId = ((await envs.json()) as { items: { id: string }[] }).items[0]!.id;
+
+    expect(environmentId).toBeString();
+  });
+
+  test('create with a git token reports hasToken and never returns it', async () => {
+    const response = await json(
+      `/organizations/${organizationId}/applications`,
+      'POST',
+      {
+        name: 'private-api',
+        environmentId,
+        serverId,
+        port: 3000,
+        portMappings: [{ hostPort: 8080, containerPort: 3000, protocol: 'tcp' }],
+        git: { host: 'github', repository: 'acme/private-api', token: 'ghp_secret_value' },
+      },
+      accessToken,
+    );
+    const body = (await response.json()) as {
+      application: {
+        id: string;
+        git: { hasToken: boolean; token?: string };
+        portMappings: { hostPort: number; containerPort: number; protocol: string }[];
+      };
+    };
+
+    expect(response.status).toBe(201);
+    expect(body.application.git.hasToken).toBeTrue();
+    expect(body.application.git.token).toBeUndefined();
+    expect(body.application.portMappings).toEqual([
+      { hostPort: 8080, containerPort: 3000, protocol: 'tcp' },
+    ]);
+
+    applicationId = body.application.id;
+  });
+
+  test('stopping without a reachable agent/container fails cleanly (400)', async () => {
+    const response = await json(
+      `/organizations/${organizationId}/applications/${applicationId}/stop`,
+      'POST',
+      undefined,
+      accessToken,
+    );
+
+    expect(response.status).toBe(400);
+  });
+
+  test('clearing the token with null flips hasToken to false', async () => {
+    const response = await json(
+      `/organizations/${organizationId}/applications/${applicationId}`,
+      'PATCH',
+      { git: { token: null } },
+      accessToken,
+    );
+    const body = (await response.json()) as { application: { git: { hasToken: boolean } } };
+
+    expect(response.status).toBe(200);
+    expect(body.application.git.hasToken).toBeFalse();
+  });
+
+  test('update sets volumes, networks, healthcheck and resources', async () => {
+    const response = await json(
+      `/organizations/${organizationId}/applications/${applicationId}`,
+      'PATCH',
+      {
+        volumes: [{ source: 'data', target: '/data' }],
+        networks: ['extra-net'],
+        healthcheck: { path: '/health', intervalSeconds: 10, timeoutSeconds: 3, retries: 5 },
+        resources: { cpus: 0.5, memoryMb: 256 },
+      },
+      accessToken,
+    );
+    const body = (await response.json()) as {
+      application: {
+        volumes: { target: string }[];
+        networks: string[];
+        healthcheck?: { path: string; retries: number };
+        resources?: { cpus?: number; memoryMb?: number };
+      };
+    };
+
+    expect(response.status).toBe(200);
+    expect(body.application.volumes[0]?.target).toBe('/data');
+    expect(body.application.networks).toEqual(['extra-net']);
+    expect(body.application.healthcheck?.path).toBe('/health');
+    expect(body.application.healthcheck?.retries).toBe(5);
+    expect(body.application.resources?.cpus).toBe(0.5);
+    expect(body.application.resources?.memoryMb).toBe(256);
+  });
+
+  test('healthcheck: null removes it', async () => {
+    const response = await json(
+      `/organizations/${organizationId}/applications/${applicationId}`,
+      'PATCH',
+      { healthcheck: null },
+      accessToken,
+    );
+    const body = (await response.json()) as { application: { healthcheck?: unknown } };
+
+    expect(response.status).toBe(200);
+    expect(body.application.healthcheck).toBeUndefined();
+  });
+});

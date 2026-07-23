@@ -45,6 +45,7 @@ const readLogLevel = (): LogLevel => {
 
 export default {
   port: readNumber('PORT', 9000),
+  idleTimeoutSeconds: Math.min(readNumber('SERVER_IDLE_TIMEOUT_SECONDS', 120), 255),
   mode: readString('MODE', 'prod'),
   logLevel: readLogLevel(),
   serverId: readRequired('SERVER_ID'),

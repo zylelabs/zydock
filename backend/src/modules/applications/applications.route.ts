@@ -32,10 +32,31 @@ import {
   updateApplication,
 } from './application.service';
 import { applicationsDocs } from './applications.docs';
+import { LifecycleAction, runLifecycleAction } from './lifecycle.service';
 import { webhookDocs } from './webhook.docs';
 import { configureWebhook, removeWebhook } from './webhook.service';
 
 const { router, get, post, patch, put, delete: del } = createRouter();
+
+const lifecycleHandler = (action: LifecycleAction) => async (c: Context) => {
+  const { organizationId, applicationId } = c.req.valid('param' as never) as ApplicationIdParam;
+
+  const application = await findApplication(organizationId, applicationId);
+
+  if (!application) {
+    return c.json({ error: 'Application not found' }, 404);
+  }
+
+  try {
+    await runLifecycleAction(application, action);
+  } catch (error) {
+    return c.json({ error: error instanceof Error ? error.message : String(error) }, 400);
+  }
+
+  const updated = await findApplication(organizationId, applicationId);
+
+  return c.json({ application: serializeApplication(updated!) });
+};
 
 get(
   '/',
@@ -211,6 +232,33 @@ post(
 
     return c.json({ deployment: serializeDeployment(deployment) }, 202);
   },
+);
+
+post(
+  '/:applicationId/restart',
+  applicationsDocs.restart,
+  authMiddleware,
+  validator('param', applicationIdParamSchema),
+  createOrganizationRoleGuard('admin'),
+  lifecycleHandler('restart'),
+);
+
+post(
+  '/:applicationId/stop',
+  applicationsDocs.stop,
+  authMiddleware,
+  validator('param', applicationIdParamSchema),
+  createOrganizationRoleGuard('admin'),
+  lifecycleHandler('stop'),
+);
+
+post(
+  '/:applicationId/start',
+  applicationsDocs.start,
+  authMiddleware,
+  validator('param', applicationIdParamSchema),
+  createOrganizationRoleGuard('admin'),
+  lifecycleHandler('start'),
 );
 
 post(

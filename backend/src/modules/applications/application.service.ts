@@ -57,6 +57,7 @@ export const createApplication = async (
       hasToken: Boolean(body.git.token),
     },
     port: body.port,
+    portMappings: body.portMappings,
     variables: encryptVariables(body.variables),
     volumes: body.volumes,
     networks: body.networks,
@@ -89,6 +90,7 @@ export const updateApplication = async (
   for (const field of [
     'serverId',
     'port',
+    'portMappings',
     'volumes',
     'networks',
     'resources',
@@ -107,8 +109,13 @@ export const updateApplication = async (
     }
 
     if (field === 'token') {
-      set['git.token'] = encryptSecret(String(value));
-      set['git.hasToken'] = true;
+      if (value === null) {
+        unset['git.token'] = '';
+        set['git.hasToken'] = false;
+      } else {
+        set['git.token'] = encryptSecret(String(value));
+        set['git.hasToken'] = true;
+      }
     } else {
       set[`git.${field}`] = value;
     }
@@ -197,6 +204,7 @@ export const serializeApplication = (application: Application) => ({
     hasToken: application.git.hasToken,
   },
   port: application.port,
+  portMappings: application.portMappings,
   // Values stay out: `variables.value` is `select: false` and never leaves through here.
   variables: application.variables.map(variable => ({
     key: variable.key,

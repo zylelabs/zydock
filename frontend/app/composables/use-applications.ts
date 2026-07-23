@@ -21,6 +21,31 @@ export interface ApplicationVariable {
   secret: boolean;
 }
 
+export interface ApplicationPortMapping {
+  hostPort: number;
+  containerPort: number;
+  protocol: 'tcp' | 'udp';
+}
+
+export interface ApplicationVolume {
+  source: string;
+  target: string;
+  readOnly?: boolean;
+}
+
+export interface ApplicationHealthcheck {
+  path: string;
+  intervalSeconds: number;
+  timeoutSeconds: number;
+  retries: number;
+  startPeriodSeconds?: number;
+}
+
+export interface ApplicationResources {
+  cpus?: number;
+  memoryMb?: number;
+}
+
 export interface Application {
   id: string;
   organizationId: string;
@@ -32,9 +57,12 @@ export interface Application {
   status: ApplicationStatus;
   git: ApplicationGit;
   port: number;
+  portMappings: ApplicationPortMapping[];
   variables: ApplicationVariable[];
-  volumes: { source: string; target: string; readOnly?: boolean }[];
+  volumes: ApplicationVolume[];
   networks: string[];
+  healthcheck?: ApplicationHealthcheck;
+  resources?: ApplicationResources;
   restartPolicy: string;
   lastError?: string;
   createdAt: string;
@@ -82,5 +110,24 @@ export const useApplications = () => {
   const deploy = (applicationId: string, body: { branch?: string; commit?: string } = {}) =>
     api.post<{ deployment: { id: string } }>(`${base()}/${applicationId}/deploy`, { body });
 
-  return { list, get, create, update, remove, listVariables, replaceVariables, deploy };
+  const restart = (applicationId: string) =>
+    api.post<{ application: Application }>(`${base()}/${applicationId}/restart`);
+  const stop = (applicationId: string) =>
+    api.post<{ application: Application }>(`${base()}/${applicationId}/stop`);
+  const start = (applicationId: string) =>
+    api.post<{ application: Application }>(`${base()}/${applicationId}/start`);
+
+  return {
+    list,
+    get,
+    create,
+    update,
+    remove,
+    listVariables,
+    replaceVariables,
+    deploy,
+    restart,
+    stop,
+    start,
+  };
 };

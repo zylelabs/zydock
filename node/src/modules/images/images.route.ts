@@ -16,6 +16,8 @@ const { router, get, post, delete: del } = createRouter();
 
 const containers = resolveContainerProvider();
 
+const BUILD_KEEPALIVE_MS = 15000;
+
 get('/', imagesDocs.list, agentAuthMiddleware, async (c: Context) =>
   c.json(await containers.listImages()),
 );
@@ -46,14 +48,25 @@ post(
 
     return streamSSE(c, async stream => {
       // Build output arrives from a synchronous callback; chaining the writes keeps the events in
-      // order, since concurrent writeSSE calls would interleave their chunks.
+      // order, since concurrent writeSSE calls would interleave their chunks. A closed connection
+      // must not turn a write into an unhandled rejection that crosses builds.
       let queue = Promise.resolve();
 
       const write = (event: string, data: unknown) => {
-        queue = queue.then(() => stream.writeSSE({ event, data: JSON.stringify(data) }));
+        queue = queue
+          .then(() =>
+            stream.aborted || stream.closed
+              ? undefined
+              : stream.writeSSE({ event, data: JSON.stringify(data) }),
+          )
+          .catch(() => undefined);
 
         return queue;
       };
+
+      const keepalive = setInterval(() => void write('ping', {}), BUILD_KEEPALIVE_MS);
+
+      stream.onAbort(() => clearInterval(keepalive));
 
       try {
         const image = await containers.buildImage({
@@ -66,6 +79,8 @@ post(
         await write('result', image);
       } catch (error) {
         await write('error', { error: errorMessage(error) });
+      } finally {
+        clearInterval(keepalive);
       }
     });
   },

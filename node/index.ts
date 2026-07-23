@@ -13,6 +13,7 @@ logInfo('Zydock agent started', {
 
 export default {
   port: config.port,
+  idleTimeout: config.idleTimeoutSeconds,
   fetch: app.fetch,
   websocket,
 };

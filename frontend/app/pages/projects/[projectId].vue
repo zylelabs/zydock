@@ -107,6 +107,7 @@
       dockerfilePath: z.string().trim().min(1),
       port: z.string().regex(/^\d+$/, 'Porta inválida'),
       autoDeploy: z.boolean(),
+      token: z.string().trim(),
     }),
     {
       name: '',
@@ -117,6 +118,7 @@
       dockerfilePath: 'Dockerfile',
       port: '3000',
       autoDeploy: true,
+      token: '',
     },
   );
 
@@ -147,6 +149,8 @@
         dockerfilePath: values.dockerfilePath,
         buildContext: '.',
         autoDeploy: values.autoDeploy,
+        // Only sent for private repositories; the backend stores it encrypted.
+        token: values.token || undefined,
       },
     });
 
@@ -255,6 +259,14 @@
           <UiInput v-model="appForm.values.dockerfilePath" label="Dockerfile" />
           <UiInput v-model="appForm.values.port" label="Porta" :error="appForm.errors.value.port" />
         </div>
+
+        <UiInput
+          v-model="appForm.values.token"
+          label="Token de acesso (repositório privado)"
+          type="password"
+          placeholder="Deixe em branco se o repositório for público"
+          hint="Personal Access Token do GitHub com leitura do repositório. Guardado cifrado."
+        />
 
         <UiCheckbox v-model="appForm.values.autoDeploy" label="Deploy automático a cada push" />
 

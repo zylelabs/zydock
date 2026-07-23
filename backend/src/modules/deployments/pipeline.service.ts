@@ -57,10 +57,15 @@ const specOf = (application: Application, deploymentId: string, image: string): 
   name: containerNameOf(application.slug),
   image,
   environment: environmentOf(application),
-  ports: [{ containerPort: application.port, protocol: 'tcp' }],
+  ports: [
+    { containerPort: application.port, protocol: 'tcp' as const },
+    ...application.portMappings.map(mapping => ({
+      containerPort: mapping.containerPort,
+      hostPort: mapping.hostPort,
+      protocol: mapping.protocol,
+    })),
+  ],
   volumes: application.volumes,
-  // The shared proxy network is always attached, so a domain can be pointed at the container later
-  // without a redeploy; the proxy dials it by the stable container name.
   networks: [...new Set([config.proxy.network, ...application.networks])],
   labels: {
     [APPLICATION_LABEL]: String(application._id),

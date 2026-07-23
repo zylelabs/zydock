@@ -22,6 +22,15 @@ const volumeSchema = new Schema(
   { _id: false },
 );
 
+const portMappingSchema = new Schema(
+  {
+    hostPort: { type: Number, required: true },
+    containerPort: { type: Number, required: true },
+    protocol: { type: String, required: true, enum: ['tcp', 'udp'], default: 'tcp' },
+  },
+  { _id: false },
+);
+
 const applicationSchema = new Schema(
   {
     organizationId: {
@@ -57,6 +66,7 @@ const applicationSchema = new Schema(
       webhookSecret: { type: String, select: false },
     },
     port: { type: Number, required: true },
+    portMappings: { type: [portMappingSchema], default: [] },
     variables: { type: [variableSchema], default: [] },
     volumes: { type: [volumeSchema], default: [] },
     networks: { type: [String], default: [] },
