@@ -20,10 +20,10 @@
     DeploymentStatus,
     { label: string; variant: 'neutral' | 'success' | 'warning' | 'danger' | 'info' }
   > = {
-    queued: { label: 'Na fila', variant: 'neutral' },
-    running: { label: 'Rodando', variant: 'info' },
-    succeeded: { label: 'Concluído', variant: 'success' },
-    failed: { label: 'Falhou', variant: 'danger' },
+    queued: { label: 'Queued', variant: 'neutral' },
+    running: { label: 'Running', variant: 'info' },
+    succeeded: { label: 'Succeeded', variant: 'success' },
+    failed: { label: 'Failed', variant: 'danger' },
   };
 
   const STEP_LABEL: Record<DeploymentStepName, string> = {
@@ -71,7 +71,7 @@
       entries.value = history;
     } catch (failure) {
       errorMessage.value =
-        (failure as { message?: string }).message || 'Falha ao carregar o deploy.';
+        (failure as { message?: string }).message || 'Failed to load the deployment.';
     } finally {
       loading.value = false;
     }
@@ -162,7 +162,7 @@
       class="flex items-center gap-1 text-sm text-content-muted hover:text-content"
     >
       <Icon name="lucide:chevron-left" class="size-4" />
-      Aplicação
+      Application
     </NuxtLink>
 
     <header class="flex flex-wrap items-center justify-between gap-3">
@@ -173,13 +173,13 @@
         }}</UiBadge>
         <span v-if="!finished" class="inline-flex items-center gap-1.5 text-xs text-content-muted">
           <Icon name="lucide:radio" class="size-3.5" />
-          {{ socketStatus === 'open' ? 'ao vivo' : socketStatus }}
+          {{ socketStatus === 'open' ? 'live' : socketStatus }}
         </span>
       </div>
 
       <UiButton variant="ghost" :loading="downloading" @click="onDownload">
         <Icon name="lucide:download" class="size-4" />
-        Baixar
+        Download
       </UiButton>
     </header>
 
@@ -215,9 +215,9 @@
       ref="logBox"
       class="flex-1 overflow-auto rounded-xl border border-surface-border bg-surface-raised p-4 font-mono text-xs leading-relaxed"
     >
-      <p v-if="loading" class="text-content-muted">Carregando…</p>
+      <p v-if="loading" class="text-content-muted">Loading…</p>
       <p v-else-if="!entries.length" class="text-content-muted">
-        Sem saída de build ainda{{ finished ? '.' : ' — aguardando o deploy…' }}
+        No build output yet{{ finished ? '.' : ' — waiting for the deployment…' }}
       </p>
       <div v-for="(entry, index) in entries" :key="index" class="flex gap-2 whitespace-pre-wrap">
         <span v-if="entry.timestamp" class="shrink-0 text-content-muted">{{

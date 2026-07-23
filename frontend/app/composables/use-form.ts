@@ -48,7 +48,8 @@ export const useForm = <T extends Record<string, unknown>>(schema: ZodType<T>, i
     try {
       await handler(parsed.data);
     } catch (error) {
-      formError.value = (error as { message?: string }).message || 'Não foi possível concluir.';
+      formError.value =
+        (error as { message?: string }).message || 'Could not complete the request.';
     } finally {
       submitting.value = false;
     }

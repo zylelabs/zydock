@@ -7,7 +7,7 @@
     type DatabaseStatus,
   } from '~/composables/use-databases';
 
-  useHead({ title: 'Bancos de dados' });
+  useHead({ title: 'Databases' });
 
   const session = useSessionStore();
   const { current } = useOrganizations();
@@ -47,11 +47,11 @@
     DatabaseStatus,
     { label: string; variant: 'neutral' | 'success' | 'warning' | 'danger' | 'info' }
   > = {
-    provisioning: { label: 'Provisionando', variant: 'info' },
-    running: { label: 'Rodando', variant: 'success' },
-    stopped: { label: 'Parado', variant: 'warning' },
-    failed: { label: 'Falhou', variant: 'danger' },
-    unknown: { label: 'Desconhecido', variant: 'neutral' },
+    provisioning: { label: 'Provisioning', variant: 'info' },
+    running: { label: 'Running', variant: 'success' },
+    stopped: { label: 'Stopped', variant: 'warning' },
+    failed: { label: 'Failed', variant: 'danger' },
+    unknown: { label: 'Unknown', variant: 'neutral' },
   };
 
   const engineOptions = DATABASE_ENGINES.map(engine => ({ value: engine, label: engine }));
@@ -59,8 +59,8 @@
   const adding = ref(false);
   const form = useForm(
     z.object({
-      name: z.string().trim().min(1, 'Informe um nome'),
-      serverId: z.string().min(1, 'Escolha um servidor'),
+      name: z.string().trim().min(1, 'Enter a name'),
+      serverId: z.string().min(1, 'Choose a server'),
       engine: z.enum(DATABASE_ENGINES),
       version: z.string().trim().optional(),
     }),
@@ -97,13 +97,13 @@
       await databases.lifecycle(database.id, action);
       await refresh();
     } catch (error) {
-      actionError.value = (error as { message?: string }).message || 'Falha na operação.';
+      actionError.value = (error as { message?: string }).message || 'The operation failed.';
     } finally {
       busy.value = '';
     }
   };
 
-  // --- Credenciais ---
+  // --- Credentials ---
   const credentials = ref<DatabaseCredentials | null>(null);
   const credentialsOpen = ref(false);
 
@@ -115,13 +115,13 @@
       credentials.value = (await databases.credentials(database.id)).credentials;
       credentialsOpen.value = true;
     } catch (error) {
-      actionError.value = (error as { message?: string }).message || 'Falha ao ler credenciais.';
+      actionError.value = (error as { message?: string }).message || 'Failed to read credentials.';
     } finally {
       busy.value = '';
     }
   };
 
-  // --- Remoção ---
+  // --- Removal ---
   const toRemove = ref<Database | null>(null);
   const removeData = ref(false);
   const removing = ref(false);
@@ -140,7 +140,7 @@
       toRemove.value = null;
       removeData.value = false;
     } catch (error) {
-      actionError.value = (error as { message?: string }).message || 'Falha ao remover.';
+      actionError.value = (error as { message?: string }).message || 'Failed to remove.';
     } finally {
       removing.value = false;
     }
@@ -151,8 +151,8 @@
   <section class="mx-auto flex max-w-4xl flex-col gap-6">
     <header class="flex items-center justify-between gap-4">
       <div>
-        <h1>Bancos de dados</h1>
-        <p class="mt-1 text-sm text-content-muted">Instâncias gerenciadas nos seus servidores.</p>
+        <h1>Databases</h1>
+        <p class="mt-1 text-sm text-content-muted">Managed instances on your servers.</p>
       </div>
       <UiButton
         v-if="current && canManage && !adding"
@@ -160,49 +160,49 @@
         @click="openAdd"
       >
         <Icon name="lucide:plus" class="size-4" />
-        Novo banco
+        New database
       </UiButton>
     </header>
 
     <UiAlert v-if="actionError" variant="error">{{ actionError }}</UiAlert>
 
-    <UiCard v-if="!current" title="Selecione uma organização">
-      <p class="text-sm text-content-muted">Escolha ou crie uma organização na barra lateral.</p>
+    <UiCard v-if="!current" title="Select an organization">
+      <p class="text-sm text-content-muted">Choose or create an organization in the sidebar.</p>
     </UiCard>
 
     <template v-else>
-      <UiCard v-if="adding" title="Novo banco de dados">
+      <UiCard v-if="adding" title="New database">
         <form class="flex flex-col gap-4" @submit.prevent="onCreate">
           <UiAlert v-if="form.formError.value" variant="error">{{ form.formError.value }}</UiAlert>
           <div class="grid gap-4 sm:grid-cols-2">
             <UiInput
               v-model="form.values.name"
-              label="Nome"
-              placeholder="meu-banco"
+              label="Name"
+              placeholder="my-database"
               :error="form.errors.value.name"
             />
             <UiSelect
               v-model="form.values.serverId"
-              label="Servidor"
+              label="Server"
               :options="serverOptions"
               :error="form.errors.value.serverId"
             />
             <UiSelect v-model="form.values.engine" label="Engine" :options="engineOptions" />
             <UiInput
               v-model="form.values.version"
-              label="Versão (opcional)"
+              label="Version (optional)"
               placeholder="16-alpine"
             />
           </div>
           <div class="flex justify-end gap-2">
-            <UiButton variant="ghost" type="button" @click="adding = false">Cancelar</UiButton>
-            <UiButton type="submit" :loading="form.submitting.value">Provisionar</UiButton>
+            <UiButton variant="ghost" type="button" @click="adding = false">Cancel</UiButton>
+            <UiButton type="submit" :loading="form.submitting.value">Provision</UiButton>
           </div>
         </form>
       </UiCard>
 
-      <UiCard v-if="!databaseList.length" title="Nenhum banco ainda">
-        <p class="text-sm text-content-muted">Provisione um banco gerenciado em um servidor.</p>
+      <UiCard v-if="!databaseList.length" title="No databases yet">
+        <p class="text-sm text-content-muted">Provision a managed database on a server.</p>
       </UiCard>
 
       <div v-else class="flex flex-col gap-3">
@@ -232,7 +232,7 @@
               :loading="busy === `${database.id}:cred`"
               @click="showCredentials(database)"
             >
-              Credenciais
+              Credentials
             </UiButton>
             <UiButton
               v-if="database.status === 'stopped'"
@@ -240,7 +240,7 @@
               :loading="busy === `${database.id}:start`"
               @click="runLifecycle(database, 'start')"
             >
-              Iniciar
+              Start
             </UiButton>
             <UiButton
               v-else-if="database.status === 'running'"
@@ -248,11 +248,11 @@
               :loading="busy === `${database.id}:restart`"
               @click="runLifecycle(database, 'restart')"
             >
-              Reiniciar
+              Restart
             </UiButton>
             <button
               type="button"
-              title="Remover"
+              title="Remove"
               class="rounded-lg p-2 text-content-muted transition-colors hover:text-danger"
               @click="toRemove = database"
             >
@@ -263,36 +263,36 @@
       </div>
     </template>
 
-    <!-- Credenciais -->
-    <UiModal v-model:open="credentialsOpen" title="Credenciais de conexão">
+    <!-- Credentials -->
+    <UiModal v-model:open="credentialsOpen" title="Connection credentials">
       <div v-if="credentials" class="flex flex-col gap-2 font-mono text-xs">
         <p><span class="text-content-muted">host:</span> {{ credentials.host }}</p>
-        <p><span class="text-content-muted">porta:</span> {{ credentials.port }}</p>
-        <p><span class="text-content-muted">usuário:</span> {{ credentials.username }}</p>
-        <p><span class="text-content-muted">banco:</span> {{ credentials.database }}</p>
+        <p><span class="text-content-muted">port:</span> {{ credentials.port }}</p>
+        <p><span class="text-content-muted">user:</span> {{ credentials.username }}</p>
+        <p><span class="text-content-muted">database:</span> {{ credentials.database }}</p>
         <p class="break-all">
-          <span class="text-content-muted">senha:</span> {{ credentials.password }}
+          <span class="text-content-muted">password:</span> {{ credentials.password }}
         </p>
         <p class="break-all">
           <span class="text-content-muted">URI:</span> {{ credentials.connectionUri }}
         </p>
       </div>
       <template #footer="{ close }">
-        <UiButton @click="close">Fechar</UiButton>
+        <UiButton @click="close">Close</UiButton>
       </template>
     </UiModal>
 
-    <!-- Remoção -->
+    <!-- Removal -->
     <UiModal
       :open="Boolean(toRemove)"
-      title="Remover banco de dados"
-      :description="`Remover “${toRemove?.name}”?`"
+      title="Remove database"
+      :description="`Remove “${toRemove?.name}”?`"
       @update:open="value => !value && (toRemove = null)"
     >
-      <UiCheckbox v-model="removeData" label="Também apagar os dados (volume)" />
+      <UiCheckbox v-model="removeData" label="Also delete the data (volume)" />
       <template #footer="{ close }">
-        <UiButton variant="ghost" :disabled="removing" @click="close">Cancelar</UiButton>
-        <UiButton variant="danger" :loading="removing" @click="confirmRemove">Remover</UiButton>
+        <UiButton variant="ghost" :disabled="removing" @click="close">Cancel</UiButton>
+        <UiButton variant="danger" :loading="removing" @click="confirmRemove">Remove</UiButton>
       </template>
     </UiModal>
   </section>

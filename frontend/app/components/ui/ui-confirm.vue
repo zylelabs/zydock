@@ -4,7 +4,7 @@
   const {
     title,
     message,
-    confirmLabel = 'Confirmar',
+    confirmLabel = 'Confirm',
     danger = false,
     loading = false,
   } = defineProps<{
@@ -23,7 +23,7 @@
 <template>
   <UiModal v-model:open="open" :title="title" :description="message">
     <template #footer="{ close }">
-      <UiButton variant="ghost" :disabled="loading" @click="close">Cancelar</UiButton>
+      <UiButton variant="ghost" :disabled="loading" @click="close">Cancel</UiButton>
       <UiButton
         :variant="danger ? 'danger' : 'primary'"
         :loading="loading"

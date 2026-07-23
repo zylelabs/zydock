@@ -2,7 +2,7 @@
   import { z } from 'zod';
 
   definePageMeta({ layout: 'blank' });
-  useHead({ title: 'Redefinir senha' });
+  useHead({ title: 'Reset password' });
 
   const api = useApi();
   const route = useRoute();
@@ -11,15 +11,12 @@
 
   const schema = z
     .object({
-      password: z
-        .string()
-        .min(8, 'A senha precisa de ao menos 8 caracteres')
-        .max(128, 'Senha muito longa'),
+      password: z.string().min(8, 'At least 8 characters').max(128, 'Password is too long'),
       confirm: z.string(),
     })
     .refine(data => data.password === data.confirm, {
       path: ['confirm'],
-      message: 'As senhas não coincidem',
+      message: 'Passwords do not match',
     });
 
   const form = useForm(schema, { password: '', confirm: '' });
@@ -36,15 +33,15 @@
 </script>
 
 <template>
-  <UiCard title="Redefinir senha" description="Escolha uma nova senha para sua conta.">
+  <UiCard title="Reset password" description="Choose a new password for your account.">
     <UiAlert v-if="done" variant="success">
-      Senha redefinida. Agora você já pode
-      <NuxtLink to="/login" class="underline">entrar</NuxtLink>.
+      Password reset. You can now
+      <NuxtLink to="/login" class="underline">sign in</NuxtLink>.
     </UiAlert>
 
     <UiAlert v-else-if="!token" variant="error">
-      Link inválido ou incompleto. Solicite um novo em
-      <NuxtLink to="/forgot-password" class="underline">recuperar senha</NuxtLink>.
+      Invalid or incomplete link. Request a new one at
+      <NuxtLink to="/forgot-password" class="underline">reset password</NuxtLink>.
     </UiAlert>
 
     <form v-else class="flex flex-col gap-4" @submit.prevent="onSubmit">
@@ -52,28 +49,28 @@
 
       <UiInput
         v-model="form.values.password"
-        label="Nova senha"
+        label="New password"
         type="password"
         autocomplete="new-password"
         placeholder="••••••••"
-        hint="Ao menos 8 caracteres."
+        hint="At least 8 characters."
         :error="form.errors.value.password"
       />
 
       <UiInput
         v-model="form.values.confirm"
-        label="Confirmar senha"
+        label="Confirm password"
         type="password"
         autocomplete="new-password"
         placeholder="••••••••"
         :error="form.errors.value.confirm"
       />
 
-      <UiButton type="submit" block :loading="form.submitting.value">Redefinir senha</UiButton>
+      <UiButton type="submit" block :loading="form.submitting.value">Reset password</UiButton>
     </form>
 
     <p v-if="!done" class="mt-5 text-center text-sm text-content-muted">
-      <NuxtLink to="/login" class="text-primary hover:underline">Voltar para entrar</NuxtLink>
+      <NuxtLink to="/login" class="text-primary hover:underline">Back to sign in</NuxtLink>
     </p>
   </UiCard>
 </template>

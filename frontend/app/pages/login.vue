@@ -3,14 +3,14 @@
   import type { ISessionUser } from '~/stores/session.store';
 
   definePageMeta({ layout: 'blank' });
-  useHead({ title: 'Entrar' });
+  useHead({ title: 'Sign in' });
 
   const api = useApi();
   const session = useSessionStore();
 
   const schema = z.object({
-    email: z.email('Informe um e-mail válido'),
-    password: z.string().min(1, 'Informe a senha'),
+    email: z.email('Enter a valid email'),
+    password: z.string().min(1, 'Enter the password'),
   });
 
   const form = useForm(schema, { email: '', password: '' });
@@ -30,22 +30,22 @@
 </script>
 
 <template>
-  <UiCard title="Entrar" description="Acesse sua conta para gerenciar seus deploys.">
+  <UiCard title="Sign in" description="Sign in to your account to manage your deployments.">
     <form class="flex flex-col gap-4" @submit.prevent="onSubmit">
       <UiAlert v-if="form.formError.value" variant="error">{{ form.formError.value }}</UiAlert>
 
       <UiInput
         v-model="form.values.email"
-        label="E-mail"
+        label="Email"
         type="email"
         autocomplete="email"
-        placeholder="voce@empresa.com"
+        placeholder="you@company.com"
         :error="form.errors.value.email"
       />
 
       <UiInput
         v-model="form.values.password"
-        label="Senha"
+        label="Password"
         type="password"
         autocomplete="current-password"
         placeholder="••••••••"
@@ -54,16 +54,16 @@
 
       <div class="flex justify-end">
         <NuxtLink to="/forgot-password" class="text-xs text-primary hover:underline">
-          Esqueceu a senha?
+          Forgot your password?
         </NuxtLink>
       </div>
 
-      <UiButton type="submit" block :loading="form.submitting.value">Entrar</UiButton>
+      <UiButton type="submit" block :loading="form.submitting.value">Sign in</UiButton>
     </form>
 
     <p class="mt-5 text-center text-sm text-content-muted">
-      Não tem conta?
-      <NuxtLink to="/register" class="text-primary hover:underline">Criar conta</NuxtLink>
+      Don't have an account?
+      <NuxtLink to="/register" class="text-primary hover:underline">Create account</NuxtLink>
     </p>
   </UiCard>
 </template>

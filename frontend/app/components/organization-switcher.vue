@@ -6,11 +6,11 @@
   const dropdownOpen = ref(false);
   const creating = ref(false);
 
-  const form = useForm(z.object({ name: z.string().trim().min(2, 'Ao menos 2 caracteres') }), {
+  const form = useForm(z.object({ name: z.string().trim().min(2, 'At least 2 characters') }), {
     name: '',
   });
 
-  const label = computed(() => current.value?.name ?? 'Selecione uma organização');
+  const label = computed(() => current.value?.name ?? 'Select an organization');
 
   const choose = (id: string) => {
     const organization = organizations.value.find(item => item.id === id);
@@ -75,7 +75,7 @@
       </button>
 
       <p v-if="!organizations.length" class="px-3 py-2 text-xs text-content-muted">
-        Você ainda não faz parte de nenhuma organização.
+        You don't belong to any organization yet.
       </p>
 
       <div class="my-1 border-t border-surface-border" />
@@ -89,7 +89,7 @@
         "
       >
         <Icon name="lucide:plus" class="size-4" />
-        Criar organização
+        Create organization
       </button>
 
       <NuxtLink
@@ -99,28 +99,28 @@
         @click="dropdownOpen = false"
       >
         <Icon name="lucide:users" class="size-4" />
-        Gerenciar time
+        Manage team
       </NuxtLink>
     </div>
 
     <UiModal
       v-model:open="creating"
-      title="Criar organização"
-      description="Um espaço para seus projetos, servidores e time."
+      title="Create organization"
+      description="A space for your projects, servers, and team."
     >
       <form class="flex flex-col gap-4" @submit.prevent="onCreate">
         <UiAlert v-if="form.formError.value" variant="error">{{ form.formError.value }}</UiAlert>
 
         <UiInput
           v-model="form.values.name"
-          label="Nome"
-          placeholder="Minha empresa"
+          label="Name"
+          placeholder="My company"
           :error="form.errors.value.name"
         />
 
         <div class="flex justify-end gap-2">
-          <UiButton variant="ghost" type="button" @click="creating = false">Cancelar</UiButton>
-          <UiButton type="submit" :loading="form.submitting.value">Criar</UiButton>
+          <UiButton variant="ghost" type="button" @click="creating = false">Cancel</UiButton>
+          <UiButton type="submit" :loading="form.submitting.value">Create</UiButton>
         </div>
       </form>
     </UiModal>

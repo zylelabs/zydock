@@ -3,7 +3,7 @@
   import type { Member } from '~/composables/use-team';
   import type { OrganizationRole } from '~/stores/organization.store';
 
-  useHead({ title: 'Time' });
+  useHead({ title: 'Team' });
 
   const session = useSessionStore();
   const { current, load } = useOrganizations();
@@ -56,7 +56,7 @@
       await updateMemberRole(member.userId, role as OrganizationRole);
       await refreshMembers();
     } catch (error) {
-      actionError.value = (error as { message?: string }).message || 'Falha ao alterar o papel.';
+      actionError.value = (error as { message?: string }).message || 'Failed to change the role.';
       await refreshMembers();
     }
   };
@@ -73,7 +73,7 @@
 
   const inviteForm = useForm(
     z.object({
-      email: z.email('Informe um e-mail válido'),
+      email: z.email('Enter a valid email'),
       role: z.enum(['admin', 'member']),
     }),
     { email: '', role: 'member' as 'admin' | 'member' },
@@ -95,15 +95,15 @@
       await revokeInvite(inviteId);
       await refreshInvites();
     } catch (error) {
-      actionError.value = (error as { message?: string }).message || 'Falha ao revogar.';
+      actionError.value = (error as { message?: string }).message || 'Failed to revoke.';
     } finally {
       revoking.value = '';
     }
   };
 
-  const formatDate = (value: string) => new Date(value).toLocaleDateString('pt-BR');
+  const formatDate = (value: string) => new Date(value).toLocaleDateString('en-US');
 
-  // --- Confirmações (remover / sair) -------------------------------------------------------------
+  // --- Confirmations (remove / leave) -------------------------------------------------------------
 
   const confirmState = ref<{
     title: string;
@@ -125,7 +125,7 @@
       await confirmState.value.run();
       confirmState.value = null;
     } catch (error) {
-      actionError.value = (error as { message?: string }).message || 'Não foi possível concluir.';
+      actionError.value = (error as { message?: string }).message || 'Could not complete.';
     } finally {
       confirmLoading.value = false;
     }
@@ -133,9 +133,9 @@
 
   const askRemove = (member: Member) => {
     confirmState.value = {
-      title: 'Remover membro',
-      message: `Remover ${member.name ?? member.email} da organização?`,
-      label: 'Remover',
+      title: 'Remove member',
+      message: `Remove ${member.name ?? member.email} from the organization?`,
+      label: 'Remove',
       run: async () => {
         await removeMember(member.userId);
         await refreshMembers();
@@ -145,9 +145,9 @@
 
   const askLeave = () => {
     confirmState.value = {
-      title: 'Sair da organização',
-      message: `Você deixará de ter acesso a ${current.value?.name}. Deseja continuar?`,
-      label: 'Sair',
+      title: 'Leave the organization',
+      message: `You will lose access to ${current.value?.name}. Do you want to continue?`,
+      label: 'Leave',
       run: async () => {
         await leave();
         await load();
@@ -160,24 +160,24 @@
 <template>
   <section class="mx-auto flex max-w-3xl flex-col gap-6">
     <header>
-      <h1>Time</h1>
+      <h1>Team</h1>
       <p class="mt-1 text-sm text-content-muted">
-        Membros e convites de <span class="text-content">{{ current?.name ?? '—' }}</span
+        Members and invites of <span class="text-content">{{ current?.name ?? '—' }}</span
         >.
       </p>
     </header>
 
     <UiAlert v-if="actionError" variant="error">{{ actionError }}</UiAlert>
 
-    <UiCard v-if="!current" title="Selecione uma organização">
+    <UiCard v-if="!current" title="Select an organization">
       <p class="text-sm text-content-muted">
-        Escolha ou crie uma organização no seletor da barra lateral.
+        Choose or create an organization in the sidebar selector.
       </p>
     </UiCard>
 
     <template v-else>
       <!-- Membros -->
-      <UiCard title="Membros">
+      <UiCard title="Members">
         <ul class="flex flex-col divide-y divide-surface-border">
           <li v-for="member in members" :key="member.userId" class="flex items-center gap-3 py-3">
             <span
@@ -189,7 +189,7 @@
             <div class="min-w-0 flex-1">
               <p class="truncate text-sm font-medium">
                 {{ member.name ?? member.email }}
-                <span v-if="isSelf(member)" class="text-xs text-content-muted">(você)</span>
+                <span v-if="isSelf(member)" class="text-xs text-content-muted">(you)</span>
               </p>
               <p class="truncate text-xs text-content-muted">{{ member.email }}</p>
             </div>
@@ -208,7 +208,7 @@
               <button
                 v-if="isSelf(member)"
                 type="button"
-                title="Sair da organização"
+                title="Leave the organization"
                 class="rounded-lg p-2 text-content-muted transition-colors hover:bg-surface hover:text-danger"
                 @click="askLeave"
               >
@@ -217,7 +217,7 @@
               <button
                 v-else-if="canManage"
                 type="button"
-                title="Remover membro"
+                title="Remove member"
                 class="rounded-lg p-2 text-content-muted transition-colors hover:bg-surface hover:text-danger"
                 @click="askRemove(member)"
               >
@@ -229,20 +229,20 @@
       </UiCard>
 
       <!-- Convites (apenas admin/owner) -->
-      <UiCard v-if="canManage" title="Convites" description="Convide pessoas por e-mail.">
+      <UiCard v-if="canManage" title="Invites" description="Invite people by email.">
         <form class="flex flex-col gap-3 sm:flex-row sm:items-start" @submit.prevent="onInvite">
           <div class="flex-1">
             <UiInput
               v-model="inviteForm.values.email"
               type="email"
-              placeholder="colega@empresa.com"
+              placeholder="colleague@company.com"
               :error="inviteForm.errors.value.email"
             />
           </div>
           <div class="w-full sm:w-40">
             <UiSelect v-model="inviteForm.values.role" :options="inviteRoleOptions" />
           </div>
-          <UiButton type="submit" :loading="inviteForm.submitting.value">Convidar</UiButton>
+          <UiButton type="submit" :loading="inviteForm.submitting.value">Invite</UiButton>
         </form>
 
         <UiAlert v-if="inviteForm.formError.value" variant="error" class="mt-3">
@@ -254,12 +254,14 @@
             <Icon name="lucide:mail" class="size-4 shrink-0 text-content-muted" />
             <div class="min-w-0 flex-1">
               <p class="truncate text-sm">{{ invite.email }}</p>
-              <p class="text-xs text-content-muted">expira em {{ formatDate(invite.expiresAt) }}</p>
+              <p class="text-xs text-content-muted">
+                expires on {{ formatDate(invite.expiresAt) }}
+              </p>
             </div>
             <UiBadge variant="neutral" class="capitalize">{{ invite.role }}</UiBadge>
             <button
               type="button"
-              title="Revogar convite"
+              title="Revoke invite"
               :disabled="revoking === invite.id"
               class="rounded-lg p-2 text-content-muted transition-colors hover:bg-surface hover:text-danger disabled:opacity-60"
               @click="onRevoke(invite.id)"
@@ -272,7 +274,7 @@
           </li>
         </ul>
 
-        <p v-else class="mt-4 text-sm text-content-muted">Nenhum convite pendente.</p>
+        <p v-else class="mt-4 text-sm text-content-muted">No pending invites.</p>
       </UiCard>
     </template>
 
@@ -280,7 +282,7 @@
       :open="Boolean(confirmState)"
       :title="confirmState?.title ?? ''"
       :message="confirmState?.message ?? ''"
-      :confirm-label="confirmState?.label ?? 'Confirmar'"
+      :confirm-label="confirmState?.label ?? 'Confirm'"
       danger
       :loading="confirmLoading"
       @confirm="runConfirm"

@@ -3,18 +3,15 @@
   import type { ISessionUser } from '~/stores/session.store';
 
   definePageMeta({ layout: 'blank' });
-  useHead({ title: 'Criar conta' });
+  useHead({ title: 'Create account' });
 
   const api = useApi();
   const session = useSessionStore();
 
   const schema = z.object({
-    name: z.string().trim().min(1, 'Informe seu nome').max(120, 'Nome muito longo'),
-    email: z.email('Informe um e-mail válido'),
-    password: z
-      .string()
-      .min(8, 'A senha precisa de ao menos 8 caracteres')
-      .max(128, 'Senha muito longa'),
+    name: z.string().trim().min(1, 'Enter a name').max(120, 'Name is too long'),
+    email: z.email('Enter a valid email'),
+    password: z.string().min(8, 'At least 8 characters').max(128, 'Password is too long'),
   });
 
   const form = useForm(schema, { name: '', email: '', password: '' });
@@ -34,43 +31,43 @@
 </script>
 
 <template>
-  <UiCard title="Criar conta" description="Comece a implantar suas aplicações em minutos.">
+  <UiCard title="Create account" description="Start deploying your applications in minutes.">
     <form class="flex flex-col gap-4" @submit.prevent="onSubmit">
       <UiAlert v-if="form.formError.value" variant="error">{{ form.formError.value }}</UiAlert>
 
       <UiInput
         v-model="form.values.name"
-        label="Nome"
+        label="Name"
         autocomplete="name"
-        placeholder="Seu nome"
+        placeholder="Your name"
         :error="form.errors.value.name"
       />
 
       <UiInput
         v-model="form.values.email"
-        label="E-mail"
+        label="Email"
         type="email"
         autocomplete="email"
-        placeholder="voce@empresa.com"
+        placeholder="you@company.com"
         :error="form.errors.value.email"
       />
 
       <UiInput
         v-model="form.values.password"
-        label="Senha"
+        label="Password"
         type="password"
         autocomplete="new-password"
         placeholder="••••••••"
-        hint="Ao menos 8 caracteres."
+        hint="At least 8 characters."
         :error="form.errors.value.password"
       />
 
-      <UiButton type="submit" block :loading="form.submitting.value">Criar conta</UiButton>
+      <UiButton type="submit" block :loading="form.submitting.value">Create account</UiButton>
     </form>
 
     <p class="mt-5 text-center text-sm text-content-muted">
-      Já tem conta?
-      <NuxtLink to="/login" class="text-primary hover:underline">Entrar</NuxtLink>
+      Already have an account?
+      <NuxtLink to="/login" class="text-primary hover:underline">Sign in</NuxtLink>
     </p>
   </UiCard>
 </template>

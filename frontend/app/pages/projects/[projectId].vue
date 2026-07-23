@@ -38,7 +38,7 @@
     { server: false, watch: [() => session.organizationId, projectId] },
   );
 
-  useHead(() => ({ title: data.value?.project.name ?? 'Projeto' }));
+  useHead(() => ({ title: data.value?.project.name ?? 'Project' }));
 
   const environments = computed(() => data.value?.environments ?? []);
   const serverList = computed(() => data.value?.servers ?? []);
@@ -48,14 +48,14 @@
     ApplicationStatus,
     { label: string; variant: 'neutral' | 'success' | 'warning' | 'danger' | 'info' }
   > = {
-    created: { label: 'Criada', variant: 'neutral' },
-    deploying: { label: 'Implantando', variant: 'info' },
-    running: { label: 'Rodando', variant: 'success' },
-    stopped: { label: 'Parada', variant: 'warning' },
-    failed: { label: 'Falhou', variant: 'danger' },
+    created: { label: 'Created', variant: 'neutral' },
+    deploying: { label: 'Deploying', variant: 'info' },
+    running: { label: 'Running', variant: 'success' },
+    stopped: { label: 'Stopped', variant: 'warning' },
+    failed: { label: 'Failed', variant: 'danger' },
   };
 
-  // --- Ambientes ---------------------------------------------------------------------------------
+  // --- Environments ---------------------------------------------------------------------------------
 
   const newEnvironment = ref('');
   const addingEnvironment = ref(false);
@@ -73,7 +73,8 @@
       newEnvironment.value = '';
       await refresh();
     } catch (error) {
-      actionError.value = (error as { message?: string }).message || 'Falha ao criar ambiente.';
+      actionError.value =
+        (error as { message?: string }).message || 'Failed to create environment.';
     } finally {
       addingEnvironment.value = false;
     }
@@ -86,26 +87,27 @@
       await projects.removeEnvironment(projectId.value, environmentId);
       await refresh();
     } catch (error) {
-      actionError.value = (error as { message?: string }).message || 'Falha ao remover ambiente.';
+      actionError.value =
+        (error as { message?: string }).message || 'Failed to remove environment.';
     }
   };
 
-  // --- Nova aplicação ----------------------------------------------------------------------------
+  // --- New application ----------------------------------------------------------------------------
 
   const addingApp = ref(false);
 
   const appForm = useForm(
     z.object({
-      name: z.string().trim().min(1, 'Informe um nome'),
-      environmentId: z.string().min(1, 'Escolha um ambiente'),
-      serverId: z.string().min(1, 'Escolha um servidor'),
+      name: z.string().trim().min(1, 'Enter a name'),
+      environmentId: z.string().min(1, 'Choose an environment'),
+      serverId: z.string().min(1, 'Choose a server'),
       repository: z
         .string()
         .trim()
-        .regex(/^[^/\s]+\/[^/\s]+$/, 'Use o formato dono/repositório'),
+        .regex(/^[^/\s]+\/[^/\s]+$/, 'Use the owner/repository format'),
       branch: z.string().trim().min(1),
       dockerfilePath: z.string().trim().min(1),
-      port: z.string().regex(/^\d+$/, 'Porta inválida'),
+      port: z.string().regex(/^\d+$/, 'Invalid port'),
       autoDeploy: z.boolean(),
       token: z.string().trim(),
     }),
@@ -166,7 +168,7 @@
       class="flex items-center gap-1 text-sm text-content-muted hover:text-content"
     >
       <Icon name="lucide:chevron-left" class="size-4" />
-      Projetos
+      Projects
     </NuxtLink>
 
     <header v-if="data">
@@ -178,8 +180,8 @@
 
     <UiAlert v-if="actionError" variant="error">{{ actionError }}</UiAlert>
 
-    <!-- Ambientes -->
-    <UiCard title="Ambientes">
+    <!-- Environments -->
+    <UiCard title="Environments">
       <ul class="flex flex-col divide-y divide-surface-border">
         <li
           v-for="environment in environments"
@@ -190,7 +192,7 @@
           <button
             v-if="canManage && environments.length > 1"
             type="button"
-            title="Remover ambiente"
+            title="Remove environment"
             class="rounded-lg p-1.5 text-content-muted transition-colors hover:text-danger"
             @click="removeEnvironment(environment.id)"
           >
@@ -203,20 +205,18 @@
         <div class="flex-1">
           <UiInput v-model="newEnvironment" placeholder="staging" />
         </div>
-        <UiButton type="submit" variant="secondary" :loading="addingEnvironment"
-          >Adicionar</UiButton
-        >
+        <UiButton type="submit" variant="secondary" :loading="addingEnvironment">Add</UiButton>
       </form>
     </UiCard>
 
-    <!-- Aplicações -->
-    <UiCard title="Aplicações">
+    <!-- Applications -->
+    <UiCard title="Applications">
       <template #header>
         <div class="flex items-center justify-between">
-          <h2>Aplicações</h2>
+          <h2>Applications</h2>
           <UiButton v-if="canManage && !addingApp" @click="openAddApp">
             <Icon name="lucide:plus" class="size-4" />
-            Nova aplicação
+            New application
           </UiButton>
         </div>
       </template>
@@ -233,60 +233,60 @@
         <div class="grid gap-4 sm:grid-cols-2">
           <UiInput
             v-model="appForm.values.name"
-            label="Nome"
+            label="Name"
             placeholder="api"
             :error="appForm.errors.value.name"
           />
           <UiInput
             v-model="appForm.values.repository"
-            label="Repositório (GitHub)"
-            placeholder="dono/repositório"
+            label="Repository (GitHub)"
+            placeholder="owner/repository"
             :error="appForm.errors.value.repository"
           />
           <UiSelect
             v-model="appForm.values.environmentId"
-            label="Ambiente"
+            label="Environment"
             :options="environmentOptions"
             :error="appForm.errors.value.environmentId"
           />
           <UiSelect
             v-model="appForm.values.serverId"
-            label="Servidor"
+            label="Server"
             :options="serverOptions"
             :error="appForm.errors.value.serverId"
           />
           <UiInput v-model="appForm.values.branch" label="Branch" />
           <UiInput v-model="appForm.values.dockerfilePath" label="Dockerfile" />
-          <UiInput v-model="appForm.values.port" label="Porta" :error="appForm.errors.value.port" />
+          <UiInput v-model="appForm.values.port" label="Port" :error="appForm.errors.value.port" />
         </div>
 
         <UiInput
           v-model="appForm.values.token"
-          label="Token de acesso (repositório privado)"
+          label="Access token (private repository)"
           type="password"
-          placeholder="Deixe em branco se o repositório for público"
-          hint="Personal Access Token do GitHub com leitura do repositório. Guardado cifrado."
+          placeholder="Leave blank if the repository is public"
+          hint="GitHub Personal Access Token with repository read access. Stored encrypted."
         />
 
-        <UiCheckbox v-model="appForm.values.autoDeploy" label="Deploy automático a cada push" />
+        <UiCheckbox v-model="appForm.values.autoDeploy" label="Auto-deploy on every push" />
 
         <p v-if="!serverOptions.length" class="text-xs text-warning">
-          Cadastre um servidor antes de criar aplicações.
+          Register a server before creating applications.
         </p>
 
         <div class="flex justify-end gap-2">
-          <UiButton variant="ghost" type="button" @click="addingApp = false">Cancelar</UiButton>
+          <UiButton variant="ghost" type="button" @click="addingApp = false">Cancel</UiButton>
           <UiButton
             type="submit"
             :loading="appForm.submitting.value"
             :disabled="!serverOptions.length"
           >
-            Criar aplicação
+            Create application
           </UiButton>
         </div>
       </form>
 
-      <p v-if="!apps.length" class="text-sm text-content-muted">Nenhuma aplicação neste projeto.</p>
+      <p v-if="!apps.length" class="text-sm text-content-muted">No applications in this project.</p>
 
       <ul v-else class="flex flex-col divide-y divide-surface-border">
         <li v-for="app in apps" :key="app.id">

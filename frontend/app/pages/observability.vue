@@ -1,5 +1,5 @@
 <script setup lang="ts">
-  useHead({ title: 'Observabilidade' });
+  useHead({ title: 'Observability' });
 
   interface ServerMetric {
     cpuPercent?: number;
@@ -46,13 +46,13 @@
   );
 
   const cards = computed(() => [
-    { label: 'Servidores', value: data.value?.counts.servers ?? 0, icon: 'lucide:server' },
-    { label: 'Aplicações', value: data.value?.counts.applications ?? 0, icon: 'lucide:box' },
-    { label: 'Bancos', value: data.value?.counts.databases ?? 0, icon: 'lucide:database' },
-    { label: 'Domínios', value: data.value?.counts.domains ?? 0, icon: 'lucide:globe' },
+    { label: 'Servers', value: data.value?.counts.servers ?? 0, icon: 'lucide:server' },
+    { label: 'Applications', value: data.value?.counts.applications ?? 0, icon: 'lucide:box' },
+    { label: 'Databases', value: data.value?.counts.databases ?? 0, icon: 'lucide:database' },
+    { label: 'Domains', value: data.value?.counts.domains ?? 0, icon: 'lucide:globe' },
   ]);
 
-  // Métricas ao vivo dos servidores online, pelo WebSocket (uma assinatura por servidor).
+  // Live metrics of online servers, over the WebSocket (one subscription per server).
   const metrics = reactive<Record<string, ServerMetric>>({});
   const subscribed = new Set<string>();
 
@@ -91,12 +91,12 @@
 <template>
   <section class="mx-auto flex max-w-4xl flex-col gap-6">
     <header>
-      <h1>Observabilidade</h1>
-      <p class="mt-1 text-sm text-content-muted">Visão geral e métricas ao vivo da organização.</p>
+      <h1>Observability</h1>
+      <p class="mt-1 text-sm text-content-muted">Overview and live metrics for the organization.</p>
     </header>
 
-    <UiCard v-if="!current" title="Selecione uma organização">
-      <p class="text-sm text-content-muted">Escolha ou crie uma organização na barra lateral.</p>
+    <UiCard v-if="!current" title="Select an organization">
+      <p class="text-sm text-content-muted">Choose or create an organization in the sidebar.</p>
     </UiCard>
 
     <template v-else>
@@ -114,16 +114,16 @@
         </div>
       </div>
 
-      <UiCard title="Servidores ao vivo">
+      <UiCard title="Live servers">
         <template #header>
           <div class="flex items-center justify-between">
-            <h2>Servidores ao vivo</h2>
+            <h2>Live servers</h2>
             <span class="text-xs text-content-muted">{{ status }}</span>
           </div>
         </template>
 
         <p v-if="!rows.length" class="text-sm text-content-muted">
-          Nenhum servidor online. As métricas aparecem quando o agente está conectado.
+          No servers online. Metrics appear when the agent is connected.
         </p>
 
         <ul v-else class="flex flex-col gap-4">
@@ -134,7 +134,7 @@
                 {{
                   row.metric
                     ? `up ${Math.floor((row.metric.uptimeSeconds ?? 0) / 3600)}h`
-                    : 'aguardando…'
+                    : 'waiting…'
                 }}
               </span>
             </div>
@@ -153,7 +153,7 @@
               </div>
               <div>
                 <div class="mb-1 flex justify-between text-xs text-content-muted">
-                  <span>Memória</span>
+                  <span>Memory</span>
                   <span>{{ percent(row.metric.memoryUsedMb, row.metric.memoryTotalMb) }}%</span>
                 </div>
                 <div class="h-1.5 overflow-hidden rounded-full bg-surface">

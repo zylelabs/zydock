@@ -1,5 +1,5 @@
 <script setup lang="ts">
-  // Centered shell for the entrance screens (login, cadastro, recuperação): the brand on top, the
+  // Centered shell for the entrance screens (login, sign-up, recovery): the brand on top, the
   // screen's card below.
   const { name, logo } = useTheme();
 </script>

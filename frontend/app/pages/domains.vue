@@ -2,7 +2,7 @@
   import { z } from 'zod';
   import type { Domain, DomainStatus } from '~/composables/use-domains';
 
-  useHead({ title: 'Domínios' });
+  useHead({ title: 'Domains' });
 
   const session = useSessionStore();
   const { current } = useOrganizations();
@@ -45,16 +45,16 @@
     DomainStatus,
     { label: string; variant: 'neutral' | 'success' | 'warning' | 'danger' | 'info' }
   > = {
-    pending: { label: 'Pendente', variant: 'warning' },
-    active: { label: 'Ativo', variant: 'success' },
-    error: { label: 'Erro', variant: 'danger' },
+    pending: { label: 'Pending', variant: 'warning' },
+    active: { label: 'Active', variant: 'success' },
+    error: { label: 'Error', variant: 'danger' },
   };
 
   const adding = ref(false);
   const form = useForm(
     z.object({
-      applicationId: z.string().min(1, 'Escolha uma aplicação'),
-      hostname: z.string().trim().min(1, 'Informe o domínio'),
+      applicationId: z.string().min(1, 'Choose an application'),
+      hostname: z.string().trim().min(1, 'Enter the domain'),
       pathPrefix: z.string().trim().optional(),
       tls: z.boolean(),
     }),
@@ -86,7 +86,7 @@
       await domains[action](domain.id);
       await refresh();
     } catch (error) {
-      actionError.value = (error as { message?: string }).message || 'Falha na operação.';
+      actionError.value = (error as { message?: string }).message || 'The operation failed.';
     } finally {
       busy.value = '';
     }
@@ -108,7 +108,7 @@
       await refresh();
       toRemove.value = null;
     } catch (error) {
-      actionError.value = (error as { message?: string }).message || 'Falha ao remover.';
+      actionError.value = (error as { message?: string }).message || 'Failed to remove.';
     } finally {
       removing.value = false;
     }
@@ -119,8 +119,8 @@
   <section class="mx-auto flex max-w-4xl flex-col gap-6">
     <header class="flex items-center justify-between gap-4">
       <div>
-        <h1>Domínios</h1>
-        <p class="mt-1 text-sm text-content-muted">Nomes e HTTPS das suas aplicações.</p>
+        <h1>Domains</h1>
+        <p class="mt-1 text-sm text-content-muted">Names and HTTPS for your applications.</p>
       </div>
       <UiButton
         v-if="current && canManage && !adding"
@@ -128,51 +128,49 @@
         @click="openAdd"
       >
         <Icon name="lucide:plus" class="size-4" />
-        Adicionar domínio
+        Add domain
       </UiButton>
     </header>
 
     <UiAlert v-if="actionError" variant="error">{{ actionError }}</UiAlert>
 
-    <UiCard v-if="!current" title="Selecione uma organização">
-      <p class="text-sm text-content-muted">Escolha ou crie uma organização na barra lateral.</p>
+    <UiCard v-if="!current" title="Select an organization">
+      <p class="text-sm text-content-muted">Choose or create an organization in the sidebar.</p>
     </UiCard>
 
     <template v-else>
-      <UiCard v-if="adding" title="Adicionar domínio">
+      <UiCard v-if="adding" title="Add domain">
         <form class="flex flex-col gap-4" @submit.prevent="onCreate">
           <UiAlert v-if="form.formError.value" variant="error">{{ form.formError.value }}</UiAlert>
           <UiSelect
             v-model="form.values.applicationId"
-            label="Aplicação"
+            label="Application"
             :options="appOptions"
             :error="form.errors.value.applicationId"
           />
           <div class="grid gap-4 sm:grid-cols-2">
             <UiInput
               v-model="form.values.hostname"
-              label="Domínio"
-              placeholder="app.exemplo.com"
+              label="Domain"
+              placeholder="app.example.com"
               :error="form.errors.value.hostname"
             />
             <UiInput
               v-model="form.values.pathPrefix"
-              label="Prefixo de caminho (opcional)"
+              label="Path prefix (optional)"
               placeholder="/api"
             />
           </div>
-          <UiCheckbox v-model="form.values.tls" label="HTTPS automático (Let's Encrypt)" />
+          <UiCheckbox v-model="form.values.tls" label="Automatic HTTPS (Let's Encrypt)" />
           <div class="flex justify-end gap-2">
-            <UiButton variant="ghost" type="button" @click="adding = false">Cancelar</UiButton>
-            <UiButton type="submit" :loading="form.submitting.value">Adicionar</UiButton>
+            <UiButton variant="ghost" type="button" @click="adding = false">Cancel</UiButton>
+            <UiButton type="submit" :loading="form.submitting.value">Add</UiButton>
           </div>
         </form>
       </UiCard>
 
-      <UiCard v-if="!domainList.length" title="Nenhum domínio ainda">
-        <p class="text-sm text-content-muted">
-          Adicione um domínio a uma aplicação para publicá-la.
-        </p>
+      <UiCard v-if="!domainList.length" title="No domains yet">
+        <p class="text-sm text-content-muted">Add a domain to an application to publish it.</p>
       </UiCard>
 
       <div v-else class="flex flex-col gap-3">
@@ -203,7 +201,7 @@
               :loading="busy === `${domain.id}:apply`"
               @click="runAction(domain, 'apply')"
             >
-              Aplicar
+              Apply
             </UiButton>
             <UiButton
               v-if="domain.tls"
@@ -211,11 +209,11 @@
               :loading="busy === `${domain.id}:renew`"
               @click="runAction(domain, 'renew')"
             >
-              Renovar
+              Renew
             </UiButton>
             <button
               type="button"
-              title="Remover"
+              title="Remove"
               class="rounded-lg p-2 text-content-muted transition-colors hover:text-danger"
               @click="toRemove = domain"
             >
@@ -228,9 +226,9 @@
 
     <UiConfirm
       :open="Boolean(toRemove)"
-      title="Remover domínio"
-      :message="`Remover ${toRemove?.hostname}? A rota deixa de responder.`"
-      confirm-label="Remover"
+      title="Remove domain"
+      :message="`Remove ${toRemove?.hostname}? The route stops responding.`"
+      confirm-label="Remove"
       danger
       :loading="removing"
       @confirm="confirmRemove"

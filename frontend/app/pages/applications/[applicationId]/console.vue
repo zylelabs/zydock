@@ -36,7 +36,7 @@
       class="flex items-center gap-1 text-sm text-content-muted hover:text-content"
     >
       <Icon name="lucide:chevron-left" class="size-4" />
-      Aplicação
+      Application
     </NuxtLink>
 
     <h1>Console</h1>
@@ -47,12 +47,12 @@
       :container-id="data.containerId"
     />
 
-    <UiCard v-else-if="data" title="Nenhum container em execução">
+    <UiCard v-else-if="data" title="No running container">
       <p class="text-sm text-content-muted">
-        Faça um deploy bem-sucedido para abrir um console no container da aplicação.
+        Run a successful deployment to open a console on the application's container.
       </p>
     </UiCard>
 
-    <p v-else class="text-sm text-content-muted">Carregando…</p>
+    <p v-else class="text-sm text-content-muted">Loading…</p>
   </section>
 </template>

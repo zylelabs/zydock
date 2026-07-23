@@ -17,12 +17,12 @@
   const error = ref('');
 
   const streamOptions = [
-    { value: '', label: 'Todos os streams' },
+    { value: '', label: 'All streams' },
     { value: 'stdout', label: 'stdout' },
     { value: 'stderr', label: 'stderr' },
   ];
   const levelOptions = [
-    { value: '', label: 'Todos os níveis' },
+    { value: '', label: 'All levels' },
     { value: 'error', label: 'error' },
     { value: 'warn', label: 'warn' },
     { value: 'info', label: 'info' },
@@ -46,7 +46,7 @@
     try {
       entries.value = (await history(applicationId.value, query())).entries;
     } catch (failure) {
-      error.value = (failure as { message?: string }).message || 'Falha ao carregar os logs.';
+      error.value = (failure as { message?: string }).message || 'Failed to load the logs.';
     } finally {
       loading.value = false;
     }
@@ -128,29 +128,29 @@
       class="flex items-center gap-1 text-sm text-content-muted hover:text-content"
     >
       <Icon name="lucide:chevron-left" class="size-4" />
-      Aplicação
+      Application
     </NuxtLink>
 
     <header class="flex flex-wrap items-center justify-between gap-3">
       <h1>Logs</h1>
       <div class="flex items-center gap-2">
-        <span class="text-xs text-content-muted">{{ live ? status : 'pausado' }}</span>
+        <span class="text-xs text-content-muted">{{ live ? status : 'paused' }}</span>
         <UiButton :variant="live ? 'danger' : 'secondary'" @click="toggleLive">
           <Icon :name="live ? 'lucide:pause' : 'lucide:play'" class="size-4" />
-          {{ live ? 'Parar' : 'Ao vivo' }}
+          {{ live ? 'Stop' : 'Live' }}
         </UiButton>
         <UiButton variant="ghost" :loading="downloading" @click="onDownload">
           <Icon name="lucide:download" class="size-4" />
-          Baixar
+          Download
         </UiButton>
       </div>
     </header>
 
     <div class="grid gap-2 sm:grid-cols-4">
-      <UiInput v-model="filters.search" placeholder="Buscar…" @keyup.enter="load" />
+      <UiInput v-model="filters.search" placeholder="Search…" @keyup.enter="load" />
       <UiSelect v-model="filters.stream" :options="streamOptions" />
       <UiSelect v-model="filters.level" :options="levelOptions" />
-      <UiButton variant="secondary" :loading="loading" @click="load">Aplicar</UiButton>
+      <UiButton variant="secondary" :loading="loading" @click="load">Apply</UiButton>
     </div>
 
     <UiAlert v-if="error" variant="error">{{ error }}</UiAlert>
@@ -158,7 +158,7 @@
     <div
       class="flex-1 overflow-auto rounded-xl border border-surface-border bg-surface-raised p-4 font-mono text-xs leading-relaxed"
     >
-      <p v-if="!visible.length" class="text-content-muted">Sem linhas de log.</p>
+      <p v-if="!visible.length" class="text-content-muted">No log lines.</p>
       <div v-for="(entry, index) in visible" :key="index" class="flex gap-2 whitespace-pre-wrap">
         <span v-if="entry.timestamp" class="shrink-0 text-content-muted">{{
           entry.timestamp

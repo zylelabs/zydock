@@ -40,7 +40,7 @@
     { server: false, watch: [() => session.organizationId, applicationId] },
   );
 
-  useHead(() => ({ title: data.value?.application.name ?? 'Aplicação' }));
+  useHead(() => ({ title: data.value?.application.name ?? 'Application' }));
 
   const application = computed(() => data.value?.application ?? null);
   const deploymentList = computed(() => data.value?.deployments ?? []);
@@ -54,11 +54,11 @@
     ApplicationStatus,
     { label: string; variant: 'neutral' | 'success' | 'warning' | 'danger' | 'info' }
   > = {
-    created: { label: 'Criada', variant: 'neutral' },
-    deploying: { label: 'Implantando', variant: 'info' },
-    running: { label: 'Rodando', variant: 'success' },
-    stopped: { label: 'Parada', variant: 'warning' },
-    failed: { label: 'Falhou', variant: 'danger' },
+    created: { label: 'Created', variant: 'neutral' },
+    deploying: { label: 'Deploying', variant: 'info' },
+    running: { label: 'Running', variant: 'success' },
+    stopped: { label: 'Stopped', variant: 'warning' },
+    failed: { label: 'Failed', variant: 'danger' },
   };
 
   const DEPLOY_STATUS: Record<
@@ -71,7 +71,7 @@
     failed: 'danger',
   };
 
-  const formatWhen = (value?: string) => (value ? new Date(value).toLocaleString('pt-BR') : '—');
+  const formatWhen = (value?: string) => (value ? new Date(value).toLocaleString('en-US') : '—');
 
   const RESTART_POLICIES = ['unless-stopped', 'always', 'on-failure', 'no'] as const;
   const restartOptions = RESTART_POLICIES.map(value => ({ value, label: value }));
@@ -80,15 +80,15 @@
 
   const configForm = useForm(
     z.object({
-      name: z.string().trim().min(1, 'Informe um nome'),
+      name: z.string().trim().min(1, 'Enter a name'),
       repository: z
         .string()
         .trim()
-        .regex(/^[^/\s]+\/[^/\s]+$/, 'Use o formato dono/repositório'),
-      branch: z.string().trim().min(1, 'Informe a branch'),
-      dockerfilePath: z.string().trim().min(1, 'Informe o Dockerfile'),
-      buildContext: z.string().trim().min(1, 'Informe o contexto de build'),
-      port: z.string().regex(/^\d+$/, 'Porta inválida'),
+        .regex(/^[^/\s]+\/[^/\s]+$/, 'Use the owner/repository format'),
+      branch: z.string().trim().min(1, 'Enter the branch'),
+      dockerfilePath: z.string().trim().min(1, 'Enter the Dockerfile'),
+      buildContext: z.string().trim().min(1, 'Enter the build context'),
+      port: z.string().regex(/^\d+$/, 'Invalid port'),
       autoDeploy: z.boolean(),
       restartPolicy: z.enum(RESTART_POLICIES),
     }),
@@ -154,7 +154,8 @@
 
       await navigateTo(`/applications/${applicationId.value}/deployments/${deployment.id}`);
     } catch (error) {
-      actionError.value = (error as { message?: string }).message || 'Falha ao disparar o deploy.';
+      actionError.value =
+        (error as { message?: string }).message || 'Failed to start the deployment.';
     } finally {
       deploying.value = false;
     }
@@ -183,13 +184,13 @@
       // Straight to the live log of the rollback deploy.
       await navigateTo(`/applications/${applicationId.value}/deployments/${deployment.id}`);
     } catch (error) {
-      actionError.value = (error as { message?: string }).message || 'Falha ao reverter.';
+      actionError.value = (error as { message?: string }).message || 'Failed to roll back.';
     } finally {
       rollingBack.value = false;
     }
   };
 
-  // --- Ciclo de vida (reiniciar / parar / iniciar) -----------------------------------------------
+  // --- Lifecycle (restart / stop / start) -----------------------------------------------
 
   const lifecycleBusy = ref('');
 
@@ -201,13 +202,13 @@
       await applications[action](applicationId.value);
       await refresh();
     } catch (error) {
-      actionError.value = (error as { message?: string }).message || 'Falha na operação.';
+      actionError.value = (error as { message?: string }).message || 'The operation failed.';
     } finally {
       lifecycleBusy.value = '';
     }
   };
 
-  // --- Network (mapeamento de portas) ------------------------------------------------------------
+  // --- Network (port mappings) ------------------------------------------------------------
 
   type PortDraft = { hostPort: string; containerPort: string; protocol: 'tcp' | 'udp' };
 
@@ -241,7 +242,7 @@
     const rows = portDraft.value.filter(row => row.hostPort.trim() || row.containerPort.trim());
 
     if (!rows.every(row => isPort(row.hostPort) && isPort(row.containerPort))) {
-      portError.value = 'Informe portas válidas (1–65535) em host e container.';
+      portError.value = 'Enter valid ports (1–65535) for host and container.';
       return;
     }
 
@@ -259,7 +260,7 @@
       editingPorts.value = false;
       await refresh();
     } catch (error) {
-      portError.value = (error as { message?: string }).message || 'Falha ao salvar as portas.';
+      portError.value = (error as { message?: string }).message || 'Failed to save the ports.';
     } finally {
       savingPorts.value = false;
     }
@@ -319,12 +320,12 @@
     const volumes = advDraft.volumes.filter(volume => volume.source.trim() || volume.target.trim());
 
     if (!volumes.every(volume => volume.source.trim() && volume.target.trim().startsWith('/'))) {
-      advError.value = 'Cada volume precisa de origem e um destino começando com "/".';
+      advError.value = 'Each volume needs a source and a target starting with "/".';
       return;
     }
 
     if (advDraft.cpus.trim() && !(Number(advDraft.cpus) > 0)) {
-      advError.value = 'CPUs deve ser um número positivo.';
+      advError.value = 'CPUs must be a positive number.';
       return;
     }
 
@@ -332,7 +333,7 @@
       advDraft.memoryMb.trim() &&
       !(/^\d+$/.test(advDraft.memoryMb.trim()) && Number(advDraft.memoryMb) > 0)
     ) {
-      advError.value = 'Memória (MB) deve ser um inteiro positivo.';
+      advError.value = 'Memory (MB) must be a positive integer.';
       return;
     }
 
@@ -351,7 +352,7 @@
 
     if (advDraft.healthcheckEnabled) {
       if (!advDraft.hcPath.trim().startsWith('/')) {
-        advError.value = 'O caminho do healthcheck deve começar com "/".';
+        advError.value = 'The healthcheck path must start with "/".';
         return;
       }
 
@@ -377,13 +378,13 @@
       editingAdv.value = false;
       await refresh();
     } catch (error) {
-      advError.value = (error as { message?: string }).message || 'Falha ao salvar.';
+      advError.value = (error as { message?: string }).message || 'Failed to save.';
     } finally {
       savingAdv.value = false;
     }
   };
 
-  // --- Domínios ----------------------------------------------------------------------------------
+  // --- Domains ----------------------------------------------------------------------------------
 
   const domainList = computed(() => data.value?.domains ?? []);
 
@@ -391,9 +392,9 @@
     DomainStatus,
     { label: string; variant: 'neutral' | 'success' | 'warning' | 'danger' | 'info' }
   > = {
-    pending: { label: 'Pendente', variant: 'warning' },
-    active: { label: 'Ativo', variant: 'success' },
-    error: { label: 'Erro', variant: 'danger' },
+    pending: { label: 'Pending', variant: 'warning' },
+    active: { label: 'Active', variant: 'success' },
+    error: { label: 'Error', variant: 'danger' },
   };
 
   const addingDomain = ref(false);
@@ -401,7 +402,7 @@
 
   const domainForm = useForm(
     z.object({
-      hostname: z.string().trim().min(1, 'Informe o domínio'),
+      hostname: z.string().trim().min(1, 'Enter the domain'),
       pathPrefix: z.string().trim().optional(),
       tls: z.boolean(),
     }),
@@ -432,7 +433,7 @@
       await domains[action](domain.id);
       await refresh();
     } catch (error) {
-      actionError.value = (error as { message?: string }).message || 'Falha na operação.';
+      actionError.value = (error as { message?: string }).message || 'The operation failed.';
     } finally {
       domainBusy.value = '';
     }
@@ -454,13 +455,13 @@
       await refresh();
       domainToRemove.value = null;
     } catch (error) {
-      actionError.value = (error as { message?: string }).message || 'Falha ao remover.';
+      actionError.value = (error as { message?: string }).message || 'Failed to remove.';
     } finally {
       removingDomain.value = false;
     }
   };
 
-  // --- Variáveis ---------------------------------------------------------------------------------
+  // --- Variables ---------------------------------------------------------------------------------
 
   const editingVars = ref(false);
   const draft = ref<ApplicationVariable[]>([]);
@@ -486,13 +487,14 @@
       editingVars.value = false;
       await refresh();
     } catch (error) {
-      actionError.value = (error as { message?: string }).message || 'Falha ao salvar variáveis.';
+      actionError.value =
+        (error as { message?: string }).message || 'Failed to save the variables.';
     } finally {
       savingVars.value = false;
     }
   };
 
-  // --- Token de acesso (repositório privado) -----------------------------------------------------
+  // --- Access token (private repository) -----------------------------------------------------
 
   const editingToken = ref(false);
   const tokenDraft = ref('');
@@ -513,7 +515,7 @@
       editingToken.value = false;
       await refresh();
     } catch (error) {
-      actionError.value = (error as { message?: string }).message || 'Falha ao salvar o token.';
+      actionError.value = (error as { message?: string }).message || 'Failed to save the token.';
     } finally {
       savingToken.value = false;
     }
@@ -527,7 +529,7 @@
       class="flex items-center gap-1 text-sm text-content-muted hover:text-content"
     >
       <Icon name="lucide:chevron-left" class="size-4" />
-      Projeto
+      Project
     </NuxtLink>
 
     <header class="flex flex-wrap items-center justify-between gap-4">
@@ -561,7 +563,7 @@
             @click="runLifecycle('stop')"
           >
             <Icon name="lucide:square" class="size-4" />
-            Parar
+            Stop
           </UiButton>
           <UiButton
             v-else-if="application.status === 'stopped'"
@@ -570,7 +572,7 @@
             @click="runLifecycle('start')"
           >
             <Icon name="lucide:play" class="size-4" />
-            Iniciar
+            Start
           </UiButton>
           <UiButton
             v-if="application.status === 'running'"
@@ -579,7 +581,7 @@
             @click="runLifecycle('restart')"
           >
             <Icon name="lucide:rotate-cw" class="size-4" />
-            Reiniciar
+            Restart
           </UiButton>
           <UiButton :loading="deploying" @click="triggerDeploy">
             <Icon name="lucide:rocket" class="size-4" />
@@ -598,22 +600,22 @@
       class="flex items-center gap-2 rounded-xl border border-primary/30 bg-primary/10 px-4 py-3 text-sm text-primary transition-colors hover:bg-primary/15"
     >
       <Icon name="lucide:loader" class="size-4 animate-spin" />
-      Deploy em andamento — ver logs ao vivo
+      Deployment in progress — view live logs
     </NuxtLink>
 
-    <UiCard title="Configuração">
+    <UiCard title="Configuration">
       <template #header>
         <div class="flex items-center justify-between">
-          <h2>Configuração</h2>
+          <h2>Configuration</h2>
           <UiButton v-if="canManage && !editingConfig" variant="secondary" @click="startEditConfig">
-            Editar
+            Edit
           </UiButton>
         </div>
       </template>
 
       <dl v-if="!editingConfig" class="grid gap-x-6 gap-y-3 text-sm sm:grid-cols-2">
         <div class="flex justify-between gap-2">
-          <dt class="text-content-muted">Repositório</dt>
+          <dt class="text-content-muted">Repository</dt>
           <dd class="truncate">{{ application.git.repository }}</dd>
         </div>
         <div class="flex justify-between gap-2">
@@ -625,19 +627,19 @@
           <dd class="truncate">{{ application.git.dockerfilePath }}</dd>
         </div>
         <div class="flex justify-between gap-2">
-          <dt class="text-content-muted">Contexto de build</dt>
+          <dt class="text-content-muted">Build context</dt>
           <dd class="truncate">{{ application.git.buildContext }}</dd>
         </div>
         <div class="flex justify-between gap-2">
-          <dt class="text-content-muted">Porta</dt>
+          <dt class="text-content-muted">Port</dt>
           <dd>{{ application.port }}</dd>
         </div>
         <div class="flex justify-between gap-2">
-          <dt class="text-content-muted">Deploy automático</dt>
-          <dd>{{ application.git.autoDeploy ? 'Sim' : 'Não' }}</dd>
+          <dt class="text-content-muted">Auto-deploy</dt>
+          <dd>{{ application.git.autoDeploy ? 'Yes' : 'No' }}</dd>
         </div>
         <div class="flex justify-between gap-2">
-          <dt class="text-content-muted">Política de reinício</dt>
+          <dt class="text-content-muted">Restart policy</dt>
           <dd>{{ application.restartPolicy }}</dd>
         </div>
       </dl>
@@ -650,13 +652,13 @@
         <div class="grid gap-4 sm:grid-cols-2">
           <UiInput
             v-model="configForm.values.name"
-            label="Nome"
+            label="Name"
             :error="configForm.errors.value.name"
           />
           <UiInput
             v-model="configForm.values.repository"
-            label="Repositório (GitHub)"
-            placeholder="dono/repositório"
+            label="Repository (GitHub)"
+            placeholder="owner/repository"
             :error="configForm.errors.value.repository"
           />
           <UiInput
@@ -671,40 +673,40 @@
           />
           <UiInput
             v-model="configForm.values.buildContext"
-            label="Contexto de build"
+            label="Build context"
             :error="configForm.errors.value.buildContext"
           />
           <UiInput
             v-model="configForm.values.port"
-            label="Porta"
+            label="Port"
             :error="configForm.errors.value.port"
           />
           <UiSelect
             v-model="configForm.values.restartPolicy"
-            label="Política de reinício"
+            label="Restart policy"
             :options="restartOptions"
           />
         </div>
 
-        <UiCheckbox v-model="configForm.values.autoDeploy" label="Deploy automático a cada push" />
+        <UiCheckbox v-model="configForm.values.autoDeploy" label="Auto-deploy on every push" />
 
-        <p class="text-xs text-content-muted">As mudanças valem a partir do próximo deploy.</p>
+        <p class="text-xs text-content-muted">Changes take effect on the next deploy.</p>
 
         <div class="flex justify-end gap-2">
-          <UiButton variant="ghost" type="button" @click="editingConfig = false">Cancelar</UiButton>
-          <UiButton type="submit" :loading="configForm.submitting.value">Salvar</UiButton>
+          <UiButton variant="ghost" type="button" @click="editingConfig = false">Cancel</UiButton>
+          <UiButton type="submit" :loading="configForm.submitting.value">Save</UiButton>
         </div>
       </form>
     </UiCard>
 
-    <!-- Domínios -->
-    <UiCard v-if="canManage" title="Domínios">
+    <!-- Domains -->
+    <UiCard v-if="canManage" title="Domains">
       <template #header>
         <div class="flex items-center justify-between">
-          <h2>Domínios</h2>
+          <h2>Domains</h2>
           <UiButton v-if="!addingDomain" variant="secondary" @click="openAddDomain">
             <Icon name="lucide:plus" class="size-4" />
-            Adicionar
+            Add
           </UiButton>
         </div>
       </template>
@@ -720,25 +722,25 @@
         <div class="grid gap-4 sm:grid-cols-2">
           <UiInput
             v-model="domainForm.values.hostname"
-            label="Domínio"
-            placeholder="app.exemplo.com"
+            label="Domain"
+            placeholder="app.example.com"
             :error="domainForm.errors.value.hostname"
           />
           <UiInput
             v-model="domainForm.values.pathPrefix"
-            label="Prefixo de caminho (opcional)"
+            label="Path prefix (optional)"
             placeholder="/api"
           />
         </div>
-        <UiCheckbox v-model="domainForm.values.tls" label="HTTPS automático (Let's Encrypt)" />
+        <UiCheckbox v-model="domainForm.values.tls" label="Automatic HTTPS (Let's Encrypt)" />
         <div class="flex justify-end gap-2">
-          <UiButton variant="ghost" type="button" @click="addingDomain = false">Cancelar</UiButton>
-          <UiButton type="submit" :loading="domainForm.submitting.value">Adicionar</UiButton>
+          <UiButton variant="ghost" type="button" @click="addingDomain = false">Cancel</UiButton>
+          <UiButton type="submit" :loading="domainForm.submitting.value">Add</UiButton>
         </div>
       </form>
 
       <p v-if="!domainList.length" class="text-sm text-content-muted">
-        Nenhum domínio ainda. Adicione um para publicar esta aplicação por um endereço próprio.
+        No domains yet. Add one to publish this application on its own address.
       </p>
 
       <div v-else class="flex flex-col gap-3">
@@ -766,7 +768,7 @@
               :loading="domainBusy === `${domain.id}:apply`"
               @click="runDomainAction(domain, 'apply')"
             >
-              Aplicar
+              Apply
             </UiButton>
             <UiButton
               v-if="domain.tls"
@@ -774,11 +776,11 @@
               :loading="domainBusy === `${domain.id}:renew`"
               @click="runDomainAction(domain, 'renew')"
             >
-              Renovar
+              Renew
             </UiButton>
             <button
               type="button"
-              title="Remover"
+              title="Remove"
               class="rounded-lg p-2 text-content-muted transition-colors hover:text-danger"
               @click="domainToRemove = domain"
             >
@@ -794,24 +796,22 @@
       <template #header>
         <div class="flex items-center justify-between">
           <h2>Network</h2>
-          <UiButton v-if="!editingPorts" variant="secondary" @click="startEditPorts"
-            >Editar</UiButton
-          >
+          <UiButton v-if="!editingPorts" variant="secondary" @click="startEditPorts">Edit</UiButton>
         </div>
       </template>
 
       <p class="mb-4 text-sm text-content-muted">
-        Porta exposta ao proxy: <span class="font-mono text-content">{{ application.port }}</span> —
-        o proxy alcança o container pelo nome; domínios apontam para ela (edite em Configuração).
+        Port exposed to the proxy:
+        <span class="font-mono text-content">{{ application.port }}</span> — the proxy reaches the
+        container by name; domains point to it (edit in Configuration).
       </p>
 
       <div class="border-t border-surface-border pt-4">
-        <p class="mb-2 text-sm font-medium">Mapeamento de portas (host → container)</p>
+        <p class="mb-2 text-sm font-medium">Port mappings (host → container)</p>
 
         <template v-if="!editingPorts">
           <p v-if="!application.portMappings.length" class="text-sm text-content-muted">
-            Nenhum mapeamento. Publique uma porta no host para expor um serviço sem passar pelo
-            proxy.
+            No mappings. Publish a host port to expose a service without going through the proxy.
           </p>
           <ul v-else class="flex flex-col divide-y divide-surface-border font-mono text-xs">
             <li
@@ -830,11 +830,11 @@
 
           <div v-for="(mapping, index) in portDraft" :key="index" class="flex items-center gap-2">
             <div class="flex-1">
-              <UiInput v-model="mapping.hostPort" placeholder="Host (ex.: 8080)" />
+              <UiInput v-model="mapping.hostPort" placeholder="Host (e.g. 8080)" />
             </div>
             <span class="text-content-muted">→</span>
             <div class="flex-1">
-              <UiInput v-model="mapping.containerPort" placeholder="Container (ex.: 3000)" />
+              <UiInput v-model="mapping.containerPort" placeholder="Container (e.g. 3000)" />
             </div>
             <div class="w-24">
               <UiSelect v-model="mapping.protocol" :options="protocolOptions" />
@@ -851,15 +851,15 @@
           <div class="flex items-center justify-between">
             <UiButton variant="ghost" @click="addPort">
               <Icon name="lucide:plus" class="size-4" />
-              Adicionar
+              Add
             </UiButton>
             <div class="flex gap-2">
-              <UiButton variant="ghost" @click="editingPorts = false">Cancelar</UiButton>
-              <UiButton :loading="savingPorts" @click="savePorts">Salvar</UiButton>
+              <UiButton variant="ghost" @click="editingPorts = false">Cancel</UiButton>
+              <UiButton :loading="savingPorts" @click="savePorts">Save</UiButton>
             </div>
           </div>
 
-          <p class="text-xs text-content-muted">As mudanças valem a partir do próximo deploy.</p>
+          <p class="text-xs text-content-muted">Changes take effect on the next deploy.</p>
         </div>
       </div>
     </UiCard>
@@ -869,16 +869,16 @@
       <template #header>
         <div class="flex items-center justify-between">
           <h2>Advanced</h2>
-          <UiButton v-if="!editingAdv" variant="secondary" @click="startEditAdv">Editar</UiButton>
+          <UiButton v-if="!editingAdv" variant="secondary" @click="startEditAdv">Edit</UiButton>
         </div>
       </template>
 
-      <!-- Leitura -->
+      <!-- Read -->
       <dl v-if="!editingAdv" class="grid gap-x-6 gap-y-3 text-sm sm:grid-cols-2">
         <div class="flex justify-between gap-2 sm:col-span-2">
           <dt class="text-content-muted">Volumes</dt>
           <dd class="text-right">
-            <span v-if="!application.volumes.length" class="text-content-muted">Nenhum</span>
+            <span v-if="!application.volumes.length" class="text-content-muted">None</span>
             <ul v-else class="font-mono text-xs">
               <li v-for="(volume, index) in application.volumes" :key="index">
                 {{ volume.source }}:{{ volume.target }}{{ volume.readOnly ? ' (ro)' : '' }}
@@ -887,7 +887,7 @@
           </dd>
         </div>
         <div class="flex justify-between gap-2 sm:col-span-2">
-          <dt class="text-content-muted">Networks extras</dt>
+          <dt class="text-content-muted">Extra networks</dt>
           <dd class="font-mono text-xs">
             {{ application.networks.length ? application.networks.join(', ') : '—' }}
           </dd>
@@ -895,7 +895,7 @@
         <div class="flex justify-between gap-2">
           <dt class="text-content-muted">Healthcheck</dt>
           <dd class="text-right">
-            <span v-if="!application.healthcheck">Desativado</span>
+            <span v-if="!application.healthcheck">Disabled</span>
             <span v-else class="font-mono text-xs">
               {{ application.healthcheck.path }} · {{ application.healthcheck.intervalSeconds }}s /
               {{ application.healthcheck.timeoutSeconds }}s ×{{ application.healthcheck.retries }}
@@ -903,10 +903,10 @@
           </dd>
         </div>
         <div class="flex justify-between gap-2">
-          <dt class="text-content-muted">Recursos</dt>
+          <dt class="text-content-muted">Resources</dt>
           <dd>
             <span v-if="!application.resources?.cpus && !application.resources?.memoryMb">
-              Sem limites
+              No limits
             </span>
             <span v-else class="font-mono text-xs">
               {{ application.resources?.cpus ? application.resources.cpus + ' CPU' : '' }}
@@ -916,7 +916,7 @@
         </div>
       </dl>
 
-      <!-- Edição -->
+      <!-- Edit -->
       <div v-else class="flex flex-col gap-6">
         <UiAlert v-if="advError" variant="error">{{ advError }}</UiAlert>
 
@@ -929,11 +929,11 @@
               class="flex items-center gap-2"
             >
               <div class="flex-1">
-                <UiInput v-model="volume.source" placeholder="origem (volume ou caminho no host)" />
+                <UiInput v-model="volume.source" placeholder="source (volume or host path)" />
               </div>
               <span class="text-content-muted">:</span>
               <div class="flex-1">
-                <UiInput v-model="volume.target" placeholder="/caminho/no/container" />
+                <UiInput v-model="volume.target" placeholder="/path/in/container" />
               </div>
               <UiCheckbox v-model="volume.readOnly" label="ro" />
               <button
@@ -946,13 +946,13 @@
             </div>
             <UiButton variant="ghost" class="self-start" @click="addVolume">
               <Icon name="lucide:plus" class="size-4" />
-              Adicionar volume
+              Add volume
             </UiButton>
           </div>
         </div>
 
         <div class="border-t border-surface-border pt-4">
-          <p class="mb-2 text-sm font-medium">Networks extras</p>
+          <p class="mb-2 text-sm font-medium">Extra networks</p>
           <div class="flex flex-col gap-2">
             <div
               v-for="(_, index) in advDraft.networks"
@@ -960,7 +960,7 @@
               class="flex items-center gap-2"
             >
               <div class="flex-1">
-                <UiInput v-model="advDraft.networks[index]" placeholder="nome-da-rede-docker" />
+                <UiInput v-model="advDraft.networks[index]" placeholder="docker-network-name" />
               </div>
               <button
                 type="button"
@@ -972,46 +972,46 @@
             </div>
             <UiButton variant="ghost" class="self-start" @click="addNetwork">
               <Icon name="lucide:plus" class="size-4" />
-              Adicionar network
+              Add network
             </UiButton>
           </div>
         </div>
 
         <div class="border-t border-surface-border pt-4">
-          <UiCheckbox v-model="advDraft.healthcheckEnabled" label="Ativar healthcheck" />
+          <UiCheckbox v-model="advDraft.healthcheckEnabled" label="Enable healthcheck" />
           <div v-if="advDraft.healthcheckEnabled" class="mt-3 grid gap-4 sm:grid-cols-2">
-            <UiInput v-model="advDraft.hcPath" label="Caminho" placeholder="/health" />
-            <UiInput v-model="advDraft.hcInterval" label="Intervalo (s)" />
+            <UiInput v-model="advDraft.hcPath" label="Path" placeholder="/health" />
+            <UiInput v-model="advDraft.hcInterval" label="Interval (s)" />
             <UiInput v-model="advDraft.hcTimeout" label="Timeout (s)" />
-            <UiInput v-model="advDraft.hcRetries" label="Tentativas" />
-            <UiInput v-model="advDraft.hcStartPeriod" label="Período inicial (s, opcional)" />
+            <UiInput v-model="advDraft.hcRetries" label="Retries" />
+            <UiInput v-model="advDraft.hcStartPeriod" label="Start period (s, optional)" />
           </div>
         </div>
 
         <div class="border-t border-surface-border pt-4">
-          <p class="mb-2 text-sm font-medium">Recursos (deixe vazio para sem limite)</p>
+          <p class="mb-2 text-sm font-medium">Resources (leave empty for no limit)</p>
           <div class="grid gap-4 sm:grid-cols-2">
-            <UiInput v-model="advDraft.cpus" label="CPUs" placeholder="ex.: 0.5" />
-            <UiInput v-model="advDraft.memoryMb" label="Memória (MB)" placeholder="ex.: 512" />
+            <UiInput v-model="advDraft.cpus" label="CPUs" placeholder="e.g. 0.5" />
+            <UiInput v-model="advDraft.memoryMb" label="Memory (MB)" placeholder="e.g. 512" />
           </div>
         </div>
 
-        <p class="text-xs text-content-muted">As mudanças valem a partir do próximo deploy.</p>
+        <p class="text-xs text-content-muted">Changes take effect on the next deploy.</p>
 
         <div class="flex justify-end gap-2">
-          <UiButton variant="ghost" @click="editingAdv = false">Cancelar</UiButton>
-          <UiButton :loading="savingAdv" @click="saveAdv">Salvar</UiButton>
+          <UiButton variant="ghost" @click="editingAdv = false">Cancel</UiButton>
+          <UiButton :loading="savingAdv" @click="saveAdv">Save</UiButton>
         </div>
       </div>
     </UiCard>
 
-    <!-- Token de acesso (repositório privado) -->
-    <UiCard v-if="canManage" title="Token de acesso">
+    <!-- Access token (private repository) -->
+    <UiCard v-if="canManage" title="Access token">
       <template #header>
         <div class="flex items-center justify-between">
-          <h2>Token de acesso</h2>
+          <h2>Access token</h2>
           <UiButton v-if="!editingToken" variant="secondary" @click="startEditToken">
-            {{ application.git.hasToken ? 'Trocar' : 'Definir' }}
+            {{ application.git.hasToken ? 'Replace' : 'Set' }}
           </UiButton>
         </div>
       </template>
@@ -1019,13 +1019,13 @@
       <template v-if="!editingToken">
         <div class="flex items-center gap-2 text-sm">
           <UiBadge :variant="application.git.hasToken ? 'success' : 'neutral'">
-            {{ application.git.hasToken ? 'Configurado' : 'Não configurado' }}
+            {{ application.git.hasToken ? 'Configured' : 'Not configured' }}
           </UiBadge>
           <span class="text-content-muted">
             {{
               application.git.hasToken
-                ? 'A plataforma clona o repositório privado com este token.'
-                : 'Necessário apenas para repositórios privados (GitHub).'
+                ? 'The platform clones the private repository with this token.'
+                : 'Required only for private repositories (GitHub).'
             }}
           </span>
           <button
@@ -1035,7 +1035,7 @@
             :disabled="savingToken"
             @click="saveToken(null)"
           >
-            Remover
+            Remove
           </button>
         </div>
       </template>
@@ -1044,30 +1044,30 @@
         <UiInput
           v-model="tokenDraft"
           type="password"
-          placeholder="Personal Access Token do GitHub"
-          hint="Escopo de leitura do repositório. Guardado cifrado; nunca exibido de volta."
+          placeholder="GitHub Personal Access Token"
+          hint="Repository read scope. Stored encrypted; never shown again."
         />
         <div class="flex justify-end gap-2">
-          <UiButton variant="ghost" @click="editingToken = false">Cancelar</UiButton>
+          <UiButton variant="ghost" @click="editingToken = false">Cancel</UiButton>
           <UiButton :loading="savingToken" :disabled="!tokenDraft" @click="saveToken(tokenDraft)">
-            Salvar
+            Save
           </UiButton>
         </div>
       </div>
     </UiCard>
 
-    <!-- Variáveis de ambiente -->
-    <UiCard v-if="canManage" title="Variáveis de ambiente">
+    <!-- Environment variables -->
+    <UiCard v-if="canManage" title="Environment variables">
       <template #header>
         <div class="flex items-center justify-between">
-          <h2>Variáveis de ambiente</h2>
-          <UiButton v-if="!editingVars" variant="secondary" @click="startEditVars">Editar</UiButton>
+          <h2>Environment variables</h2>
+          <UiButton v-if="!editingVars" variant="secondary" @click="startEditVars">Edit</UiButton>
         </div>
       </template>
 
       <template v-if="!editingVars">
         <p v-if="!data?.variables.length" class="text-sm text-content-muted">
-          Nenhuma variável definida.
+          No variables defined.
         </p>
         <ul v-else class="flex flex-col divide-y divide-surface-border font-mono text-xs">
           <li v-for="variable in data?.variables" :key="variable.key" class="flex gap-2 py-2">
@@ -1080,12 +1080,12 @@
       <div v-else class="flex flex-col gap-3">
         <div v-for="(variable, index) in draft" :key="index" class="flex items-center gap-2">
           <div class="flex-1">
-            <UiInput v-model="variable.key" placeholder="CHAVE" />
+            <UiInput v-model="variable.key" placeholder="KEY" />
           </div>
           <div class="flex-1">
-            <UiInput v-model="variable.value" placeholder="valor" />
+            <UiInput v-model="variable.value" placeholder="value" />
           </div>
-          <UiCheckbox v-model="variable.secret" label="secreta" />
+          <UiCheckbox v-model="variable.secret" label="secret" />
           <button
             type="button"
             class="rounded-lg p-2 text-content-muted hover:text-danger"
@@ -1098,19 +1098,19 @@
         <div class="flex items-center justify-between">
           <UiButton variant="ghost" @click="addVar">
             <Icon name="lucide:plus" class="size-4" />
-            Adicionar
+            Add
           </UiButton>
           <div class="flex gap-2">
-            <UiButton variant="ghost" @click="editingVars = false">Cancelar</UiButton>
-            <UiButton :loading="savingVars" @click="saveVars">Salvar</UiButton>
+            <UiButton variant="ghost" @click="editingVars = false">Cancel</UiButton>
+            <UiButton :loading="savingVars" @click="saveVars">Save</UiButton>
           </div>
         </div>
       </div>
     </UiCard>
 
-    <!-- Histórico de deploys -->
-    <UiCard title="Deploys">
-      <p v-if="!deploymentList.length" class="text-sm text-content-muted">Nenhum deploy ainda.</p>
+    <!-- Deployment history -->
+    <UiCard title="Deployments">
+      <p v-if="!deploymentList.length" class="text-sm text-content-muted">No deployments yet.</p>
 
       <ul v-else class="flex flex-col divide-y divide-surface-border">
         <li v-for="deployment in deploymentList" :key="deployment.id">
@@ -1149,7 +1149,7 @@
             <button
               v-if="canManage && deployment.status === 'succeeded'"
               type="button"
-              title="Reverter para este deploy"
+              title="Roll back to this deployment"
               class="rounded-lg border border-surface-border px-2 py-1 text-xs text-content-muted transition-colors hover:text-content"
               @click.stop.prevent="rollbackTarget = deployment"
             >
@@ -1164,9 +1164,9 @@
 
     <UiConfirm
       :open="Boolean(rollbackTarget)"
-      title="Reverter deploy"
-      :message="`Reverter para o deploy ${rollbackTarget?.commit?.sha?.slice(0, 7) ?? ''} (${rollbackTarget?.commit?.message ?? 'sem commit'})? Recria o container com a imagem desse deploy, sem rebuild.`"
-      confirm-label="Reverter"
+      title="Roll back deploy"
+      :message="`Roll back to deployment ${rollbackTarget?.commit?.sha?.slice(0, 7) ?? ''} (${rollbackTarget?.commit?.message ?? 'no commit'})? Recreates the container with that deployment's image, without a rebuild.`"
+      confirm-label="Roll back"
       :loading="rollingBack"
       @confirm="confirmRollback"
       @update:open="value => !value && (rollbackTarget = null)"
@@ -1174,9 +1174,9 @@
 
     <UiConfirm
       :open="Boolean(domainToRemove)"
-      title="Remover domínio"
-      :message="`Remover ${domainToRemove?.hostname}? A rota deixa de responder.`"
-      confirm-label="Remover"
+      title="Remove domain"
+      :message="`Remove ${domainToRemove?.hostname}? The route stops responding.`"
+      confirm-label="Remove"
       danger
       :loading="removingDomain"
       @confirm="confirmRemoveDomain"
@@ -1185,6 +1185,6 @@
   </section>
 
   <section v-else class="mx-auto max-w-4xl py-16 text-center text-sm text-content-muted">
-    Carregando…
+    Loading…
   </section>
 </template>

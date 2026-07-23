@@ -1,7 +1,7 @@
 <script setup lang="ts">
   import { z } from 'zod';
 
-  useHead({ title: 'Projetos' });
+  useHead({ title: 'Projects' });
 
   const session = useSessionStore();
   const { current } = useOrganizations();
@@ -21,7 +21,7 @@
   const creating = ref(false);
   const form = useForm(
     z.object({
-      name: z.string().trim().min(1, 'Informe um nome'),
+      name: z.string().trim().min(1, 'Enter a name'),
       description: z.string().trim().max(500).optional(),
     }),
     { name: '', description: '' },
@@ -40,21 +40,21 @@
   <section class="mx-auto flex max-w-4xl flex-col gap-6">
     <header class="flex items-center justify-between gap-4">
       <div>
-        <h1>Projetos</h1>
-        <p class="mt-1 text-sm text-content-muted">Agrupam ambientes e aplicações.</p>
+        <h1>Projects</h1>
+        <p class="mt-1 text-sm text-content-muted">They group environments and applications.</p>
       </div>
       <UiButton v-if="current && canManage" @click="creating = true">
         <Icon name="lucide:plus" class="size-4" />
-        Novo projeto
+        New project
       </UiButton>
     </header>
 
-    <UiCard v-if="!current" title="Selecione uma organização">
-      <p class="text-sm text-content-muted">Escolha ou crie uma organização na barra lateral.</p>
+    <UiCard v-if="!current" title="Select an organization">
+      <p class="text-sm text-content-muted">Choose or create an organization in the sidebar.</p>
     </UiCard>
 
-    <UiCard v-else-if="!projects.length" title="Nenhum projeto ainda">
-      <p class="text-sm text-content-muted">Crie um projeto para organizar suas aplicações.</p>
+    <UiCard v-else-if="!projects.length" title="No projects yet">
+      <p class="text-sm text-content-muted">Create a project to organize your applications.</p>
     </UiCard>
 
     <div v-else class="grid gap-3 sm:grid-cols-2">
@@ -69,24 +69,24 @@
           <h3 class="truncate">{{ project.name }}</h3>
         </div>
         <p class="mt-1 line-clamp-2 text-sm text-content-muted">
-          {{ project.description || 'Sem descrição.' }}
+          {{ project.description || 'No description.' }}
         </p>
       </NuxtLink>
     </div>
 
-    <UiModal v-model:open="creating" title="Novo projeto">
+    <UiModal v-model:open="creating" title="New project">
       <form class="flex flex-col gap-4" @submit.prevent="onCreate">
         <UiAlert v-if="form.formError.value" variant="error">{{ form.formError.value }}</UiAlert>
         <UiInput
           v-model="form.values.name"
-          label="Nome"
-          placeholder="loja-online"
+          label="Name"
+          placeholder="my-project"
           :error="form.errors.value.name"
         />
-        <UiInput v-model="form.values.description" label="Descrição (opcional)" />
+        <UiInput v-model="form.values.description" label="Description (optional)" />
         <div class="flex justify-end gap-2">
-          <UiButton variant="ghost" type="button" @click="creating = false">Cancelar</UiButton>
-          <UiButton type="submit" :loading="form.submitting.value">Criar</UiButton>
+          <UiButton variant="ghost" type="button" @click="creating = false">Cancel</UiButton>
+          <UiButton type="submit" :loading="form.submitting.value">Create</UiButton>
         </div>
       </form>
     </UiModal>

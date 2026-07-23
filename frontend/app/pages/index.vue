@@ -4,7 +4,7 @@
     dependencies: Record<string, { status: string }>;
   };
 
-  useHead({ title: 'Visão geral' });
+  useHead({ title: 'Overview' });
 
   const api = useApi();
 
@@ -17,19 +17,19 @@
 <template>
   <section class="mx-auto flex max-w-4xl flex-col gap-6">
     <header>
-      <h1>Visão geral</h1>
+      <h1>Overview</h1>
       <p class="mt-1 text-sm text-content-muted">
-        Plataforma de deploy. As telas de cada seção chegam nos próximos blocos da Fase 16.
+        Deployment platform. The screens for each section arrive in the next blocks of Phase 16.
       </p>
     </header>
 
     <div class="rounded-xl border border-surface-border bg-surface-raised p-5">
       <div class="mb-4 flex items-center gap-2">
         <Icon name="lucide:heart-pulse" class="size-5 text-primary" />
-        <h3>Estado da API</h3>
+        <h3>API status</h3>
       </div>
 
-      <p v-if="error" class="text-sm text-danger">A API não respondeu.</p>
+      <p v-if="error" class="text-sm text-danger">The API did not respond.</p>
 
       <div v-else class="space-y-2 text-sm">
         <p class="flex items-center justify-between">

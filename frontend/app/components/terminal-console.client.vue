@@ -12,7 +12,7 @@
   const { public: runtime } = useRuntimeConfig();
 
   const host = useTemplateRef<HTMLElement>('host');
-  const statusText = ref('conectando…');
+  const statusText = ref('connecting…');
 
   let terminal: Terminal | undefined;
   let socket: WebSocket | undefined;
@@ -39,7 +39,7 @@
     socket = new WebSocket(url);
 
     socket.onopen = () => {
-      statusText.value = 'conectado';
+      statusText.value = 'connected';
     };
 
     socket.onmessage = event => {
@@ -47,8 +47,8 @@
     };
 
     socket.onclose = () => {
-      statusText.value = 'desconectado';
-      terminal?.write('\r\n\x1b[90m— conexão encerrada —\x1b[0m\r\n');
+      statusText.value = 'disconnected';
+      terminal?.write('\r\n\x1b[90m— connection closed —\x1b[0m\r\n');
     };
 
     terminal.onData(data => socket?.readyState === WebSocket.OPEN && socket.send(data));

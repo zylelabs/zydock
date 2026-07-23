@@ -28,12 +28,12 @@
   };
 
   const navigation = [
-    { label: 'Visão geral', icon: 'lucide:layout-dashboard', to: '/' },
-    { label: 'Projetos', icon: 'lucide:folder-git-2', to: '/projects' },
-    { label: 'Servidores', icon: 'lucide:server', to: '/servers' },
-    { label: 'Bancos de dados', icon: 'lucide:database', to: '/databases' },
-    { label: 'Domínios', icon: 'lucide:globe', to: '/domains' },
-    { label: 'Observabilidade', icon: 'lucide:activity', to: '/observability' },
+    { label: 'Overview', icon: 'lucide:layout-dashboard', to: '/' },
+    { label: 'Projects', icon: 'lucide:folder-git-2', to: '/projects' },
+    { label: 'Servers', icon: 'lucide:server', to: '/servers' },
+    { label: 'Databases', icon: 'lucide:database', to: '/databases' },
+    { label: 'Domains', icon: 'lucide:globe', to: '/domains' },
+    { label: 'Observability', icon: 'lucide:activity', to: '/observability' },
   ];
 
   // The dashboard matches only its exact path; every other section stays lit for its sub-routes.
@@ -75,7 +75,7 @@
           "
         >
           <Icon name="lucide:settings" class="size-5 shrink-0" />
-          <span class="truncate">Configurações</span>
+          <span class="truncate">Settings</span>
         </NuxtLink>
 
         <div v-if="session.user" class="flex items-center gap-2 px-3 py-2">
@@ -90,7 +90,7 @@
           </div>
           <button
             type="button"
-            title="Sair"
+            title="Sign out"
             :disabled="loggingOut"
             class="rounded-lg p-2 text-content-muted transition-colors hover:bg-surface hover:text-content disabled:opacity-60"
             @click="logout"

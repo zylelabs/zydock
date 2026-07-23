@@ -1,25 +1,25 @@
 <script setup lang="ts">
   import { z } from 'zod';
 
-  useHead({ title: 'Configurações' });
+  useHead({ title: 'Settings' });
 
   const { current, update } = useOrganizations();
   const canManage = computed(() => ['owner', 'admin'].includes(current.value?.role ?? ''));
 
   const form = useForm(
     z.object({
-      name: z.string().trim().min(2, 'Ao menos 2 caracteres'),
+      name: z.string().trim().min(2, 'At least 2 characters'),
       logo: z.string().trim().max(2048).optional(),
       favicon: z.string().trim().max(2048).optional(),
-      primaryColor: z.string().regex(/^#[0-9a-fA-F]{6}$/, 'Cor inválida'),
-      secondaryColor: z.string().regex(/^#[0-9a-fA-F]{6}$/, 'Cor inválida'),
+      primaryColor: z.string().regex(/^#[0-9a-fA-F]{6}$/, 'Invalid color'),
+      secondaryColor: z.string().regex(/^#[0-9a-fA-F]{6}$/, 'Invalid color'),
     }),
     { name: '', logo: '', favicon: '', primaryColor: '#3b82f6', secondaryColor: '#22c55e' },
   );
 
   const saved = ref(false);
 
-  // Preenche o formulário com a organização atual assim que ela estiver disponível.
+  // Fills the form with the current organization as soon as it becomes available.
   watch(
     current,
     organization => {
@@ -58,60 +58,60 @@
 <template>
   <section class="mx-auto flex max-w-2xl flex-col gap-6">
     <header>
-      <h1>Configurações</h1>
-      <p class="mt-1 text-sm text-content-muted">Nome e personalização da organização.</p>
+      <h1>Settings</h1>
+      <p class="mt-1 text-sm text-content-muted">Organization name and branding.</p>
     </header>
 
-    <UiCard v-if="!current" title="Selecione uma organização">
-      <p class="text-sm text-content-muted">Escolha ou crie uma organização na barra lateral.</p>
+    <UiCard v-if="!current" title="Select an organization">
+      <p class="text-sm text-content-muted">Choose or create an organization in the sidebar.</p>
     </UiCard>
 
-    <UiCard v-else-if="!canManage" title="Personalização">
+    <UiCard v-else-if="!canManage" title="Branding">
       <p class="text-sm text-content-muted">
-        Apenas administradores podem alterar as configurações da organização.
+        Only administrators can change the organization settings.
       </p>
     </UiCard>
 
-    <UiCard v-else title="Personalização">
+    <UiCard v-else title="Branding">
       <form class="flex flex-col gap-4" @submit.prevent="onSave">
         <UiAlert v-if="form.formError.value" variant="error">{{ form.formError.value }}</UiAlert>
-        <UiAlert v-if="saved" variant="success">Configurações salvas.</UiAlert>
+        <UiAlert v-if="saved" variant="success">Settings saved.</UiAlert>
 
-        <UiInput v-model="form.values.name" label="Nome" :error="form.errors.value.name" />
+        <UiInput v-model="form.values.name" label="Name" :error="form.errors.value.name" />
 
         <div class="grid gap-4 sm:grid-cols-2">
           <UiInput
             v-model="form.values.logo"
-            label="URL do logo"
+            label="Logo URL"
             placeholder="https://…/logo.png"
             :error="form.errors.value.logo"
           />
           <UiInput
             v-model="form.values.favicon"
-            label="URL do favicon"
+            label="Favicon URL"
             placeholder="https://…/favicon.ico"
             :error="form.errors.value.favicon"
           />
           <UiInput
             v-model="form.values.primaryColor"
-            label="Cor primária"
+            label="Primary color"
             type="color"
             :error="form.errors.value.primaryColor"
           />
           <UiInput
             v-model="form.values.secondaryColor"
-            label="Cor secundária"
+            label="Secondary color"
             type="color"
             :error="form.errors.value.secondaryColor"
           />
         </div>
 
         <p class="text-xs text-content-muted">
-          As mudanças de cor e nome valem para a interface inteira assim que você salva.
+          Color and name changes apply to the entire interface as soon as you save.
         </p>
 
         <div class="flex justify-end">
-          <UiButton type="submit" :loading="form.submitting.value">Salvar</UiButton>
+          <UiButton type="submit" :loading="form.submitting.value">Save</UiButton>
         </div>
       </form>
     </UiCard>
