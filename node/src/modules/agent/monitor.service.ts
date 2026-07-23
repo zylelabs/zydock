@@ -1,8 +1,11 @@
 import config from '../../config';
+import type { ContainerInfo } from '../../providers/container/container.contract';
 import { resolveContainerProvider } from '../../providers/container';
-import { logError, logInfo } from '../../utils/logger';
+import { logError, logInfo, logWarn } from '../../utils/logger';
 
 export const AUTOHEAL_LABEL = 'zydock.autoheal';
+
+const APPLICATION_LABEL = 'zydock.application';
 
 let timer: ReturnType<typeof setInterval> | undefined;
 
@@ -20,9 +23,48 @@ export const clearManualStop = (containerId: string) => {
   manuallyStopped.delete(containerId);
 };
 
-const needsHealing = (containerId: string, state: string, health: string) =>
-  !manuallyStopped.has(containerId) &&
-  (state === 'exited' || state === 'dead' || health === 'unhealthy');
+const fetchApplicationStatus = async (applicationId: string) => {
+  try {
+    const response = await fetch(
+      `${config.backendUrl}/api/agent/applications/${applicationId}/status`,
+      { headers: { 'X-Agent-Token': config.agentToken } },
+    );
+
+    if (!response.ok) {
+      return undefined;
+    }
+
+    const body = (await response.json()) as { status?: string };
+
+    return body.status;
+  } catch (error) {
+    logWarn('Failed to check application status before auto-heal', {
+      applicationId,
+      error: error instanceof Error ? error.message : String(error),
+    });
+
+    return undefined;
+  }
+};
+
+const needsHealing = async (container: ContainerInfo) => {
+  const isDown =
+    container.state === 'exited' || container.state === 'dead' || container.health === 'unhealthy';
+
+  if (!isDown) {
+    return false;
+  }
+
+  const applicationId = container.labels[APPLICATION_LABEL];
+
+  if (!applicationId) {
+    return !manuallyStopped.has(container.id);
+  }
+
+  const status = await fetchApplicationStatus(applicationId);
+
+  return status !== undefined && status !== 'stopped';
+};
 
 export const runHealthSweep = async () => {
   const containers = resolveContainerProvider();
@@ -32,7 +74,7 @@ export const runHealthSweep = async () => {
   const healed: string[] = [];
 
   for (const container of watched) {
-    if (!needsHealing(container.id, container.state, container.health)) {
+    if (!(await needsHealing(container))) {
       continue;
     }
 
