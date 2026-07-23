@@ -1,0 +1,47 @@
+<script setup lang="ts">
+  import { z } from 'zod';
+
+  definePageMeta({ layout: 'blank' });
+  useHead({ title: 'Recuperar senha' });
+
+  const api = useApi();
+
+  const schema = z.object({ email: z.email('Informe um e-mail válido') });
+
+  const form = useForm(schema, { email: '' });
+  const sent = ref(false);
+
+  const onSubmit = form.submit(async data => {
+    await api.post('/auth/forgot-password', { body: data, anonymous: true });
+
+    // The API always answers the same way, so it never reveals whether the e-mail exists.
+    sent.value = true;
+  });
+</script>
+
+<template>
+  <UiCard title="Recuperar senha" description="Enviaremos um link para redefinir sua senha.">
+    <UiAlert v-if="sent" variant="success">
+      Se o e-mail existir, enviamos um link para redefinir a senha.
+    </UiAlert>
+
+    <form v-else class="flex flex-col gap-4" @submit.prevent="onSubmit">
+      <UiAlert v-if="form.formError.value" variant="error">{{ form.formError.value }}</UiAlert>
+
+      <UiInput
+        v-model="form.values.email"
+        label="E-mail"
+        type="email"
+        autocomplete="email"
+        placeholder="voce@empresa.com"
+        :error="form.errors.value.email"
+      />
+
+      <UiButton type="submit" block :loading="form.submitting.value">Enviar link</UiButton>
+    </form>
+
+    <p class="mt-5 text-center text-sm text-content-muted">
+      <NuxtLink to="/login" class="text-primary hover:underline">Voltar para entrar</NuxtLink>
+    </p>
+  </UiCard>
+</template>

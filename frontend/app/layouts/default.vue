@@ -2,6 +2,19 @@
   const { name, logo } = useTheme();
   const session = useSessionStore();
   const route = useRoute();
+  const api = useApi();
+
+  const loggingOut = ref(false);
+
+  const logout = async () => {
+    loggingOut.value = true;
+
+    // Best effort: revoke the session on the server, but always clear it locally and leave.
+    await api.post('/auth/logout').catch(() => undefined);
+
+    session.clear();
+    await navigateTo('/login');
+  };
 
   const navigation = [
     { label: 'Visão geral', icon: 'lucide:layout-dashboard', to: '/' },
@@ -63,16 +76,28 @@
           <span class="truncate">Configurações</span>
         </NuxtLink>
 
-        <div v-if="session.user" class="flex items-center gap-3 px-3 py-2">
+        <div v-if="session.user" class="flex items-center gap-2 px-3 py-2">
           <span
             class="flex size-8 shrink-0 items-center justify-center rounded-full bg-primary text-sm font-medium text-white"
           >
             {{ userInitial }}
           </span>
-          <div class="min-w-0">
+          <div class="min-w-0 flex-1">
             <p class="truncate text-sm font-medium">{{ session.user.name }}</p>
             <p class="truncate text-xs text-content-muted">{{ session.user.email }}</p>
           </div>
+          <button
+            type="button"
+            title="Sair"
+            :disabled="loggingOut"
+            class="rounded-lg p-2 text-content-muted transition-colors hover:bg-surface hover:text-content disabled:opacity-60"
+            @click="logout"
+          >
+            <Icon
+              :name="loggingOut ? 'lucide:loader-circle' : 'lucide:log-out'"
+              :class="['size-4', loggingOut && 'animate-spin']"
+            />
+          </button>
         </div>
       </div>
     </aside>
