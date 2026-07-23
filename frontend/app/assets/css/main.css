@@ -1,8 +1,9 @@
 @import 'tailwindcss';
 
 /*
- * Cores da marca como custom properties: a personalização por organização (Fase 16.2) troca os
- * valores em runtime, sem recompilar nada.
+ * Cores da marca como custom properties: a personalização por organização (`useTheme`) sobrescreve
+ * `--color-primary`, `--color-primary-strong` e `--color-secondary` no `:root` em runtime, sem
+ * recompilar nada. Os demais tokens formam a base neutra da interface.
  */
 @theme {
   --font-display: 'Inter', sans-serif;
@@ -16,6 +17,8 @@
 
   --color-primary: #3b82f6;
   --color-primary-strong: #2563eb;
+
+  --color-secondary: #22c55e;
 
   --color-success: #22c55e;
   --color-warning: #f59e0b;

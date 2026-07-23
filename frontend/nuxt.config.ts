@@ -34,9 +34,9 @@ export default defineNuxtConfig({
     },
   },
   app: {
+    // Title and favicon are owned by `useTheme`, so the organization's branding drives them from the
+    // first render; only the viewport meta is static here.
     head: {
-      title: 'Zydock',
-      link: [{ rel: 'icon', type: 'image/svg+xml', href: '/favicon.svg' }],
       meta: [{ name: 'viewport', content: 'width=device-width, initial-scale=1' }],
     },
   },

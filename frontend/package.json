@@ -30,6 +30,7 @@
     "zod": "^4.4.3"
   },
   "devDependencies": {
+    "@iconify-json/lucide": "^1.2.118",
     "@types/eslint-config-prettier": "^6.11.3",
     "@types/node": "^26.1.1",
     "eslint": "^10.1.0",

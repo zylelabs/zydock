@@ -4,6 +4,8 @@
     dependencies: Record<string, { status: string }>;
   };
 
+  useHead({ title: 'Visão geral' });
+
   const api = useApi();
 
   // Proves the whole path on the first render: browser → Nitro proxy → API.
@@ -13,28 +15,36 @@
 </script>
 
 <template>
-  <main class="mx-auto flex min-h-screen max-w-xl flex-col justify-center gap-4 p-8">
-    <h1>Zydock</h1>
+  <section class="mx-auto flex max-w-4xl flex-col gap-6">
+    <header>
+      <h1>Visão geral</h1>
+      <p class="mt-1 text-sm text-content-muted">
+        Plataforma de deploy. As telas de cada seção chegam nos próximos blocos da Fase 16.
+      </p>
+    </header>
 
-    <p class="text-content-muted">
-      Plataforma de deploy. A interface começa a ser construída na Fase 16.
-    </p>
+    <div class="rounded-xl border border-surface-border bg-surface-raised p-5">
+      <div class="mb-4 flex items-center gap-2">
+        <Icon name="lucide:heart-pulse" class="size-5 text-primary" />
+        <h3>Estado da API</h3>
+      </div>
 
-    <div class="rounded-lg border border-surface-border bg-surface-raised p-4 text-sm">
-      <p v-if="error" class="text-danger">A API não respondeu.</p>
+      <p v-if="error" class="text-sm text-danger">A API não respondeu.</p>
 
-      <template v-else>
-        <p>
-          API: <span class="text-success">{{ health?.status }}</span>
+      <div v-else class="space-y-2 text-sm">
+        <p class="flex items-center justify-between">
+          <span class="text-content-muted">API</span>
+          <span class="font-medium text-success">{{ health?.status }}</span>
         </p>
         <p
           v-for="(dependency, name) in health?.dependencies"
           :key="name"
-          class="text-content-muted"
+          class="flex items-center justify-between"
         >
-          {{ name }}: {{ dependency.status }}
+          <span class="text-content-muted">{{ name }}</span>
+          <span class="font-medium">{{ dependency.status }}</span>
         </p>
-      </template>
+      </div>
     </div>
-  </main>
+  </section>
 </template>
