@@ -1,5 +1,14 @@
 import type { ISessionTokens } from '~/stores/session.store';
 
+/** The envelope every list route answers with (`paginateStatics` on the backend). */
+export interface Paginated<T> {
+  items: T[];
+  total: number;
+  page: number;
+  size: number;
+  pages: number;
+}
+
 export type ApiQuery = Record<string, string | number | boolean | undefined>;
 
 export type ApiRequest = {

@@ -1,0 +1,42 @@
+import type { Paginated } from '~/composables/use-api';
+
+export type DomainStatus = 'pending' | 'active' | 'error';
+
+export interface Domain {
+  id: string;
+  organizationId: string;
+  applicationId: string;
+  serverId: string;
+  hostname: string;
+  pathPrefix?: string;
+  tls: boolean;
+  status: DomainStatus;
+  lastError?: string;
+  createdAt: string;
+  updatedAt: string;
+}
+
+export interface CreateDomainBody {
+  applicationId: string;
+  hostname: string;
+  pathPrefix?: string;
+  tls: boolean;
+}
+
+export const useDomains = () => {
+  const api = useApi();
+  const session = useSessionStore();
+
+  const base = () => `/organizations/${session.organizationId}/domains`;
+
+  const list = (filter: { applicationId?: string } = {}) =>
+    api.get<Paginated<Domain>>(base(), { query: { size: 100, ...filter } });
+  const create = (body: CreateDomainBody) => api.post<{ domain: Domain }>(base(), { body });
+  const apply = (domainId: string) => api.post<{ domain: Domain }>(`${base()}/${domainId}/apply`);
+  const certificate = (domainId: string) =>
+    api.get<{ certificate: unknown }>(`${base()}/${domainId}/certificate`);
+  const renew = (domainId: string) => api.post<{ domain: Domain }>(`${base()}/${domainId}/renew`);
+  const remove = (domainId: string) => api.del<{ message: string }>(`${base()}/${domainId}`);
+
+  return { list, create, apply, certificate, renew, remove };
+};

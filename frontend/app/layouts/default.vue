@@ -1,8 +1,18 @@
 <script setup lang="ts">
-  const { name, logo } = useTheme();
+  const { name } = useTheme();
   const session = useSessionStore();
   const route = useRoute();
   const api = useApi();
+  const organizationStore = useOrganizationStore();
+  const { load } = useOrganizations();
+
+  // On the client (the tokens live in localStorage), load the organizations once inside the app:
+  // it fills the switcher and applies the current organization's branding.
+  onMounted(() => {
+    if (session.isAuthenticated) {
+      load().catch(() => undefined);
+    }
+  });
 
   const loggingOut = ref(false);
 
@@ -12,6 +22,7 @@
     // Best effort: revoke the session on the server, but always clear it locally and leave.
     await api.post('/auth/logout').catch(() => undefined);
 
+    organizationStore.clear();
     session.clear();
     await navigateTo('/login');
   };
@@ -34,16 +45,7 @@
 <template>
   <div class="flex min-h-screen">
     <aside class="flex w-64 shrink-0 flex-col border-r border-surface-border bg-surface-raised">
-      <NuxtLink to="/" class="flex items-center gap-3 border-b border-surface-border px-5 py-4">
-        <img v-if="logo" :src="logo" :alt="name" class="size-8 rounded-lg object-contain" />
-        <span
-          v-else
-          class="flex size-8 items-center justify-center rounded-lg bg-primary text-sm font-semibold text-white"
-        >
-          {{ name.charAt(0) }}
-        </span>
-        <span class="truncate text-base font-semibold">{{ name }}</span>
-      </NuxtLink>
+      <OrganizationSwitcher />
 
       <nav class="flex-1 space-y-1 overflow-y-auto p-3">
         <NuxtLink
