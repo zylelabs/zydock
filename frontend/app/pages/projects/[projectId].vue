@@ -44,6 +44,58 @@
   const serverList = computed(() => data.value?.servers ?? []);
   const apps = computed(() => data.value?.applications ?? []);
 
+  // --- Edit project ---------------------------------------------------------------------------------
+
+  const projectForm = useForm(
+    z.object({
+      name: z.string().trim().min(1, 'Enter a name'),
+      description: z.string().trim(),
+    }),
+    { name: '', description: '' },
+  );
+
+  const editingProject = ref(false);
+
+  const openEditProject = () => {
+    if (!data.value) {
+      return;
+    }
+
+    projectForm.reset();
+    projectForm.values.name = data.value.project.name;
+    projectForm.values.description = data.value.project.description ?? '';
+    editingProject.value = true;
+  };
+
+  const onSaveProject = projectForm.submit(async values => {
+    await projects.update(projectId.value, {
+      name: values.name,
+      description: values.description || undefined,
+    });
+
+    await refresh();
+    editingProject.value = false;
+  });
+
+  // --- Delete project ---------------------------------------------------------------------------
+
+  const confirmDeleteProjectOpen = ref(false);
+  const deletingProject = ref(false);
+
+  const onDeleteProject = async () => {
+    actionError.value = '';
+    deletingProject.value = true;
+
+    try {
+      await projects.remove(projectId.value);
+      await navigateTo('/projects');
+    } catch (error) {
+      actionError.value =
+        (error as { message?: string }).message || 'Failed to delete the project.';
+      deletingProject.value = false;
+    }
+  };
+
   const APP_STATUS: Record<
     ApplicationStatus,
     { label: string; variant: 'neutral' | 'success' | 'warning' | 'danger' | 'info' }
@@ -89,6 +141,40 @@
     } catch (error) {
       actionError.value =
         (error as { message?: string }).message || 'Failed to remove environment.';
+    }
+  };
+
+  const renamingEnvironment = ref('');
+  const renameValue = ref('');
+  const renamingBusy = ref(false);
+
+  const startRenameEnvironment = (environment: { id: string; name: string }) => {
+    actionError.value = '';
+    renamingEnvironment.value = environment.id;
+    renameValue.value = environment.name;
+  };
+
+  const saveRenameEnvironment = async () => {
+    if (!renameValue.value.trim()) {
+      return;
+    }
+
+    actionError.value = '';
+    renamingBusy.value = true;
+
+    try {
+      await projects.updateEnvironment(
+        projectId.value,
+        renamingEnvironment.value,
+        renameValue.value.trim(),
+      );
+      renamingEnvironment.value = '';
+      await refresh();
+    } catch (error) {
+      actionError.value =
+        (error as { message?: string }).message || 'Failed to rename environment.';
+    } finally {
+      renamingBusy.value = false;
     }
   };
 
@@ -171,14 +257,40 @@
       Projects
     </NuxtLink>
 
-    <header v-if="data">
-      <h1>{{ data.project.name }}</h1>
-      <p v-if="data.project.description" class="mt-1 text-sm text-content-muted">
-        {{ data.project.description }}
-      </p>
+    <header v-if="data" class="flex flex-wrap items-start justify-between gap-3">
+      <div>
+        <h1>{{ data.project.name }}</h1>
+        <p v-if="data.project.description" class="mt-1 text-sm text-content-muted">
+          {{ data.project.description }}
+        </p>
+      </div>
+
+      <UiButton v-if="canManage" variant="ghost" type="button" @click="openEditProject">
+        Edit
+      </UiButton>
     </header>
 
     <UiAlert v-if="actionError" variant="error">{{ actionError }}</UiAlert>
+
+    <UiCard v-if="editingProject" title="Edit project">
+      <form class="flex flex-col gap-4" @submit.prevent="onSaveProject">
+        <UiAlert v-if="projectForm.formError.value" variant="error">{{
+          projectForm.formError.value
+        }}</UiAlert>
+
+        <UiInput
+          v-model="projectForm.values.name"
+          label="Name"
+          :error="projectForm.errors.value.name"
+        />
+        <UiTextarea v-model="projectForm.values.description" label="Description" :rows="3" />
+
+        <div class="flex items-center justify-end gap-2">
+          <UiButton variant="ghost" type="button" @click="editingProject = false">Cancel</UiButton>
+          <UiButton type="submit" :loading="projectForm.submitting.value">Save</UiButton>
+        </div>
+      </form>
+    </UiCard>
 
     <!-- Environments -->
     <UiCard title="Environments">
@@ -186,18 +298,47 @@
         <li
           v-for="environment in environments"
           :key="environment.id"
-          class="flex items-center justify-between py-2"
+          class="flex items-center justify-between gap-2 py-2"
         >
-          <span class="text-sm">{{ environment.name }}</span>
-          <button
-            v-if="canManage && environments.length > 1"
-            type="button"
-            title="Remove environment"
-            class="rounded-lg p-1.5 text-content-muted transition-colors hover:text-danger"
-            @click="removeEnvironment(environment.id)"
-          >
-            <Icon name="lucide:trash-2" class="size-4" />
-          </button>
+          <template v-if="renamingEnvironment === environment.id">
+            <div class="flex flex-1 items-center gap-2">
+              <UiInput v-model="renameValue" class="flex-1" @keyup.enter="saveRenameEnvironment" />
+              <UiButton
+                variant="secondary"
+                type="button"
+                :loading="renamingBusy"
+                @click="saveRenameEnvironment"
+              >
+                Save
+              </UiButton>
+              <UiButton variant="ghost" type="button" @click="renamingEnvironment = ''">
+                Cancel
+              </UiButton>
+            </div>
+          </template>
+
+          <template v-else>
+            <span class="text-sm">{{ environment.name }}</span>
+            <div v-if="canManage" class="flex items-center gap-1">
+              <button
+                type="button"
+                title="Rename environment"
+                class="rounded-lg p-1.5 text-content-muted transition-colors hover:text-content"
+                @click="startRenameEnvironment(environment)"
+              >
+                <Icon name="lucide:pencil" class="size-4" />
+              </button>
+              <button
+                v-if="environments.length > 1"
+                type="button"
+                title="Remove environment"
+                class="rounded-lg p-1.5 text-content-muted transition-colors hover:text-danger"
+                @click="removeEnvironment(environment.id)"
+              >
+                <Icon name="lucide:trash-2" class="size-4" />
+              </button>
+            </div>
+          </template>
         </li>
       </ul>
 
@@ -306,5 +447,28 @@
         </li>
       </ul>
     </UiCard>
+
+    <UiCard v-if="canManage && data" title="Danger zone">
+      <div class="flex items-center justify-between gap-4">
+        <p class="text-sm text-content-muted">
+          Deletes this project, its environments and every application inside it. This cannot be
+          undone.
+        </p>
+        <UiButton variant="danger" @click="confirmDeleteProjectOpen = true">
+          Delete project
+        </UiButton>
+      </div>
+    </UiCard>
+
+    <UiConfirm
+      :open="confirmDeleteProjectOpen"
+      title="Delete project"
+      :message="`Delete “${data?.project.name}”? ${apps.length} application(s) and ${environments.length} environment(s) are removed too. This cannot be undone.`"
+      confirm-label="Delete"
+      danger
+      :loading="deletingProject"
+      @confirm="onDeleteProject"
+      @update:open="value => (confirmDeleteProjectOpen = value)"
+    />
   </section>
 </template>

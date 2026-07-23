@@ -13,6 +13,15 @@ export interface ApplicationGit {
   autoDeploy: boolean;
   hasToken?: boolean;
   token?: string;
+  hasWebhook?: boolean;
+  /** The delivery URL the git host calls — not a secret, only present once a webhook is configured. */
+  webhookUrl?: string;
+}
+
+export interface GitWebhook {
+  id: string;
+  url: string;
+  events: string[];
 }
 
 export interface ApplicationVariable {
@@ -122,6 +131,11 @@ export const useApplications = () => {
   const start = (applicationId: string) =>
     api.post<{ application: Application }>(`${base()}/${applicationId}/start`);
 
+  const configureWebhook = (applicationId: string) =>
+    api.post<{ webhook: GitWebhook }>(`${base()}/${applicationId}/webhook`);
+  const removeWebhook = (applicationId: string) =>
+    api.del<{ message: string }>(`${base()}/${applicationId}/webhook`);
+
   return {
     list,
     get,
@@ -135,5 +149,7 @@ export const useApplications = () => {
     restart,
     stop,
     start,
+    configureWebhook,
+    removeWebhook,
   };
 };
