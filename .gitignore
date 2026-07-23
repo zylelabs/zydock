@@ -32,7 +32,7 @@ examples
 
 # Build artifacts
 backend/server
-node/dist
+agent/dist
 frontend/.nuxt
 frontend/.output
 frontend/.nitro

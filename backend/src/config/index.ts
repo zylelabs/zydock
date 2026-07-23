@@ -92,11 +92,11 @@ export default {
   security: {
     encryptionKey: readEncryptionKey(),
   },
-  node: {
-    port: readNumber('NODE_AGENT_PORT', 9000),
-    requestTimeoutMs: readNumber('NODE_AGENT_TIMEOUT_MS', 15000),
-    offlineAfterSeconds: readNumber('NODE_AGENT_OFFLINE_AFTER_SECONDS', 90),
-    bundlePath: readString('NODE_AGENT_BUNDLE_PATH', '../node/dist/agent.js'),
+  agent: {
+    port: readNumber('AGENT_PORT', 9000),
+    requestTimeoutMs: readNumber('AGENT_TIMEOUT_MS', 15000),
+    offlineAfterSeconds: readNumber('AGENT_OFFLINE_AFTER_SECONDS', 90),
+    bundlePath: readString('AGENT_BUNDLE_PATH', '../agent/dist/agent.js'),
   },
   queue: {
     enabled: readBoolean('QUEUE_ENABLED', true),
