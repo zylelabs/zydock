@@ -27,14 +27,20 @@
     await navigateTo('/login');
   };
 
-  const navigation = [
+  const navigation = computed(() => [
     { label: 'Overview', icon: 'lucide:layout-dashboard', to: '/' },
     { label: 'Projects', icon: 'lucide:folder-git-2', to: '/projects' },
     { label: 'Servers', icon: 'lucide:server', to: '/servers' },
     { label: 'Databases', icon: 'lucide:database', to: '/databases' },
     { label: 'Domains', icon: 'lucide:globe', to: '/domains' },
+    { label: 'Backups', icon: 'lucide:archive', to: '/backups' },
+    { label: 'Notifications', icon: 'lucide:bell', to: '/notifications' },
     { label: 'Observability', icon: 'lucide:activity', to: '/observability' },
-  ];
+    // Platform-wide capability, not an organization role — only shown to a superuser account.
+    ...(session.user?.superuser
+      ? [{ label: 'Queue', icon: 'lucide:list-todo', to: '/queue' }]
+      : []),
+  ]);
 
   // The dashboard matches only its exact path; every other section stays lit for its sub-routes.
   const isActive = (to: string) => (to === '/' ? route.path === '/' : route.path.startsWith(to));
@@ -65,6 +71,19 @@
       </nav>
 
       <div class="space-y-1 border-t border-surface-border p-3">
+        <NuxtLink
+          to="/account"
+          class="flex items-center gap-3 rounded-lg px-3 py-2 text-sm transition-colors"
+          :class="
+            isActive('/account')
+              ? 'bg-surface text-content'
+              : 'text-content-muted hover:bg-surface hover:text-content'
+          "
+        >
+          <Icon name="lucide:user" class="size-5 shrink-0" />
+          <span class="truncate">Account</span>
+        </NuxtLink>
+
         <NuxtLink
           to="/settings"
           class="flex items-center gap-3 rounded-lg px-3 py-2 text-sm transition-colors"

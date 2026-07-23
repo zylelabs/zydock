@@ -12,6 +12,7 @@
   const applications = useApplications();
   const deployments = useDeployments();
   const domains = useDomains();
+  const metricsApi = useMetrics();
 
   const canManage = computed(() => ['owner', 'admin'].includes(current.value?.role ?? ''));
   const actionError = ref('');
@@ -23,11 +24,13 @@
         return null;
       }
 
-      const [app, deps, vars, doms] = await Promise.all([
+      const [app, deps, vars, doms, metrics, deployMetrics] = await Promise.all([
         applications.get(applicationId.value),
         deployments.list({ applicationId: applicationId.value }),
         applications.listVariables(applicationId.value).catch(() => ({ variables: [] })),
         domains.list({ applicationId: applicationId.value }).catch(() => ({ items: [] })),
+        metricsApi.applicationMetrics(applicationId.value).catch(() => null),
+        metricsApi.applicationDeploymentMetrics(applicationId.value).catch(() => null),
       ]);
 
       return {
@@ -35,6 +38,8 @@
         deployments: deps.items,
         variables: vars.variables,
         domains: doms.items,
+        metrics,
+        deployMetrics,
       };
     },
     { server: false, watch: [() => session.organizationId, applicationId] },
@@ -72,6 +77,14 @@
   };
 
   const formatWhen = (value?: string) => (value ? new Date(value).toLocaleString('en-US') : '—');
+
+  const metrics = computed(() => data.value?.metrics ?? null);
+  const deployMetrics = computed(() => data.value?.deployMetrics ?? null);
+  const memoryPercent = computed(() => {
+    const value = metrics.value;
+
+    return value?.memoryLimitMb ? Math.round((value.memoryUsedMb / value.memoryLimitMb) * 100) : 0;
+  });
 
   const RESTART_POLICIES = ['unless-stopped', 'always', 'on-failure', 'no'] as const;
   const restartOptions = RESTART_POLICIES.map(value => ({ value, label: value }));
@@ -602,6 +615,65 @@
       <Icon name="lucide:loader" class="size-4 animate-spin" />
       Deployment in progress — view live logs
     </NuxtLink>
+
+    <UiCard v-if="metrics || (deployMetrics && deployMetrics.window)" title="Resources">
+      <div v-if="metrics" class="flex flex-col gap-3">
+        <div class="flex items-center gap-2">
+          <UiBadge variant="info">{{ metrics.state }}</UiBadge>
+          <UiBadge
+            v-if="metrics.health !== 'none'"
+            :variant="metrics.health === 'healthy' ? 'success' : 'warning'"
+          >
+            {{ metrics.health }}
+          </UiBadge>
+          <span class="text-xs text-content-muted">restarts: {{ metrics.restartCount }}</span>
+        </div>
+
+        <div class="grid gap-4 sm:grid-cols-2">
+          <div>
+            <div class="mb-1 flex justify-between text-xs text-content-muted">
+              <span>CPU</span><span>{{ Math.round(metrics.cpuPercent) }}%</span>
+            </div>
+            <div class="h-1.5 overflow-hidden rounded-full bg-surface">
+              <div
+                class="h-full bg-primary"
+                :style="{ width: `${Math.min(100, metrics.cpuPercent)}%` }"
+              />
+            </div>
+          </div>
+          <div>
+            <div class="mb-1 flex justify-between text-xs text-content-muted">
+              <span>Memory</span>
+              <span>{{ metrics.memoryUsedMb }} / {{ metrics.memoryLimitMb }} MB</span>
+            </div>
+            <div class="h-1.5 overflow-hidden rounded-full bg-surface">
+              <div class="h-full bg-primary" :style="{ width: `${memoryPercent}%` }" />
+            </div>
+          </div>
+        </div>
+      </div>
+
+      <div
+        v-if="deployMetrics && deployMetrics.window"
+        class="grid gap-3 pt-4 text-sm sm:grid-cols-3"
+        :class="metrics && 'mt-4 border-t border-surface-border'"
+      >
+        <div>
+          <p class="text-xs text-content-muted">Success rate</p>
+          <p class="font-medium">{{ deployMetrics.successRate }}%</p>
+        </div>
+        <div>
+          <p class="text-xs text-content-muted">Avg. duration</p>
+          <p class="font-medium">
+            {{ formatDuration(deployMetrics.averageDurationMs ?? undefined) }}
+          </p>
+        </div>
+        <div>
+          <p class="text-xs text-content-muted">Avg. build time</p>
+          <p class="font-medium">{{ formatDuration(deployMetrics.averageBuildMs ?? undefined) }}</p>
+        </div>
+      </div>
+    </UiCard>
 
     <UiCard title="Configuration">
       <template #header>

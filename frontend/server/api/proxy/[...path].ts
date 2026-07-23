@@ -33,6 +33,23 @@ export default defineEventHandler(async event => {
 
     setResponseStatus(event, response.status);
 
+    // A binary body (e.g. a backup download) comes back from ofetch as a Blob, not JSON — h3 does
+    // not know how to serialize that, so forward it as bytes with the headers the browser needs.
+    if (response._data instanceof Blob) {
+      const contentType = response.headers.get('content-type');
+      const contentDisposition = response.headers.get('content-disposition');
+
+      if (contentType) {
+        setResponseHeader(event, 'content-type', contentType);
+      }
+
+      if (contentDisposition) {
+        setResponseHeader(event, 'content-disposition', contentDisposition);
+      }
+
+      return Buffer.from(await response._data.arrayBuffer());
+    }
+
     return response._data;
   } catch (error) {
     return normalizeFetchError(event, error);

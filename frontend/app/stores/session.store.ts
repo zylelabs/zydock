@@ -5,6 +5,8 @@ export interface ISessionUser {
   name: string;
   email: string;
   avatar?: string;
+  /** Platform-wide capability (not an organization role) — gates the queue admin screen. */
+  superuser?: boolean;
 }
 
 export interface ISessionTokens {
@@ -38,6 +40,12 @@ export const useSessionStore = defineStore('session', {
     },
     selectOrganization(organizationId: string) {
       this.organizationId = organizationId;
+    },
+    // The account page edits name/avatar without a fresh sign-in — patches the cached profile in place.
+    updateUser(patch: Partial<ISessionUser>) {
+      if (this.user) {
+        Object.assign(this.user, patch);
+      }
     },
     clear() {
       this.$reset();
