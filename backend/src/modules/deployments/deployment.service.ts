@@ -33,6 +33,9 @@ export const createDeployment = (params: {
   trigger: DeploymentTrigger;
   triggeredBy?: string;
   commit?: string;
+  // A rollback carries the full commit and the prebuilt image of the deployment it reuses.
+  commitDetail?: DeploymentCommit;
+  imageTag?: string;
 }) =>
   deploymentModel.create({
     organizationId: params.organizationId,
@@ -42,7 +45,8 @@ export const createDeployment = (params: {
     trigger: params.trigger,
     triggeredBy: params.triggeredBy,
     branch: params.branch,
-    commit: params.commit ? { sha: params.commit } : undefined,
+    commit: params.commitDetail ?? (params.commit ? { sha: params.commit } : undefined),
+    imageTag: params.imageTag,
     steps: [],
     buildLog: [],
   });

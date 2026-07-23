@@ -19,7 +19,7 @@ export interface Deployment {
   applicationId: string;
   serverId: string;
   status: DeploymentStatus;
-  trigger: 'manual' | 'webhook';
+  trigger: 'manual' | 'webhook' | 'rollback';
   branch?: string;
   commit?: { sha: string; message?: string; author?: string };
   imageTag?: string;

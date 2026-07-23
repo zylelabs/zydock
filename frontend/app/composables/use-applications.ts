@@ -110,6 +110,11 @@ export const useApplications = () => {
   const deploy = (applicationId: string, body: { branch?: string; commit?: string } = {}) =>
     api.post<{ deployment: { id: string } }>(`${base()}/${applicationId}/deploy`, { body });
 
+  const rollback = (applicationId: string, deploymentId: string) =>
+    api.post<{ deployment: { id: string } }>(`${base()}/${applicationId}/rollback`, {
+      body: { deploymentId },
+    });
+
   const restart = (applicationId: string) =>
     api.post<{ application: Application }>(`${base()}/${applicationId}/restart`);
   const stop = (applicationId: string) =>
@@ -126,6 +131,7 @@ export const useApplications = () => {
     listVariables,
     replaceVariables,
     deploy,
+    rollback,
     restart,
     stop,
     start,

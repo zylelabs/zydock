@@ -2,9 +2,14 @@ import type { Context } from 'hono';
 import { createRouter, validator } from 'hono-route-docs';
 import { paginationQuery } from '../../utils/pagination';
 import { authMiddleware } from '../auth/auth.middleware';
-import { serializeDeployment } from '../deployments/deployment.service';
-import { TriggerDeploymentDTO, triggerDeploymentSchema } from '../deployments/deployment.schema';
-import { enqueueDeployment } from '../deployments/pipeline.service';
+import { findDeployment, serializeDeployment } from '../deployments/deployment.service';
+import {
+  RollbackDTO,
+  rollbackSchema,
+  TriggerDeploymentDTO,
+  triggerDeploymentSchema,
+} from '../deployments/deployment.schema';
+import { enqueueDeployment, enqueueRollback } from '../deployments/pipeline.service';
 import { OrganizationIdParam, organizationIdParamSchema } from '../organizations/membership.schema';
 import { createOrganizationRoleGuard } from '../organizations/organizations.middleware';
 import { findEnvironmentOfOrganization } from '../projects/environment.service';
@@ -229,6 +234,43 @@ post(
       branch: body.branch,
       commit: body.commit,
     });
+
+    return c.json({ deployment: serializeDeployment(deployment) }, 202);
+  },
+);
+
+post(
+  '/:applicationId/rollback',
+  applicationsDocs.rollback,
+  authMiddleware,
+  validator('param', applicationIdParamSchema),
+  createOrganizationRoleGuard('admin'),
+  validator('json', rollbackSchema),
+  async (c: Context) => {
+    const { organizationId, applicationId } = c.req.valid('param' as never) as ApplicationIdParam;
+    const body = c.req.valid('json' as never) as RollbackDTO;
+    const auth = c.get('auth');
+
+    const application = await findApplication(organizationId, applicationId);
+
+    if (!application) {
+      return c.json({ error: 'Application not found' }, 404);
+    }
+
+    const source = await findDeployment(organizationId, body.deploymentId);
+
+    if (!source || String(source.applicationId) !== applicationId) {
+      return c.json({ error: 'Deployment not found for this application' }, 404);
+    }
+
+    if (source.status !== 'succeeded' || !source.imageTag) {
+      return c.json(
+        { error: 'Only a successful deployment with a built image can be rolled back to' },
+        400,
+      );
+    }
+
+    const deployment = await enqueueRollback({ application, source, triggeredBy: auth.sub });
 
     return c.json({ deployment: serializeDeployment(deployment) }, 202);
   },

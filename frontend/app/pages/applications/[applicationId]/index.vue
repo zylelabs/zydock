@@ -1,7 +1,8 @@
 <script setup lang="ts">
   import { z } from 'zod';
   import type { ApplicationStatus, ApplicationVariable } from '~/composables/use-applications';
-  import type { DeploymentStatus } from '~/composables/use-deployments';
+  import type { Deployment, DeploymentStatus } from '~/composables/use-deployments';
+  import type { Domain, DomainStatus } from '~/composables/use-domains';
 
   const route = useRoute();
   const session = useSessionStore();
@@ -10,6 +11,7 @@
   const { current } = useOrganizations();
   const applications = useApplications();
   const deployments = useDeployments();
+  const domains = useDomains();
 
   const canManage = computed(() => ['owner', 'admin'].includes(current.value?.role ?? ''));
   const actionError = ref('');
@@ -21,13 +23,19 @@
         return null;
       }
 
-      const [app, deps, vars] = await Promise.all([
+      const [app, deps, vars, doms] = await Promise.all([
         applications.get(applicationId.value),
         deployments.list({ applicationId: applicationId.value }),
         applications.listVariables(applicationId.value).catch(() => ({ variables: [] })),
+        domains.list({ applicationId: applicationId.value }).catch(() => ({ items: [] })),
       ]);
 
-      return { application: app.application, deployments: deps.items, variables: vars.variables };
+      return {
+        application: app.application,
+        deployments: deps.items,
+        variables: vars.variables,
+        domains: doms.items,
+      };
     },
     { server: false, watch: [() => session.organizationId, applicationId] },
   );
@@ -149,6 +157,35 @@
       actionError.value = (error as { message?: string }).message || 'Falha ao disparar o deploy.';
     } finally {
       deploying.value = false;
+    }
+  };
+
+  // --- Rollback ----------------------------------------------------------------------------------
+
+  const rollbackTarget = ref<Deployment | null>(null);
+  const rollingBack = ref(false);
+
+  const confirmRollback = async () => {
+    if (!rollbackTarget.value) {
+      return;
+    }
+
+    rollingBack.value = true;
+    actionError.value = '';
+
+    try {
+      const { deployment } = await applications.rollback(
+        applicationId.value,
+        rollbackTarget.value.id,
+      );
+
+      rollbackTarget.value = null;
+      // Straight to the live log of the rollback deploy.
+      await navigateTo(`/applications/${applicationId.value}/deployments/${deployment.id}`);
+    } catch (error) {
+      actionError.value = (error as { message?: string }).message || 'Falha ao reverter.';
+    } finally {
+      rollingBack.value = false;
     }
   };
 
@@ -343,6 +380,83 @@
       advError.value = (error as { message?: string }).message || 'Falha ao salvar.';
     } finally {
       savingAdv.value = false;
+    }
+  };
+
+  // --- Domínios ----------------------------------------------------------------------------------
+
+  const domainList = computed(() => data.value?.domains ?? []);
+
+  const DOMAIN_STATUS: Record<
+    DomainStatus,
+    { label: string; variant: 'neutral' | 'success' | 'warning' | 'danger' | 'info' }
+  > = {
+    pending: { label: 'Pendente', variant: 'warning' },
+    active: { label: 'Ativo', variant: 'success' },
+    error: { label: 'Erro', variant: 'danger' },
+  };
+
+  const addingDomain = ref(false);
+  const domainBusy = ref('');
+
+  const domainForm = useForm(
+    z.object({
+      hostname: z.string().trim().min(1, 'Informe o domínio'),
+      pathPrefix: z.string().trim().optional(),
+      tls: z.boolean(),
+    }),
+    { hostname: '', pathPrefix: '', tls: true },
+  );
+
+  const openAddDomain = () => {
+    domainForm.reset();
+    addingDomain.value = true;
+  };
+
+  const onCreateDomain = domainForm.submit(async values => {
+    await domains.create({
+      applicationId: applicationId.value,
+      hostname: values.hostname,
+      pathPrefix: values.pathPrefix || undefined,
+      tls: values.tls,
+    });
+    addingDomain.value = false;
+    await refresh();
+  });
+
+  const runDomainAction = async (domain: Domain, action: 'apply' | 'renew') => {
+    actionError.value = '';
+    domainBusy.value = `${domain.id}:${action}`;
+
+    try {
+      await domains[action](domain.id);
+      await refresh();
+    } catch (error) {
+      actionError.value = (error as { message?: string }).message || 'Falha na operação.';
+    } finally {
+      domainBusy.value = '';
+    }
+  };
+
+  const domainToRemove = ref<Domain | null>(null);
+  const removingDomain = ref(false);
+
+  const confirmRemoveDomain = async () => {
+    if (!domainToRemove.value) {
+      return;
+    }
+
+    removingDomain.value = true;
+    actionError.value = '';
+
+    try {
+      await domains.remove(domainToRemove.value.id);
+      await refresh();
+      domainToRemove.value = null;
+    } catch (error) {
+      actionError.value = (error as { message?: string }).message || 'Falha ao remover.';
+    } finally {
+      removingDomain.value = false;
     }
   };
 
@@ -581,6 +695,98 @@
           <UiButton type="submit" :loading="configForm.submitting.value">Salvar</UiButton>
         </div>
       </form>
+    </UiCard>
+
+    <!-- Domínios -->
+    <UiCard v-if="canManage" title="Domínios">
+      <template #header>
+        <div class="flex items-center justify-between">
+          <h2>Domínios</h2>
+          <UiButton v-if="!addingDomain" variant="secondary" @click="openAddDomain">
+            <Icon name="lucide:plus" class="size-4" />
+            Adicionar
+          </UiButton>
+        </div>
+      </template>
+
+      <form
+        v-if="addingDomain"
+        class="mb-4 flex flex-col gap-4 rounded-lg border border-surface-border p-4"
+        @submit.prevent="onCreateDomain"
+      >
+        <UiAlert v-if="domainForm.formError.value" variant="error">
+          {{ domainForm.formError.value }}
+        </UiAlert>
+        <div class="grid gap-4 sm:grid-cols-2">
+          <UiInput
+            v-model="domainForm.values.hostname"
+            label="Domínio"
+            placeholder="app.exemplo.com"
+            :error="domainForm.errors.value.hostname"
+          />
+          <UiInput
+            v-model="domainForm.values.pathPrefix"
+            label="Prefixo de caminho (opcional)"
+            placeholder="/api"
+          />
+        </div>
+        <UiCheckbox v-model="domainForm.values.tls" label="HTTPS automático (Let's Encrypt)" />
+        <div class="flex justify-end gap-2">
+          <UiButton variant="ghost" type="button" @click="addingDomain = false">Cancelar</UiButton>
+          <UiButton type="submit" :loading="domainForm.submitting.value">Adicionar</UiButton>
+        </div>
+      </form>
+
+      <p v-if="!domainList.length" class="text-sm text-content-muted">
+        Nenhum domínio ainda. Adicione um para publicar esta aplicação por um endereço próprio.
+      </p>
+
+      <div v-else class="flex flex-col gap-3">
+        <div
+          v-for="domain in domainList"
+          :key="domain.id"
+          class="flex flex-wrap items-center gap-4 rounded-lg border border-surface-border p-3"
+        >
+          <div class="min-w-0 flex-1">
+            <div class="flex items-center gap-2">
+              <Icon v-if="domain.tls" name="lucide:lock" class="size-4 text-success" />
+              <span class="truncate font-medium">{{ domain.hostname }}{{ domain.pathPrefix }}</span>
+              <UiBadge :variant="DOMAIN_STATUS[domain.status].variant">
+                {{ DOMAIN_STATUS[domain.status].label }}
+              </UiBadge>
+            </div>
+            <p v-if="domain.lastError" class="mt-1 truncate text-xs text-danger">
+              {{ domain.lastError }}
+            </p>
+          </div>
+
+          <div class="flex items-center gap-2">
+            <UiButton
+              variant="secondary"
+              :loading="domainBusy === `${domain.id}:apply`"
+              @click="runDomainAction(domain, 'apply')"
+            >
+              Aplicar
+            </UiButton>
+            <UiButton
+              v-if="domain.tls"
+              variant="ghost"
+              :loading="domainBusy === `${domain.id}:renew`"
+              @click="runDomainAction(domain, 'renew')"
+            >
+              Renovar
+            </UiButton>
+            <button
+              type="button"
+              title="Remover"
+              class="rounded-lg p-2 text-content-muted transition-colors hover:text-danger"
+              @click="domainToRemove = domain"
+            >
+              <Icon name="lucide:trash-2" class="size-4" />
+            </button>
+          </div>
+        </div>
+      </div>
     </UiCard>
 
     <!-- Network -->
@@ -940,11 +1146,42 @@
                 {{ step.step }}
               </span>
             </div>
+            <button
+              v-if="canManage && deployment.status === 'succeeded'"
+              type="button"
+              title="Reverter para este deploy"
+              class="rounded-lg border border-surface-border px-2 py-1 text-xs text-content-muted transition-colors hover:text-content"
+              @click.stop.prevent="rollbackTarget = deployment"
+            >
+              <Icon name="lucide:rotate-ccw" class="size-3.5" />
+              Rollback
+            </button>
             <Icon name="lucide:chevron-right" class="size-4 text-content-muted" />
           </NuxtLink>
         </li>
       </ul>
     </UiCard>
+
+    <UiConfirm
+      :open="Boolean(rollbackTarget)"
+      title="Reverter deploy"
+      :message="`Reverter para o deploy ${rollbackTarget?.commit?.sha?.slice(0, 7) ?? ''} (${rollbackTarget?.commit?.message ?? 'sem commit'})? Recria o container com a imagem desse deploy, sem rebuild.`"
+      confirm-label="Reverter"
+      :loading="rollingBack"
+      @confirm="confirmRollback"
+      @update:open="value => !value && (rollbackTarget = null)"
+    />
+
+    <UiConfirm
+      :open="Boolean(domainToRemove)"
+      title="Remover domínio"
+      :message="`Remover ${domainToRemove?.hostname}? A rota deixa de responder.`"
+      confirm-label="Remover"
+      danger
+      :loading="removingDomain"
+      @confirm="confirmRemoveDomain"
+      @update:open="value => !value && (domainToRemove = null)"
+    />
   </section>
 
   <section v-else class="mx-auto max-w-4xl py-16 text-center text-sm text-content-muted">

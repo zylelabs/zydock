@@ -144,6 +144,23 @@ export const applicationsDocs = {
       404: errorRes('Application not found.'),
     },
   },
+  rollback: {
+    tags: ['Applications'],
+    summary: 'Roll back to a previous deployment',
+    description:
+      'Redeploys the image of an earlier successful deployment (given its `deploymentId`) without ' +
+      'cloning or building — recreates the container and reapplies the proxy. The image must still ' +
+      'exist on the server. Admin or owner.',
+    security: bearerOrApiKeyAuth,
+    responses: {
+      202: jsonRes('Rollback deployment queued.', {
+        type: 'object',
+        properties: { deployment: { type: 'object' } },
+      }),
+      400: errorRes('The target deployment has no reusable image.'),
+      404: errorRes('Application or deployment not found.'),
+    },
+  },
   restart: {
     tags: ['Applications'],
     summary: 'Restart the application',

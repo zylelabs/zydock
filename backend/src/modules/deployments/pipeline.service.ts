@@ -217,60 +217,81 @@ export const runDeployment = async (deploymentId: string) => {
 
     connection = buildAgentConnection(server);
 
-    // 1. Clone on the server itself: the build context never travels through the backend.
-    startStep('clone');
+    const isRollback = deployment.trigger === 'rollback';
 
-    const clone = await cloneStep(
-      connection,
-      application,
-      deploymentId,
-      deployment.branch,
-      deployment.commit?.sha,
-    );
+    let image: string;
+    let commit: DeploymentCommit | undefined;
 
-    workspace = clone.workspace;
+    if (isRollback) {
+      // A rollback reuses the image an earlier deployment already built: no clone, no build.
+      if (!deployment.imageTag) {
+        throw new Error('This rollback has no target image');
+      }
 
-    const commit: DeploymentCommit = {
-      sha: clone.commit,
-      message: clone.message,
-      author: clone.author,
-      committedAt: new Date(clone.committedAt),
-    };
+      image = deployment.imageTag;
+      commit = deployment.commit;
 
-    await setCommit(deploymentId, commit);
-    await finishStep(`${clone.commit.slice(0, 7)} — ${clone.message}`);
+      startStep('clone');
+      await finishStep('Rollback — clone dispensado', 'skipped');
 
-    // 2. Build, streaming the output to whoever is watching the deployment.
-    startStep('build');
+      startStep('build');
+      await finishStep(`Reusando a imagem ${image}`, 'skipped');
+    } else {
+      // 1. Clone on the server itself: the build context never travels through the backend.
+      startStep('clone');
 
-    const image = imageTagOf(application.slug, clone.commit);
-    const containers = resolveContainerProvider(connection);
+      const clone = await cloneStep(
+        connection,
+        application,
+        deploymentId,
+        deployment.branch,
+        deployment.commit?.sha,
+      );
 
-    let pending: string[] = [];
+      workspace = clone.workspace;
 
-    const flush = async () => {
-      const lines = pending;
+      commit = {
+        sha: clone.commit,
+        message: clone.message,
+        author: clone.author,
+        committedAt: new Date(clone.committedAt),
+      };
 
-      pending = [];
+      await setCommit(deploymentId, commit);
+      await finishStep(`${clone.commit.slice(0, 7)} — ${clone.message}`);
 
-      await appendBuildLog(deploymentId, lines);
-    };
+      // 2. Build, streaming the output to whoever is watching the deployment.
+      startStep('build');
 
-    const built = await containers.buildImage({
-      tag: image,
-      contextPath: `${clone.path}/${application.git.buildContext}`.replace(/\/\.$/, ''),
-      dockerfilePath: `${clone.path}/${application.git.dockerfilePath}`,
-      onLog: entry => {
-        pending.push(entry.message.trimEnd());
+      image = imageTagOf(application.slug, clone.commit);
+      const containers = resolveContainerProvider(connection);
 
-        if (pending.length >= 20) {
-          void flush();
-        }
-      },
-    });
+      let pending: string[] = [];
 
-    await flush();
-    await finishStep(`${built.tag} (${Math.round(built.sizeBytes / 1024 / 1024)} MB)`);
+      const flush = async () => {
+        const lines = pending;
+
+        pending = [];
+
+        await appendBuildLog(deploymentId, lines);
+      };
+
+      const built = await containers.buildImage({
+        tag: image,
+        contextPath: `${clone.path}/${application.git.buildContext}`.replace(/\/\.$/, ''),
+        dockerfilePath: `${clone.path}/${application.git.dockerfilePath}`,
+        onLog: entry => {
+          pending.push(entry.message.trimEnd());
+
+          if (pending.length >= 20) {
+            void flush();
+          }
+        },
+      });
+
+      await flush();
+      await finishStep(`${built.tag} (${Math.round(built.sizeBytes / 1024 / 1024)} MB)`);
+    }
 
     // 3. Replace the running container.
     startStep('container');
@@ -368,6 +389,31 @@ export const enqueueDeployment = async (params: {
     trigger: params.trigger,
     triggeredBy: params.triggeredBy,
     commit: params.commit,
+  });
+
+  await enqueueJob(DEPLOY_JOB, { deploymentId: String(deployment._id) }, { maxAttempts: 1 });
+
+  return deployment;
+};
+
+/**
+ * Rolls the application back to a previous successful deployment by redeploying its image — no clone
+ * and no build. The image must still exist on the server (a deploy that pruned it cannot be reused).
+ */
+export const enqueueRollback = async (params: {
+  application: Application;
+  source: Deployment;
+  triggeredBy?: string;
+}) => {
+  const deployment = await createDeployment({
+    organizationId: String(params.application.organizationId),
+    applicationId: String(params.application._id),
+    serverId: String(params.application.serverId),
+    branch: params.source.branch,
+    trigger: 'rollback',
+    triggeredBy: params.triggeredBy,
+    commitDetail: params.source.commit,
+    imageTag: params.source.imageTag,
   });
 
   await enqueueJob(DEPLOY_JOB, { deploymentId: String(deployment._id) }, { maxAttempts: 1 });

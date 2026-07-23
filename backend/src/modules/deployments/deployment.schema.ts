@@ -5,7 +5,7 @@ export const DEPLOYMENT_STATUSES = ['queued', 'running', 'succeeded', 'failed'] 
 
 export type DeploymentStatus = (typeof DEPLOYMENT_STATUSES)[number];
 
-export const DEPLOYMENT_TRIGGERS = ['manual', 'webhook'] as const;
+export const DEPLOYMENT_TRIGGERS = ['manual', 'webhook', 'rollback'] as const;
 
 export type DeploymentTrigger = (typeof DEPLOYMENT_TRIGGERS)[number];
 
@@ -40,3 +40,10 @@ export const triggerDeploymentSchema = z.object({
 });
 
 export type TriggerDeploymentDTO = z.infer<typeof triggerDeploymentSchema>;
+
+export const rollbackSchema = z.object({
+  /** The earlier, successful deployment whose image will be redeployed. */
+  deploymentId: z.string().length(24),
+});
+
+export type RollbackDTO = z.infer<typeof rollbackSchema>;

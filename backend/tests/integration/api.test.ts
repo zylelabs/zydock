@@ -342,4 +342,35 @@ describe('applications (private repo token)', () => {
     expect(response.status).toBe(200);
     expect(body.application.healthcheck).toBeUndefined();
   });
+
+  test('rollback to an unknown deployment is 404', async () => {
+    const response = await json(
+      `/organizations/${organizationId}/applications/${applicationId}/rollback`,
+      'POST',
+      { deploymentId: '0'.repeat(24) },
+      accessToken,
+    );
+
+    expect(response.status).toBe(404);
+  });
+
+  test('rollback to a non-succeeded deployment is 400', async () => {
+    // The queue does not run in tests (huge poll interval), so this stays `queued`.
+    const deploy = await json(
+      `/organizations/${organizationId}/applications/${applicationId}/deploy`,
+      'POST',
+      {},
+      accessToken,
+    );
+    const deploymentId = ((await deploy.json()) as { deployment: { id: string } }).deployment.id;
+
+    const response = await json(
+      `/organizations/${organizationId}/applications/${applicationId}/rollback`,
+      'POST',
+      { deploymentId },
+      accessToken,
+    );
+
+    expect(response.status).toBe(400);
+  });
 });
