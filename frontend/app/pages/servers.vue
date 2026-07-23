@@ -462,10 +462,19 @@ bun --env-file=agent.env run start</code></pre>
             </p>
           </div>
 
-          <div v-if="canManage" class="flex items-center gap-2">
+          <div class="flex items-center gap-2">
+            <NuxtLink
+              :to="`/servers/${server.id}`"
+              class="inline-flex items-center gap-2 rounded-lg border border-surface-border px-3 py-2 text-sm text-content-muted transition-colors hover:text-content"
+            >
+              <Icon name="lucide:layout-grid" class="size-4" />
+              Resources
+            </NuxtLink>
             <UiButton
               v-if="
-                server.type === 'ssh' && ['pending', 'failed', 'offline'].includes(server.status)
+                canManage &&
+                server.type === 'ssh' &&
+                ['pending', 'failed', 'offline'].includes(server.status)
               "
               variant="secondary"
               :loading="provisioning === server.id"
@@ -474,6 +483,7 @@ bun --env-file=agent.env run start</code></pre>
               Provision
             </UiButton>
             <button
+              v-if="canManage"
               type="button"
               title="Remove"
               class="rounded-lg p-2 text-content-muted transition-colors hover:bg-surface hover:text-danger"

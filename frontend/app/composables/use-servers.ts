@@ -76,6 +76,8 @@ export const useServers = () => {
 
   const list = () => api.get<Paginated<Server>>(base(), { query: { size: 100 } });
 
+  const get = (serverId: string) => api.get<{ server: Server }>(`${base()}/${serverId}`);
+
   const validate = (ssh: SshCredentials) =>
     api.post<ConnectionProbe>(`${base()}/validate`, { body: { ssh } });
 
@@ -88,5 +90,5 @@ export const useServers = () => {
 
   const remove = (serverId: string) => api.del<{ message: string }>(`${base()}/${serverId}`);
 
-  return { list, validate, create, provision, remove };
+  return { list, get, validate, create, provision, remove };
 };
