@@ -78,5 +78,24 @@ export const useOrganizations = () => {
     return organization;
   };
 
-  return { organizations, current, load, select, create, update, applyBranding };
+  const remove = async (organizationId: string) => {
+    await api.del<{ message: string }>(`/organizations/${organizationId}`);
+
+    store.remove(organizationId);
+
+    if (session.organizationId !== organizationId) {
+      return;
+    }
+
+    const next = store.organizations[0] ?? null;
+
+    if (next) {
+      select(next);
+    } else {
+      session.selectOrganization('');
+      applyBranding(null);
+    }
+  };
+
+  return { organizations, current, load, select, create, update, remove, applyBranding };
 };

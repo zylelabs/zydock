@@ -1,6 +1,6 @@
 <script setup lang="ts">
   import { z } from 'zod';
-  import type { Domain, DomainStatus } from '~/composables/use-domains';
+  import type { Domain, DomainCertificate, DomainStatus } from '~/composables/use-domains';
 
   useHead({ title: 'Domains' });
 
@@ -113,6 +113,69 @@
       removing.value = false;
     }
   };
+
+  const editingDomain = ref('');
+  const editPathPrefix = ref('');
+  const editTls = ref(true);
+  const editError = ref('');
+  const editBusy = ref(false);
+
+  const startEdit = (domain: Domain) => {
+    actionError.value = '';
+    editError.value = '';
+    editingDomain.value = domain.id;
+    editPathPrefix.value = domain.pathPrefix ?? '';
+    editTls.value = domain.tls;
+  };
+
+  const saveEdit = async () => {
+    editError.value = '';
+    editBusy.value = true;
+
+    try {
+      await domains.update(editingDomain.value, {
+        pathPrefix: editPathPrefix.value.trim() || null,
+        tls: editTls.value,
+      });
+      editingDomain.value = '';
+      await refresh();
+    } catch (error) {
+      editError.value = (error as { message?: string }).message || 'Failed to save the domain.';
+    } finally {
+      editBusy.value = false;
+    }
+  };
+
+  const certificates = ref<Record<string, DomainCertificate>>({});
+  const certificateFailed = ref<Record<string, boolean>>({});
+  const certificateOpen = ref('');
+  const certificateLoading = ref(false);
+
+  const toggleCertificate = async (domain: Domain) => {
+    if (certificateOpen.value === domain.id) {
+      certificateOpen.value = '';
+      return;
+    }
+
+    certificateOpen.value = domain.id;
+
+    if (certificates.value[domain.id] || certificateFailed.value[domain.id]) {
+      return;
+    }
+
+    certificateLoading.value = true;
+
+    try {
+      certificates.value[domain.id] = await domains.certificate(domain.id);
+    } catch {
+      certificateFailed.value[domain.id] = true;
+    } finally {
+      certificateLoading.value = false;
+    }
+  };
+
+  const daysRemaining = (expiresAt?: string) =>
+    expiresAt ? Math.ceil((new Date(expiresAt).getTime() - Date.now()) / 86400000) : undefined;
 </script>
 
 <template>
@@ -177,48 +240,105 @@
         <div
           v-for="domain in domainList"
           :key="domain.id"
-          class="flex flex-wrap items-center gap-4 rounded-xl border border-surface-border bg-surface-raised p-4"
+          class="flex flex-col gap-3 rounded-xl border border-surface-border bg-surface-raised p-4"
         >
-          <div class="min-w-0 flex-1">
-            <div class="flex items-center gap-2">
-              <Icon v-if="domain.tls" name="lucide:lock" class="size-4 text-success" />
-              <span class="truncate font-medium">{{ domain.hostname }}{{ domain.pathPrefix }}</span>
-              <UiBadge :variant="STATUS[domain.status].variant">
-                {{ STATUS[domain.status].label }}
-              </UiBadge>
+          <div class="flex flex-wrap items-center gap-4">
+            <div class="min-w-0 flex-1">
+              <div class="flex items-center gap-2">
+                <Icon v-if="domain.tls" name="lucide:lock" class="size-4 text-success" />
+                <span class="truncate font-medium"
+                  >{{ domain.hostname }}{{ domain.pathPrefix }}</span
+                >
+                <UiBadge :variant="STATUS[domain.status].variant">
+                  {{ STATUS[domain.status].label }}
+                </UiBadge>
+              </div>
+              <p class="mt-1 truncate text-xs text-content-muted">
+                {{ appName(domain.applicationId) }}
+              </p>
+              <p v-if="domain.lastError" class="mt-1 truncate text-xs text-danger">
+                {{ domain.lastError }}
+              </p>
             </div>
-            <p class="mt-1 truncate text-xs text-content-muted">
-              {{ appName(domain.applicationId) }}
-            </p>
-            <p v-if="domain.lastError" class="mt-1 truncate text-xs text-danger">
-              {{ domain.lastError }}
-            </p>
+
+            <div v-if="canManage" class="flex flex-wrap items-center gap-2">
+              <UiButton
+                variant="secondary"
+                :loading="busy === `${domain.id}:apply`"
+                @click="runAction(domain, 'apply')"
+              >
+                Apply
+              </UiButton>
+              <UiButton
+                v-if="domain.tls"
+                variant="ghost"
+                :loading="busy === `${domain.id}:renew`"
+                @click="runAction(domain, 'renew')"
+              >
+                Renew
+              </UiButton>
+              <UiButton variant="ghost" @click="toggleCertificate(domain)">Certificate</UiButton>
+              <UiButton variant="ghost" @click="startEdit(domain)">Edit</UiButton>
+              <button
+                type="button"
+                title="Remove"
+                class="rounded-lg p-2 text-content-muted transition-colors hover:text-danger"
+                @click="toRemove = domain"
+              >
+                <Icon name="lucide:trash-2" class="size-4" />
+              </button>
+            </div>
           </div>
 
-          <div v-if="canManage" class="flex items-center gap-2">
-            <UiButton
-              variant="secondary"
-              :loading="busy === `${domain.id}:apply`"
-              @click="runAction(domain, 'apply')"
-            >
-              Apply
-            </UiButton>
-            <UiButton
-              v-if="domain.tls"
-              variant="ghost"
-              :loading="busy === `${domain.id}:renew`"
-              @click="runAction(domain, 'renew')"
-            >
-              Renew
-            </UiButton>
-            <button
-              type="button"
-              title="Remove"
-              class="rounded-lg p-2 text-content-muted transition-colors hover:text-danger"
-              @click="toRemove = domain"
-            >
-              <Icon name="lucide:trash-2" class="size-4" />
-            </button>
+          <form
+            v-if="editingDomain === domain.id"
+            class="flex flex-col gap-3 border-t border-surface-border pt-3"
+            @submit.prevent="saveEdit"
+          >
+            <UiAlert v-if="editError" variant="error">{{ editError }}</UiAlert>
+
+            <div class="grid gap-4 sm:grid-cols-2">
+              <UiInput v-model="editPathPrefix" label="Path prefix" placeholder="/api" />
+              <div class="flex items-end pb-2">
+                <UiCheckbox v-model="editTls" label="Automatic HTTPS (Let's Encrypt)" />
+              </div>
+            </div>
+
+            <p class="text-xs text-content-muted">
+              To change the hostname or the linked application, remove this domain and add it again.
+            </p>
+
+            <div class="flex justify-end gap-2">
+              <UiButton variant="ghost" type="button" @click="editingDomain = ''">Cancel</UiButton>
+              <UiButton type="submit" :loading="editBusy">Save</UiButton>
+            </div>
+          </form>
+
+          <div
+            v-if="certificateOpen === domain.id"
+            class="border-t border-surface-border pt-3 text-sm"
+          >
+            <p v-if="certificateLoading" class="text-content-muted">Loading…</p>
+            <p v-else-if="certificateFailed[domain.id]" class="text-danger">
+              Failed to load the certificate.
+            </p>
+            <template v-else-if="certificates[domain.id]">
+              <div class="flex flex-wrap items-center gap-3">
+                <UiBadge :variant="certificates[domain.id]!.valid ? 'success' : 'danger'">
+                  {{ certificates[domain.id]!.valid ? 'Valid' : 'Invalid' }}
+                </UiBadge>
+                <span v-if="certificates[domain.id]!.issuer" class="text-content-muted">
+                  Issued by {{ certificates[domain.id]!.issuer }}
+                </span>
+              </div>
+              <p v-if="certificates[domain.id]!.expiresAt" class="mt-1 text-content-muted">
+                Expires
+                {{ new Date(certificates[domain.id]!.expiresAt!).toLocaleDateString('en-US') }}
+                <span v-if="daysRemaining(certificates[domain.id]!.expiresAt) !== undefined">
+                  ({{ daysRemaining(certificates[domain.id]!.expiresAt) }} days remaining)
+                </span>
+              </p>
+            </template>
           </div>
         </div>
       </div>
