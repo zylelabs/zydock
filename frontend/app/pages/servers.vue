@@ -3,6 +3,7 @@
   import type {
     ConnectionProbe,
     ServerStatus,
+    ServerType,
     SshCredentials,
     Server,
   } from '~/composables/use-servers';
@@ -46,17 +47,43 @@
 
   const schema = z
     .object({
+      type: z.enum(['ssh', 'local']),
       name: z.string().trim().min(1, 'Informe um nome'),
-      host: z.string().trim().min(1, 'Informe o host'),
-      port: z.string().regex(/^\d+$/, 'Porta inválida'),
-      username: z.string().trim().min(1, 'Informe o usuário'),
+      host: z.string(),
+      port: z.string(),
+      username: z.string(),
       authMethod: z.enum(['password', 'privateKey']),
       password: z.string(),
       privateKey: z.string(),
       passphrase: z.string(),
+      agentHost: z.string(),
       agentPort: z.string().regex(/^\d+$/, 'Porta inválida'),
     })
     .superRefine((value, ctx) => {
+      if (value.type === 'local') {
+        if (!value.agentHost.trim()) {
+          ctx.addIssue({
+            code: 'custom',
+            path: ['agentHost'],
+            message: 'Informe o host do agente',
+          });
+        }
+
+        return;
+      }
+
+      if (!value.host.trim()) {
+        ctx.addIssue({ code: 'custom', path: ['host'], message: 'Informe o host' });
+      }
+
+      if (!/^\d+$/.test(value.port)) {
+        ctx.addIssue({ code: 'custom', path: ['port'], message: 'Porta inválida' });
+      }
+
+      if (!value.username.trim()) {
+        ctx.addIssue({ code: 'custom', path: ['username'], message: 'Informe o usuário' });
+      }
+
       if (value.authMethod === 'password' && !value.password) {
         ctx.addIssue({ code: 'custom', path: ['password'], message: 'Informe a senha' });
       }
@@ -67,6 +94,7 @@
     });
 
   const form = useForm(schema, {
+    type: 'ssh' as ServerType,
     name: '',
     host: '',
     port: '22',
@@ -75,6 +103,7 @@
     password: '',
     privateKey: '',
     passphrase: '',
+    agentHost: 'localhost',
     agentPort: '9000',
   });
 
@@ -87,6 +116,11 @@
       : { privateKey: data.privateKey, passphrase: data.passphrase || undefined }),
   });
 
+  const typeOptions = [
+    { value: 'ssh', label: 'Servidor remoto (SSH)' },
+    { value: 'local', label: 'Máquina local' },
+  ];
+
   const authOptions = [
     { value: 'password', label: 'Senha' },
     { value: 'privateKey', label: 'Chave privada' },
@@ -97,7 +131,27 @@
   });
 
   const onCreate = form.submit(async values => {
-    await create({ name: values.name, ssh: buildSsh(values), agentPort: Number(values.agentPort) });
+    if (values.type === 'local') {
+      const result = await create({
+        type: 'local',
+        name: values.name,
+        agentHost: values.agentHost,
+        agentPort: Number(values.agentPort),
+      });
+
+      created.value = {
+        server: result.server,
+        token: result.agentToken ?? '',
+        port: values.agentPort,
+      };
+    } else {
+      await create({
+        name: values.name,
+        ssh: buildSsh(values),
+        agentPort: Number(values.agentPort),
+      });
+    }
+
     await refresh();
     adding.value = false;
     probe.value = null;
@@ -107,8 +161,40 @@
   const openAdd = () => {
     actionError.value = '';
     probe.value = null;
+    created.value = null;
     form.reset();
     adding.value = true;
+  };
+
+  // --- Instruções de conexão da máquina local ----------------------------------------------------
+
+  const created = ref<{ server: Server; token: string; port: string } | null>(null);
+
+  // The plaintext token is shown only here, once — the backend stores it encrypted afterwards.
+  const envText = computed(() => {
+    if (!created.value) {
+      return '';
+    }
+
+    const { server, token, port } = created.value;
+
+    return [
+      `PORT="${port}"`,
+      'MODE="prod"',
+      'LOG_LEVEL="info"',
+      `SERVER_ID="${server.id}"`,
+      `AGENT_TOKEN="${token}"`,
+      'BACKEND_URL="http://localhost:8000"',
+      'WORKSPACE_PATH="/var/lib/zydock/builds"',
+    ].join('\n');
+  });
+
+  const copied = ref(false);
+
+  const copyEnv = async () => {
+    await navigator.clipboard.writeText(envText.value);
+    copied.value = true;
+    setTimeout(() => (copied.value = false), 2000);
   };
 
   // --- Provisionar / remover ---------------------------------------------------------------------
@@ -175,9 +261,58 @@
     </UiCard>
 
     <template v-else>
-      <UiCard v-if="adding" title="Adicionar servidor" description="Conecte uma máquina via SSH.">
+      <UiCard
+        v-if="created"
+        title="Conecte o agente à sua máquina"
+        description="Guarde o token agora — ele não é exibido de novo."
+      >
+        <div class="flex flex-col gap-4">
+          <p class="text-sm text-content-muted">
+            Crie um arquivo <code>node/agent.env</code> com o conteúdo abaixo e suba o agente.
+            Ajuste <code>BACKEND_URL</code> para o endereço deste backend acessível a partir da
+            máquina onde o agente roda.
+          </p>
+
+          <div class="relative">
+            <pre
+              class="overflow-x-auto rounded-xl border border-surface-border bg-surface p-4 text-xs leading-relaxed"
+            ><code>{{ envText }}</code></pre>
+            <UiButton
+              variant="secondary"
+              class="absolute right-2 top-2"
+              type="button"
+              @click="copyEnv"
+            >
+              <Icon :name="copied ? 'lucide:check' : 'lucide:copy'" class="size-4" />
+              {{ copied ? 'Copiado' : 'Copiar' }}
+            </UiButton>
+          </div>
+
+          <div>
+            <p class="text-sm font-medium">Depois, na raiz do repositório:</p>
+            <pre
+              class="mt-2 overflow-x-auto rounded-xl border border-surface-border bg-surface p-4 text-xs leading-relaxed"
+            ><code>cd node
+bun install
+bun --env-file=agent.env run start</code></pre>
+          </div>
+
+          <UiAlert variant="info">
+            Requer Docker instalado nesta máquina. Se o backend roda via Docker Compose, use
+            <code>host.docker.internal</code> como host do agente para o backend alcançá-lo.
+          </UiAlert>
+
+          <div class="flex justify-end">
+            <UiButton variant="ghost" type="button" @click="created = null">Entendi</UiButton>
+          </div>
+        </div>
+      </UiCard>
+
+      <UiCard v-if="adding" title="Adicionar servidor" description="Conecte uma máquina ao Zydock.">
         <form class="flex flex-col gap-4" @submit.prevent="onCreate">
           <UiAlert v-if="form.formError.value" variant="error">{{ form.formError.value }}</UiAlert>
+
+          <UiSelect v-model="form.values.type" label="Tipo" :options="typeOptions" />
 
           <div class="grid gap-4 sm:grid-cols-2">
             <UiInput
@@ -187,67 +322,89 @@
               :error="form.errors.value.name"
             />
             <UiInput
-              v-model="form.values.username"
-              label="Usuário SSH"
-              placeholder="root"
-              :error="form.errors.value.username"
-            />
-            <UiInput
-              v-model="form.values.host"
-              label="Host"
-              placeholder="203.0.113.10"
-              :error="form.errors.value.host"
-            />
-            <UiInput v-model="form.values.port" label="Porta SSH" :error="form.errors.value.port" />
-          </div>
-
-          <div class="grid gap-4 sm:grid-cols-2">
-            <UiSelect
-              v-model="form.values.authMethod"
-              label="Autenticação"
-              :options="authOptions"
-            />
-            <UiInput
               v-model="form.values.agentPort"
               label="Porta do agente"
               :error="form.errors.value.agentPort"
             />
           </div>
 
-          <UiInput
-            v-if="form.values.authMethod === 'password'"
-            v-model="form.values.password"
-            label="Senha"
-            type="password"
-            :error="form.errors.value.password"
-          />
-
-          <template v-else>
-            <UiTextarea
-              v-model="form.values.privateKey"
-              label="Chave privada"
-              :rows="5"
-              placeholder="-----BEGIN OPENSSH PRIVATE KEY-----"
-              :error="form.errors.value.privateKey"
-            />
+          <!-- Máquina local: sem SSH, o agente é iniciado à mão. -->
+          <template v-if="form.values.type === 'local'">
             <UiInput
-              v-model="form.values.passphrase"
-              label="Passphrase (opcional)"
-              type="password"
+              v-model="form.values.agentHost"
+              label="Host do agente"
+              placeholder="localhost ou host.docker.internal"
+              :error="form.errors.value.agentHost"
             />
+            <UiAlert variant="info">
+              O backend não instala nada aqui: ele gera o token e mostra o comando para você rodar o
+              agente nesta máquina (Docker precisa estar instalado).
+            </UiAlert>
           </template>
 
-          <UiAlert v-if="probe && probe.reachable" variant="success">
-            Conexão bem-sucedida — {{ probe.osRelease ?? 'host acessível' }},
-            {{ probe.cpuCount ?? '?' }} vCPU, {{ probe.memoryMb ?? '?' }} MB de RAM.
-          </UiAlert>
-          <UiAlert v-else-if="probe" variant="error">
-            {{ probe.error ?? 'Não foi possível conectar.' }}
-          </UiAlert>
+          <!-- Servidor remoto: conexão e provisionamento via SSH. -->
+          <template v-else>
+            <div class="grid gap-4 sm:grid-cols-2">
+              <UiInput
+                v-model="form.values.username"
+                label="Usuário SSH"
+                placeholder="root"
+                :error="form.errors.value.username"
+              />
+              <UiSelect
+                v-model="form.values.authMethod"
+                label="Autenticação"
+                :options="authOptions"
+              />
+              <UiInput
+                v-model="form.values.host"
+                label="Host"
+                placeholder="203.0.113.10"
+                :error="form.errors.value.host"
+              />
+              <UiInput
+                v-model="form.values.port"
+                label="Porta SSH"
+                :error="form.errors.value.port"
+              />
+            </div>
+
+            <UiInput
+              v-if="form.values.authMethod === 'password'"
+              v-model="form.values.password"
+              label="Senha"
+              type="password"
+              :error="form.errors.value.password"
+            />
+
+            <template v-else>
+              <UiTextarea
+                v-model="form.values.privateKey"
+                label="Chave privada"
+                :rows="5"
+                placeholder="-----BEGIN OPENSSH PRIVATE KEY-----"
+                :error="form.errors.value.privateKey"
+              />
+              <UiInput
+                v-model="form.values.passphrase"
+                label="Passphrase (opcional)"
+                type="password"
+              />
+            </template>
+
+            <UiAlert v-if="probe && probe.reachable" variant="success">
+              Conexão bem-sucedida — {{ probe.osRelease ?? 'host acessível' }},
+              {{ probe.cpuCount ?? '?' }} vCPU, {{ probe.memoryMb ?? '?' }} MB de RAM.
+            </UiAlert>
+            <UiAlert v-else-if="probe" variant="error">
+              {{ probe.error ?? 'Não foi possível conectar.' }}
+            </UiAlert>
+          </template>
 
           <div class="flex items-center justify-end gap-2">
             <UiButton variant="ghost" type="button" @click="adding = false">Cancelar</UiButton>
             <UiButton
+              v-if="form.values.type === 'ssh'"
               variant="secondary"
               type="button"
               :loading="form.submitting.value"
@@ -266,7 +423,8 @@
 
       <UiCard v-else-if="!servers.length" title="Nenhum servidor ainda">
         <p class="text-sm text-content-muted">
-          Adicione um servidor via SSH para começar a implantar aplicações.
+          Adicione um servidor via SSH ou registre sua máquina local para começar a implantar
+          aplicações.
         </p>
       </UiCard>
 
@@ -282,12 +440,16 @@
               <UiBadge :variant="STATUS[server.status].variant">
                 {{ STATUS[server.status].label }}
               </UiBadge>
+              <UiBadge v-if="server.type === 'local'" variant="neutral">local</UiBadge>
               <UiBadge v-if="server.online" variant="success">
                 <Icon name="lucide:wifi" class="size-3" />
                 agente
               </UiBadge>
             </div>
-            <p class="mt-1 truncate text-xs text-content-muted">
+            <p v-if="server.type === 'local'" class="mt-1 truncate text-xs text-content-muted">
+              Máquina local · agente em {{ server.agent.host }}:{{ server.agent.port }}
+            </p>
+            <p v-else class="mt-1 truncate text-xs text-content-muted">
               {{ server.ssh.username }}@{{ server.ssh.host }}:{{ server.ssh.port }}
               <span v-if="server.resources.osRelease"> · {{ server.resources.osRelease }}</span>
               <span v-if="server.resources.cpuCount">
@@ -301,7 +463,9 @@
 
           <div v-if="canManage" class="flex items-center gap-2">
             <UiButton
-              v-if="['pending', 'failed', 'offline'].includes(server.status)"
+              v-if="
+                server.type === 'ssh' && ['pending', 'failed', 'offline'].includes(server.status)
+              "
               variant="secondary"
               :loading="provisioning === server.id"
               @click="runProvision(server)"

@@ -2,12 +2,18 @@ import config from '../../config';
 import { resolveSshProvider, type SshCredentials } from '../../providers/ssh';
 import { decryptSecret, encryptSecret } from '../../utils/crypto';
 import type { AuthPayload } from '../auth/auth.middleware';
+import { generateToken } from '../auth/session.service';
 import { isSuperuser } from '../users/user.service';
 import { findMembership } from '../organizations/membership.service';
 import { registerTopicAuthorizer } from '../websocket/websocket.service';
 import serverModel from './server.model';
 
 const SECRET_FIELDS = ['privateKey', 'password', 'passphrase'] as const;
+
+/** Length (in bytes) of the shared secret the agent authenticates with. */
+export const AGENT_TOKEN_BYTES = 32;
+
+export const generateAgentToken = () => generateToken(AGENT_TOKEN_BYTES);
 
 export const encryptSshCredentials = (ssh: ServerSshCredentials) => {
   const encrypted: Record<string, unknown> = {
@@ -52,9 +58,12 @@ export const buildAgentConnection = (server: Server) => {
     throw new Error(`Server ${String(server._id)} has no agent token: provision it first`);
   }
 
+  // `local` servers are reached through `agent.host`; `ssh` servers through their SSH host.
+  const host = server.agent.host ?? server.ssh.host;
+
   return {
     serverId: String(server._id),
-    endpoint: `http://${server.ssh.host}:${server.agent.port}`,
+    endpoint: `http://${host}:${server.agent.port}`,
     token: decryptSecret(server.agent.token),
   };
 };
@@ -145,6 +154,7 @@ export const serializeServer = (server: Server) => ({
   id: String(server._id),
   organizationId: String(server.organizationId),
   name: server.name,
+  type: server.type,
   status: server.status,
   online: isAgentOnline(server),
   ssh: {
@@ -154,6 +164,7 @@ export const serializeServer = (server: Server) => ({
     fingerprint: server.ssh.fingerprint,
   },
   agent: {
+    host: server.agent.host,
     port: server.agent.port,
     version: server.agent.version,
     installedAt: server.agent.installedAt,

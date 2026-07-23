@@ -3,6 +3,8 @@ import type { Paginated } from '~/composables/use-api';
 export type ServerStatus =
   'pending' | 'validating' | 'provisioning' | 'online' | 'offline' | 'failed';
 
+export type ServerType = 'ssh' | 'local';
+
 export interface SshCredentials {
   host: string;
   port: number;
@@ -16,10 +18,17 @@ export interface Server {
   id: string;
   organizationId: string;
   name: string;
+  type: ServerType;
   status: ServerStatus;
   online: boolean;
-  ssh: { host: string; port: number; username: string; fingerprint?: string };
-  agent: { port: number; version?: string; installedAt?: string; lastHeartbeatAt?: string };
+  ssh: { host?: string; port?: number; username?: string; fingerprint?: string };
+  agent: {
+    host?: string;
+    port: number;
+    version?: string;
+    installedAt?: string;
+    lastHeartbeatAt?: string;
+  };
   resources: {
     cpuCount?: number;
     memoryMb?: number;
@@ -43,11 +52,21 @@ export interface ConnectionProbe {
   dockerVersion?: string;
 }
 
-export interface CreateServerBody {
+export interface CreateSshServerBody {
+  type?: 'ssh';
   name: string;
   ssh: SshCredentials;
   agentPort?: number;
 }
+
+export interface CreateLocalServerBody {
+  type: 'local';
+  name: string;
+  agentHost?: string;
+  agentPort?: number;
+}
+
+export type CreateServerBody = CreateSshServerBody | CreateLocalServerBody;
 
 export const useServers = () => {
   const api = useApi();
@@ -60,7 +79,9 @@ export const useServers = () => {
   const validate = (ssh: SshCredentials) =>
     api.post<ConnectionProbe>(`${base()}/validate`, { body: { ssh } });
 
-  const create = (body: CreateServerBody) => api.post<{ server: Server }>(base(), { body });
+  // A `local` server also returns `agentToken` — the plaintext token, shown only on creation.
+  const create = (body: CreateServerBody) =>
+    api.post<{ server: Server; agentToken?: string }>(base(), { body });
 
   const provision = (serverId: string) =>
     api.post<{ steps: unknown }>(`${base()}/${serverId}/provision`);

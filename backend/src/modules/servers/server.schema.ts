@@ -12,6 +12,10 @@ export const SERVER_STATUSES = [
 
 export type ServerStatus = (typeof SERVER_STATUSES)[number];
 
+export const SERVER_TYPES = ['ssh', 'local'] as const;
+
+export type ServerType = (typeof SERVER_TYPES)[number];
+
 const sshCredentialsSchema = z
   .object({
     host: z.string().trim().min(1).max(255),
@@ -32,11 +36,23 @@ export const serverIdParamSchema = organizationIdParamSchema.extend({
 
 export type ServerIdParam = z.infer<typeof serverIdParamSchema>;
 
-export const createServerSchema = z.object({
-  name: z.string().trim().min(1).max(120),
-  ssh: sshCredentialsSchema,
-  agentPort: z.coerce.number().int().min(1).max(65535).optional(),
-});
+export const createServerSchema = z
+  .object({
+    // `type` is optional and defaults to `ssh` so existing clients keep working unchanged.
+    type: z.enum(SERVER_TYPES).default('ssh'),
+    name: z.string().trim().min(1).max(120),
+    // Required only for `ssh` servers; a `local` server has no SSH credentials.
+    ssh: sshCredentialsSchema.optional(),
+    // Address the backend uses to reach the agent of a `local` server (e.g. `localhost` or
+    // `host.docker.internal`). Ignored for `ssh` servers, where the agent lives on the SSH host.
+    agentHost: z.string().trim().min(1).max(255).default('localhost'),
+    agentPort: z.coerce.number().int().min(1).max(65535).optional(),
+  })
+  .superRefine((value, ctx) => {
+    if (value.type === 'ssh' && !value.ssh) {
+      ctx.addIssue({ code: 'custom', path: ['ssh'], message: 'SSH credentials are required' });
+    }
+  });
 
 export type CreateServerDTO = z.infer<typeof createServerSchema>;
 

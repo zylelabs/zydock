@@ -4,17 +4,20 @@ import config from '../../config';
 import type { SshSession } from '../../providers/ssh';
 import { encryptSecret } from '../../utils/crypto';
 import { logError, logInfo } from '../../utils/logger';
-import { generateToken } from '../auth/session.service';
 import { publish } from '../websocket/websocket.service';
 import serverModel from './server.model';
-import { decryptSshCredentials, openSshSession, probeConnection } from './server.service';
+import {
+  decryptSshCredentials,
+  generateAgentToken,
+  openSshSession,
+  probeConnection,
+} from './server.service';
 
 const AGENT_DIR = '/opt/zydock';
 const AGENT_ENV_DIR = '/etc/zydock';
 const AGENT_BUNDLE = `${AGENT_DIR}/agent.js`;
 const AGENT_ENV_FILE = `${AGENT_ENV_DIR}/agent.env`;
 const AGENT_UNIT = '/etc/systemd/system/zydock-agent.service';
-const AGENT_TOKEN_BYTES = 32;
 
 export type ProvisioningStep =
   | 'connect'
@@ -243,7 +246,7 @@ export const provisionServer = async (server: Server & Document) => {
 
     currentStep = 'configure-agent';
 
-    const token = generateToken(AGENT_TOKEN_BYTES);
+    const token = generateAgentToken();
 
     await session.uploadFile(
       AGENT_ENV_FILE,

@@ -9,6 +9,7 @@ interface ServerSshCredentials {
 }
 
 interface ServerAgent {
+  host?: string;
   port: number;
   token?: string;
   version?: string;
@@ -27,6 +28,7 @@ interface ServerResources {
 interface ServerData {
   organizationId: string;
   name: string;
+  type: import('./server.schema').ServerType;
   status: import('./server.schema').ServerStatus;
   ssh: ServerSshCredentials;
   agent: ServerAgent;
