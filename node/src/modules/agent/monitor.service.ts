@@ -10,8 +10,19 @@ let restarts = 0;
 
 export const getRestartCount = () => restarts;
 
-const needsHealing = (state: string, health: string) =>
-  state === 'exited' || state === 'dead' || health === 'unhealthy';
+const manuallyStopped = new Set<string>();
+
+export const markManuallyStopped = (containerId: string) => {
+  manuallyStopped.add(containerId);
+};
+
+export const clearManualStop = (containerId: string) => {
+  manuallyStopped.delete(containerId);
+};
+
+const needsHealing = (containerId: string, state: string, health: string) =>
+  !manuallyStopped.has(containerId) &&
+  (state === 'exited' || state === 'dead' || health === 'unhealthy');
 
 export const runHealthSweep = async () => {
   const containers = resolveContainerProvider();
@@ -21,7 +32,7 @@ export const runHealthSweep = async () => {
   const healed: string[] = [];
 
   for (const container of watched) {
-    if (!needsHealing(container.state, container.health)) {
+    if (!needsHealing(container.id, container.state, container.health)) {
       continue;
     }
 
