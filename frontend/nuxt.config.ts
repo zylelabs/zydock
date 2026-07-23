@@ -27,7 +27,7 @@ export default defineNuxtConfig({
   ],
   runtimeConfig: {
     // Only the Nitro server knows where the API is: the browser always talks to `/api/proxy`.
-    urlApi: 'http://127.0.0.1:8000',
+    urlApi: 'http://localhost:8000',
     public: {
       // A WebSocket cannot pass through the JSON proxy, so this one URL does reach the browser.
       wsUrl: '',
