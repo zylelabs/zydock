@@ -24,6 +24,7 @@ node_modules
 # Local env files
 .env
 .env.*
+*.env
 !.env.example
 
 # Reference-only projects (never part of the implementation)
