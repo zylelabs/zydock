@@ -1,10 +1,16 @@
 import type { Paginated } from '~/composables/use-api';
+import type { LogEntry, LogFilters } from '~/composables/use-logs';
 
 export type DeploymentStatus = 'queued' | 'running' | 'succeeded' | 'failed';
 
+export type DeploymentStepName = 'clone' | 'build' | 'container' | 'proxy' | 'healthcheck';
+
+export type DeploymentStepStatus = 'ok' | 'failed' | 'skipped';
+
 export interface DeploymentStep {
-  name: string;
-  status: 'queued' | 'running' | 'ok' | 'failed' | 'skipped';
+  step: DeploymentStepName;
+  status: DeploymentStepStatus;
+  detail?: string;
   durationMs?: number;
 }
 
@@ -42,5 +48,13 @@ export const useDeployments = () => {
   const get = (deploymentId: string) =>
     api.get<{ deployment: DeploymentDetail }>(`${base()}/${deploymentId}`);
 
-  return { list, get };
+  const logs = (deploymentId: string, filters: LogFilters = {}) =>
+    api.get<{ entries: LogEntry[] }>(`${base()}/${deploymentId}/logs`, { query: { ...filters } });
+
+  const downloadLogs = (deploymentId: string, filters: LogFilters = {}) =>
+    api.get<string>(`${base()}/${deploymentId}/logs/download`, { query: { ...filters } });
+
+  const topic = (deploymentId: string) => `deployment:${deploymentId}:steps`;
+
+  return { list, get, logs, downloadLogs, topic };
 };

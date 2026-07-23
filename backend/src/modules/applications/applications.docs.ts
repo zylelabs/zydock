@@ -31,6 +31,18 @@ const applicationSchema = {
       },
     },
     port: { type: 'integer' },
+    portMappings: {
+      type: 'array',
+      description: 'Host port publishes (`host:container`), next to the reverse proxy.',
+      items: {
+        type: 'object',
+        properties: {
+          hostPort: { type: 'integer' },
+          containerPort: { type: 'integer' },
+          protocol: { type: 'string', enum: ['tcp', 'udp'] },
+        },
+      },
+    },
     variables: {
       type: 'array',
       description: 'Only the names: values never leave the platform through this endpoint.',
@@ -129,6 +141,39 @@ export const applicationsDocs = {
         type: 'object',
         properties: { deployment: { type: 'object' } },
       }),
+      404: errorRes('Application not found.'),
+    },
+  },
+  restart: {
+    tags: ['Applications'],
+    summary: 'Restart the application',
+    description: 'Restarts the running container of the application on its server. Admin or owner.',
+    security: bearerOrApiKeyAuth,
+    responses: {
+      200: jsonRes('Application restarted.', applicationResponse),
+      400: errorRes('No running container, or the agent failed.'),
+      404: errorRes('Application not found.'),
+    },
+  },
+  stop: {
+    tags: ['Applications'],
+    summary: 'Stop the application',
+    description: 'Stops the running container of the application. Admin or owner.',
+    security: bearerOrApiKeyAuth,
+    responses: {
+      200: jsonRes('Application stopped.', applicationResponse),
+      400: errorRes('No running container, or the agent failed.'),
+      404: errorRes('Application not found.'),
+    },
+  },
+  start: {
+    tags: ['Applications'],
+    summary: 'Start the application',
+    description: 'Starts the stopped container of the application. Admin or owner.',
+    security: bearerOrApiKeyAuth,
+    responses: {
+      200: jsonRes('Application started.', applicationResponse),
+      400: errorRes('No container, or the agent failed.'),
       404: errorRes('Application not found.'),
     },
   },

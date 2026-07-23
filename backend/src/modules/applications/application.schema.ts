@@ -51,16 +51,20 @@ const gitSchema = gitBaseSchema.extend({
   autoDeploy: gitBaseSchema.shape.autoDeploy.default(true),
 });
 
-/**
- * Updates must not carry defaults: `.partial()` keeps them, so a patch touching a single field
- * would silently reset every other one — the branch included.
- */
-const gitUpdateSchema = gitBaseSchema.partial();
+const gitUpdateSchema = gitBaseSchema.partial().extend({
+  token: z.string().min(1).max(512).nullable().optional(),
+});
 
 const volumeSchema = z.object({
   source: z.string().trim().min(1).max(512),
   target: z.string().trim().min(1).max(512).startsWith('/'),
   readOnly: z.boolean().optional(),
+});
+
+const portMappingSchema = z.object({
+  hostPort: z.coerce.number().int().min(1).max(65535),
+  containerPort: z.coerce.number().int().min(1).max(65535),
+  protocol: z.enum(['tcp', 'udp']).default('tcp'),
 });
 
 const healthcheckSchema = z.object({
@@ -98,6 +102,7 @@ export const createApplicationSchema = z.object({
   serverId: z.string().length(24),
   git: gitSchema,
   port: z.coerce.number().int().min(1).max(65535),
+  portMappings: z.array(portMappingSchema).max(50).default([]),
   variables: z.array(variableSchema).max(200).default([]),
   volumes: z.array(volumeSchema).max(50).default([]),
   networks: z.array(z.string().trim().min(1).max(128)).max(20).default([]),
@@ -113,6 +118,7 @@ export const updateApplicationSchema = z.object({
   serverId: z.string().length(24).optional(),
   git: gitUpdateSchema.optional(),
   port: z.coerce.number().int().min(1).max(65535).optional(),
+  portMappings: z.array(portMappingSchema).max(50).optional(),
   volumes: z.array(volumeSchema).max(50).optional(),
   networks: z.array(z.string().trim().min(1).max(128)).max(20).optional(),
   healthcheck: healthcheckSchema.nullable().optional(),

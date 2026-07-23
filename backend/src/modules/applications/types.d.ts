@@ -23,6 +23,12 @@ interface ApplicationVolume {
   readOnly?: boolean;
 }
 
+interface ApplicationPortMapping {
+  hostPort: number;
+  containerPort: number;
+  protocol: 'tcp' | 'udp';
+}
+
 interface ApplicationHealthcheck {
   path: string;
   intervalSeconds: number;
@@ -46,6 +52,7 @@ interface ApplicationData {
   status: import('./application.schema').ApplicationStatus;
   git: ApplicationGit;
   port: number;
+  portMappings: ApplicationPortMapping[];
   variables: ApplicationVariable[];
   volumes: ApplicationVolume[];
   networks: string[];

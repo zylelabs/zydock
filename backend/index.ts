@@ -9,6 +9,7 @@ logInfo('Zydock backend started', { port: config.port, mode: config.mode });
 
 export default {
   port: config.port,
+  idleTimeout: config.idleTimeoutSeconds,
   fetch: app.fetch,
   websocket,
 };
