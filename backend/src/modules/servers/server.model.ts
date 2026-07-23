@@ -1,6 +1,6 @@
 import { Document, model, Schema } from 'mongoose';
 import { paginateStatics } from '../../utils/pagination';
-import { SERVER_STATUSES } from './server.schema';
+import { SERVER_STATUSES, SERVER_TYPES } from './server.schema';
 
 const serverSchema = new Schema(
   {
@@ -11,17 +11,22 @@ const serverSchema = new Schema(
       index: true,
     },
     name: { type: String, required: true, trim: true },
+    type: { type: String, required: true, enum: SERVER_TYPES, default: 'ssh' },
     status: { type: String, required: true, enum: SERVER_STATUSES, default: 'pending' },
+    // Only `ssh` servers carry credentials; a `local` server leaves this empty and is reached
+    // through `agent.host` instead.
     ssh: {
-      host: { type: String, required: true, trim: true },
-      port: { type: Number, required: true, default: 22 },
-      username: { type: String, required: true, trim: true },
+      host: { type: String, trim: true },
+      port: { type: Number, default: 22 },
+      username: { type: String, trim: true },
       privateKey: { type: String, select: false },
       password: { type: String, select: false },
       passphrase: { type: String, select: false },
       fingerprint: { type: String },
     },
     agent: {
+      // Address the backend dials to reach the agent. Falls back to `ssh.host` for `ssh` servers.
+      host: { type: String, trim: true },
       port: { type: Number, required: true, default: 9000 },
       token: { type: String, select: false },
       version: { type: String },

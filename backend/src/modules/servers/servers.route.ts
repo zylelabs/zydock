@@ -18,10 +18,12 @@ import {
   ValidateConnectionDTO,
   validateConnectionSchema,
 } from './server.schema';
+import { encryptSecret } from '../../utils/crypto';
 import {
   encryptSshCredentials,
   findServer,
   findServerWithSecrets,
+  generateAgentToken,
   probeConnection,
   serializeServer,
 } from './server.service';
@@ -70,7 +72,23 @@ post(
     const { organizationId } = c.req.valid('param' as never) as OrganizationIdParam;
     const body = c.req.valid('json' as never) as CreateServerDTO;
 
-    const probe = await probeConnection(body.ssh);
+    // A `local` server is not reached over SSH: the operator runs the agent by hand, so the
+    // backend only mints the shared token and returns it once — there is nothing to probe.
+    if (body.type === 'local') {
+      const token = generateAgentToken();
+
+      const server = await serverModel.create({
+        organizationId,
+        name: body.name,
+        type: 'local',
+        status: 'pending',
+        agent: { host: body.agentHost, port: body.agentPort ?? 9000, token: encryptSecret(token) },
+      });
+
+      return c.json({ server: serializeServer(server), agentToken: token }, 201);
+    }
+
+    const probe = await probeConnection(body.ssh!);
 
     if (!probe.reachable) {
       return c.json({ error: probe.error ?? 'The SSH connection failed' }, 400);
@@ -79,8 +97,9 @@ post(
     const server = await serverModel.create({
       organizationId,
       name: body.name,
+      type: 'ssh',
       status: 'pending',
-      ssh: { ...encryptSshCredentials(body.ssh), fingerprint: probe.fingerprint },
+      ssh: { ...encryptSshCredentials(body.ssh!), fingerprint: probe.fingerprint },
       agent: { port: body.agentPort ?? 9000 },
       resources: {
         cpuCount: probe.cpuCount,
@@ -170,6 +189,13 @@ post(
       return c.json({ error: 'Server not found' }, 404);
     }
 
+    if (server.type === 'local') {
+      return c.json(
+        { error: 'Local servers are configured by running the agent manually, not over SSH' },
+        400,
+      );
+    }
+
     return c.json({ steps: await provisionServer(server) });
   },
 );
@@ -187,6 +213,10 @@ post(
 
     if (!server) {
       return c.json({ error: 'Server not found' }, 404);
+    }
+
+    if (server.type === 'local') {
+      return c.json({ error: 'Local servers have no SSH connection to refresh' }, 400);
     }
 
     return c.json(await refreshServerResources(server));

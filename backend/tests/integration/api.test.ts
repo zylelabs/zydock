@@ -133,3 +133,75 @@ describe('organizations', () => {
     expect(body.items.some(member => member.email === email && member.role === 'owner')).toBeTrue();
   });
 });
+
+describe('servers (local)', () => {
+  let organizationId = '';
+  let serverId = '';
+  let agentToken = '';
+
+  test('create a local server returns the agent token once (201)', async () => {
+    const org = await json('/organizations', 'POST', { name: 'Local Co' }, accessToken);
+    organizationId = ((await org.json()) as { organization: { id: string } }).organization.id;
+
+    const response = await json(
+      `/organizations/${organizationId}/servers`,
+      'POST',
+      { type: 'local', name: 'minha-máquina', agentHost: 'host.docker.internal' },
+      accessToken,
+    );
+    const body = (await response.json()) as {
+      server: { id: string; type: string; status: string; agent: { host: string } };
+      agentToken: string;
+    };
+
+    expect(response.status).toBe(201);
+    expect(body.server.type).toBe('local');
+    expect(body.server.status).toBe('pending');
+    expect(body.server.agent.host).toBe('host.docker.internal');
+    expect(body.agentToken).toBeString();
+
+    serverId = body.server.id;
+    agentToken = body.agentToken;
+  });
+
+  test('provisioning a local server is rejected (400)', async () => {
+    const response = await json(
+      `/organizations/${organizationId}/servers/${serverId}/provision`,
+      'POST',
+      undefined,
+      accessToken,
+    );
+
+    expect(response.status).toBe(400);
+  });
+
+  test('a heartbeat with the returned token brings the server online', async () => {
+    const response = await app.request(`/api/agent/heartbeat/${serverId}`, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json', 'X-Agent-Token': agentToken },
+      body: JSON.stringify({ version: '1.0.0' }),
+    });
+
+    expect(response.status).toBe(200);
+
+    const list = await json(
+      `/organizations/${organizationId}/servers`,
+      'GET',
+      undefined,
+      accessToken,
+    );
+    const body = (await list.json()) as { items: { id: string; status: string }[] };
+
+    expect(body.items.find(item => item.id === serverId)?.status).toBe('online');
+  });
+
+  test('a heartbeat with a wrong token is rejected (401)', async () => {
+    const response = await app.request(`/api/agent/heartbeat/${serverId}`, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json', 'X-Agent-Token': 'nope' },
+      body: JSON.stringify({ version: '1.0.0' }),
+    });
+
+    expect(response.status).toBe(401);
+  });
+});

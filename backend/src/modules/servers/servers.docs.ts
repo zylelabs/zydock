@@ -13,6 +13,7 @@ export const serverSchema = {
     id: { type: 'string' },
     organizationId: { type: 'string' },
     name: { type: 'string' },
+    type: { type: 'string', enum: ['ssh', 'local'] },
     status: {
       type: 'string',
       enum: ['pending', 'validating', 'provisioning', 'online', 'offline', 'failed'],
@@ -30,6 +31,7 @@ export const serverSchema = {
     agent: {
       type: 'object',
       properties: {
+        host: { type: 'string', nullable: true },
         port: { type: 'integer' },
         version: { type: 'string', nullable: true },
         installedAt: { type: 'string', format: 'date-time', nullable: true },
@@ -52,6 +54,15 @@ export const serverSchema = {
 };
 
 const serverWrapped = { type: 'object', properties: { server: serverSchema } };
+
+// `local` servers also return the freshly minted agent token — the only time it is exposed.
+const serverCreatedSchema = {
+  type: 'object',
+  properties: {
+    server: serverSchema,
+    agentToken: { type: 'string', nullable: true },
+  },
+};
 
 const probeSchema = {
   type: 'object',
@@ -115,12 +126,14 @@ export const serversDocs = {
     tags: ['Servers'],
     summary: 'Register a server',
     description:
-      'Validates the SSH connection, stores the credentials encrypted with AES-256-GCM and pins ' +
-      'the host fingerprint. The server starts as `pending` — call the provision endpoint next. ' +
-      'Admin or owner.',
+      'Registers a server. For `type: "ssh"` (default), validates the SSH connection, stores the ' +
+      'credentials encrypted with AES-256-GCM and pins the host fingerprint — call the provision ' +
+      'endpoint next. For `type: "local"`, no SSH is used: the backend mints the agent token, ' +
+      'stores it encrypted and returns it once as `agentToken` so the operator can start the ' +
+      'agent by hand. The server starts as `pending`. Admin or owner.',
     security: bearerOrApiKeyAuth,
     responses: {
-      201: jsonRes('Server registered.', serverWrapped),
+      201: jsonRes('Server registered.', serverCreatedSchema),
       400: errorRes('The SSH connection failed.'),
       403: errorRes('Permission denied.'),
     },
