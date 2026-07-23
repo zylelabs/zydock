@@ -30,9 +30,15 @@ type CaddyRoute = {
   terminal?: boolean;
 };
 
+type CaddyServer = {
+  listen?: string[];
+  routes?: CaddyRoute[];
+  logs?: Record<string, never>;
+};
+
 type CaddyConfig = {
   apps?: {
-    http?: { servers?: Record<string, { listen?: string[]; routes?: CaddyRoute[] }> };
+    http?: { servers?: Record<string, CaddyServer> };
     tls?: { automation?: { policies?: { subjects?: string[] }[] } };
   };
 };
@@ -160,12 +166,19 @@ const fromCaddyRoute = (route: CaddyRoute, managedDomains: string[]): RouteSpec 
   };
 };
 
-/** Creates the Zydock HTTP server inside the Caddy config the first time it is needed. */
+/**
+ * Creates the Zydock HTTP server inside the Caddy config the first time it is needed, and turns on
+ * access logging if it is missing — servers provisioned before access logging existed still get it
+ * the next time a route is applied. `logs: {}` uses Caddy's default logger, which writes JSON to
+ * stderr when stdout/stderr is not a TTY (true inside the container), so every request lands in the
+ * same `docker logs` output already exposed through `ContainerProvider.getLogs`/`streamLogs`.
+ */
 const ensureServer = async () => {
   const current = await readConfig();
   const servers = current.apps?.http?.servers ?? {};
+  const server = servers[SERVER_NAME];
 
-  if (servers[SERVER_NAME]) {
+  if (server?.logs) {
     return current;
   }
 
@@ -175,13 +188,18 @@ const ensureServer = async () => {
       ...current.apps,
       http: {
         ...current.apps?.http,
-        servers: { ...servers, [SERVER_NAME]: { listen: [':80', ':443'], routes: [] } },
+        servers: {
+          ...servers,
+          [SERVER_NAME]: { listen: [':80', ':443'], routes: [], ...server, logs: {} },
+        },
       },
     },
   };
 
   await load(next);
-  logInfo('Caddy server created', { server: SERVER_NAME });
+  logInfo(server ? 'Caddy access logging enabled' : 'Caddy server created', {
+    server: SERVER_NAME,
+  });
 
   return next;
 };
