@@ -40,12 +40,12 @@ jobs:
       - run: bun run test
       - run: bun run build
 
-  node:
-    name: node agent (lint · test · build)
+  agent:
+    name: agent (lint · test · build)
     runs-on: ubuntu-latest
     defaults:
       run:
-        working-directory: node
+        working-directory: agent
     steps:
       - uses: actions/checkout@v4
       - uses: oven-sh/setup-bun@v2

@@ -155,7 +155,7 @@ export const createAgentClient = (connection: AgentConnection) => {
         body: raw ?? (body === undefined ? undefined : JSON.stringify(body)),
         // A streamed request body has to say it does not wait for the answer to start writing.
         ...(raw === undefined ? {} : { duplex: 'half' }),
-        signal: streamed ? signal : AbortSignal.timeout(config.node.requestTimeoutMs),
+        signal: streamed ? signal : AbortSignal.timeout(config.agent.requestTimeoutMs),
       });
     } catch (error) {
       const reason = error instanceof Error ? error.message : String(error);

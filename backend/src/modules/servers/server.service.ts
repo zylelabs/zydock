@@ -75,7 +75,7 @@ export const findServerWithSecrets = (organizationId: string, serverId: string) 
 
 export const openSshSession = async (ssh: ServerSshCredentials, expectedFingerprint?: string) =>
   resolveSshProvider().connect(decryptSshCredentials(ssh), {
-    timeoutMs: config.node.requestTimeoutMs,
+    timeoutMs: config.agent.requestTimeoutMs,
     expectedFingerprint,
   });
 
@@ -104,7 +104,7 @@ export const probeConnection = async (
 
   try {
     session = await resolveSshProvider().connect(credentials, {
-      timeoutMs: config.node.requestTimeoutMs,
+      timeoutMs: config.agent.requestTimeoutMs,
       expectedFingerprint,
     });
   } catch (error) {
@@ -141,7 +141,7 @@ export const isAgentOnline = (server: Server) => {
 
   const elapsedSeconds = (Date.now() - server.agent.lastHeartbeatAt.getTime()) / 1000;
 
-  return elapsedSeconds <= config.node.offlineAfterSeconds;
+  return elapsedSeconds <= config.agent.offlineAfterSeconds;
 };
 
 export const removeServersOfOrganization = (organizationId: string) =>

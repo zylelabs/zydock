@@ -168,11 +168,11 @@ WORKSPACE_PATH="${config.deploy.workspacePath}"
 `;
 
 const readAgentBundle = async () => {
-  const bundle = file(config.node.bundlePath);
+  const bundle = file(config.agent.bundlePath);
 
   if (!(await bundle.exists())) {
     throw new Error(
-      `Agent bundle not found at "${config.node.bundlePath}". Run "bun run build" inside node/.`,
+      `Agent bundle not found at "${config.agent.bundlePath}". Run "bun run build" inside agent/.`,
     );
   }
 
