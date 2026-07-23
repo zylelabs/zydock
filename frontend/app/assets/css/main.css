@@ -1,0 +1,78 @@
+@import 'tailwindcss';
+
+/*
+ * Cores da marca como custom properties: a personalização por organização (Fase 16.2) troca os
+ * valores em runtime, sem recompilar nada.
+ */
+@theme {
+  --font-display: 'Inter', sans-serif;
+
+  --color-surface: #0b0f14;
+  --color-surface-raised: #121820;
+  --color-surface-border: #1e2733;
+
+  --color-content: #e6edf3;
+  --color-content-muted: #93a1b1;
+
+  --color-primary: #3b82f6;
+  --color-primary-strong: #2563eb;
+
+  --color-success: #22c55e;
+  --color-warning: #f59e0b;
+  --color-danger: #ef4444;
+}
+
+@layer base {
+  *,
+  ::after,
+  ::before,
+  ::backdrop,
+  ::file-selector-button {
+    border-color: var(--color-surface-border, currentColor);
+  }
+
+  html {
+    font-family: var(--font-display);
+    color-scheme: dark;
+  }
+
+  body {
+    background-color: var(--color-surface);
+    color: var(--color-content);
+  }
+
+  h1 {
+    @apply text-2xl font-semibold;
+  }
+
+  h2 {
+    @apply text-xl font-semibold;
+  }
+
+  h3 {
+    @apply text-lg font-medium;
+  }
+}
+
+html,
+body {
+  scroll-behavior: smooth;
+}
+
+::-webkit-scrollbar {
+  width: 10px;
+  height: 10px;
+}
+
+::-webkit-scrollbar-track {
+  background-color: var(--color-surface);
+}
+
+::-webkit-scrollbar-thumb {
+  border-radius: 8px;
+  background-color: var(--color-surface-border);
+}
+
+::-webkit-scrollbar-thumb:hover {
+  background-color: var(--color-content-muted);
+}

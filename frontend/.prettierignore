@@ -1,0 +1,7 @@
+**/node_modules/*
+**/.nuxt/*
+**/.output/*
+**/*.yml
+**/*.md
+.prettierrc
+package.json
