@@ -226,8 +226,16 @@
             </p>
           </div>
 
-          <div v-if="canManage" class="flex flex-wrap items-center gap-2">
+          <div class="flex flex-wrap items-center gap-2">
+            <NuxtLink
+              :to="`/databases/${database.id}`"
+              class="inline-flex items-center gap-2 rounded-lg border border-surface-border px-3 py-2 text-sm text-content-muted transition-colors hover:text-content"
+            >
+              <Icon name="lucide:layout-grid" class="size-4" />
+              Details
+            </NuxtLink>
             <UiButton
+              v-if="canManage"
               variant="ghost"
               :loading="busy === `${database.id}:cred`"
               @click="showCredentials(database)"
@@ -235,7 +243,7 @@
               Credentials
             </UiButton>
             <UiButton
-              v-if="database.status === 'stopped'"
+              v-if="canManage && database.status === 'stopped'"
               variant="secondary"
               :loading="busy === `${database.id}:start`"
               @click="runLifecycle(database, 'start')"
@@ -243,7 +251,7 @@
               Start
             </UiButton>
             <UiButton
-              v-else-if="database.status === 'running'"
+              v-else-if="canManage && database.status === 'running'"
               variant="secondary"
               :loading="busy === `${database.id}:restart`"
               @click="runLifecycle(database, 'restart')"
@@ -251,6 +259,7 @@
               Restart
             </UiButton>
             <button
+              v-if="canManage"
               type="button"
               title="Remove"
               class="rounded-lg p-2 text-content-muted transition-colors hover:text-danger"

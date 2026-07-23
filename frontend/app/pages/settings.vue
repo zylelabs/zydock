@@ -3,8 +3,9 @@
 
   useHead({ title: 'Settings' });
 
-  const { current, update } = useOrganizations();
+  const { current, update, remove } = useOrganizations();
   const canManage = computed(() => ['owner', 'admin'].includes(current.value?.role ?? ''));
+  const isOwner = computed(() => current.value?.role === 'owner');
 
   const form = useForm(
     z.object({
@@ -19,7 +20,6 @@
 
   const saved = ref(false);
 
-  // Fills the form with the current organization as soon as it becomes available.
   watch(
     current,
     organization => {
@@ -53,6 +53,30 @@
 
     saved.value = true;
   });
+
+  const deleteError = ref('');
+  const confirmDeleteOpen = ref(false);
+  const deleting = ref(false);
+
+  const onDeleteOrganization = async () => {
+    if (!current.value) {
+      return;
+    }
+
+    deleteError.value = '';
+    deleting.value = true;
+
+    try {
+      await remove(current.value.id);
+      confirmDeleteOpen.value = false;
+      await navigateTo('/projects');
+    } catch (error) {
+      deleteError.value =
+        (error as { message?: string }).message || 'Failed to delete the organization.';
+    } finally {
+      deleting.value = false;
+    }
+  };
 </script>
 
 <template>
@@ -115,5 +139,30 @@
         </div>
       </form>
     </UiCard>
+
+    <UiCard v-if="current && isOwner" title="Danger zone">
+      <UiAlert v-if="deleteError" variant="error">{{ deleteError }}</UiAlert>
+
+      <div class="flex items-center justify-between gap-4">
+        <p class="text-sm text-content-muted">
+          Deletes this organization: every project, application, server and database inside it. This
+          cannot be undone.
+        </p>
+        <UiButton variant="danger" @click="confirmDeleteOpen = true">Delete organization</UiButton>
+      </div>
+    </UiCard>
+
+    <UiConfirm
+      v-if="current"
+      :open="confirmDeleteOpen"
+      title="Delete organization"
+      :message="`This permanently deletes “${current.name}” and everything inside it: projects, applications, servers and databases.`"
+      confirm-label="Delete"
+      :confirm-text="current.name"
+      danger
+      :loading="deleting"
+      @confirm="onDeleteOrganization"
+      @update:open="value => (confirmDeleteOpen = value)"
+    />
   </section>
 </template>

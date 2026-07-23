@@ -23,6 +23,19 @@ export interface CreateDomainBody {
   tls: boolean;
 }
 
+export interface UpdateDomainBody {
+  pathPrefix?: string | null;
+  tls?: boolean;
+}
+
+export interface DomainCertificate {
+  domain: string;
+  valid: boolean;
+  issuer?: string;
+  issuedAt?: string;
+  expiresAt?: string;
+}
+
 export const useDomains = () => {
   const api = useApi();
   const session = useSessionStore();
@@ -32,11 +45,13 @@ export const useDomains = () => {
   const list = (filter: { applicationId?: string } = {}) =>
     api.get<Paginated<Domain>>(base(), { query: { size: 100, ...filter } });
   const create = (body: CreateDomainBody) => api.post<{ domain: Domain }>(base(), { body });
+  const update = (domainId: string, body: UpdateDomainBody) =>
+    api.patch<{ domain: Domain }>(`${base()}/${domainId}`, { body });
   const apply = (domainId: string) => api.post<{ domain: Domain }>(`${base()}/${domainId}/apply`);
   const certificate = (domainId: string) =>
-    api.get<{ certificate: unknown }>(`${base()}/${domainId}/certificate`);
+    api.get<DomainCertificate>(`${base()}/${domainId}/certificate`);
   const renew = (domainId: string) => api.post<{ domain: Domain }>(`${base()}/${domainId}/renew`);
   const remove = (domainId: string) => api.del<{ message: string }>(`${base()}/${domainId}`);
 
-  return { list, create, apply, certificate, renew, remove };
+  return { list, create, update, apply, certificate, renew, remove };
 };

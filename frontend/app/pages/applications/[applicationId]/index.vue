@@ -2,7 +2,7 @@
   import { z } from 'zod';
   import type { ApplicationStatus, ApplicationVariable } from '~/composables/use-applications';
   import type { Deployment, DeploymentStatus } from '~/composables/use-deployments';
-  import type { Domain, DomainStatus } from '~/composables/use-domains';
+  import type { Domain, DomainCertificate, DomainStatus } from '~/composables/use-domains';
 
   const route = useRoute();
   const session = useSessionStore();
@@ -474,6 +474,72 @@
     }
   };
 
+  const editingDomain = ref('');
+  const editDomainPathPrefix = ref('');
+  const editDomainTls = ref(true);
+  const editDomainError = ref('');
+  const editDomainBusy = ref(false);
+
+  const startEditDomain = (domain: Domain) => {
+    actionError.value = '';
+    editDomainError.value = '';
+    editingDomain.value = domain.id;
+    editDomainPathPrefix.value = domain.pathPrefix ?? '';
+    editDomainTls.value = domain.tls;
+  };
+
+  const saveEditDomain = async () => {
+    editDomainError.value = '';
+    editDomainBusy.value = true;
+
+    try {
+      await domains.update(editingDomain.value, {
+        pathPrefix: editDomainPathPrefix.value.trim() || null,
+        tls: editDomainTls.value,
+      });
+      editingDomain.value = '';
+      await refresh();
+    } catch (error) {
+      editDomainError.value =
+        (error as { message?: string }).message || 'Failed to save the domain.';
+    } finally {
+      editDomainBusy.value = false;
+    }
+  };
+
+  // --- Domain certificate --------------------------------------------------------------------------
+
+  const domainCertificates = ref<Record<string, DomainCertificate>>({});
+  const domainCertificateFailed = ref<Record<string, boolean>>({});
+  const domainCertificateOpen = ref('');
+  const domainCertificateLoading = ref(false);
+
+  const toggleDomainCertificate = async (domain: Domain) => {
+    if (domainCertificateOpen.value === domain.id) {
+      domainCertificateOpen.value = '';
+      return;
+    }
+
+    domainCertificateOpen.value = domain.id;
+
+    if (domainCertificates.value[domain.id] || domainCertificateFailed.value[domain.id]) {
+      return;
+    }
+
+    domainCertificateLoading.value = true;
+
+    try {
+      domainCertificates.value[domain.id] = await domains.certificate(domain.id);
+    } catch {
+      domainCertificateFailed.value[domain.id] = true;
+    } finally {
+      domainCertificateLoading.value = false;
+    }
+  };
+
+  const domainDaysRemaining = (expiresAt?: string) =>
+    expiresAt ? Math.ceil((new Date(expiresAt).getTime() - Date.now()) / 86400000) : undefined;
+
   // --- Variables ---------------------------------------------------------------------------------
 
   const editingVars = ref(false);
@@ -885,45 +951,109 @@
         <div
           v-for="domain in domainList"
           :key="domain.id"
-          class="flex flex-wrap items-center gap-4 rounded-lg border border-surface-border p-3"
+          class="flex flex-col gap-3 rounded-lg border border-surface-border p-3"
         >
-          <div class="min-w-0 flex-1">
-            <div class="flex items-center gap-2">
-              <Icon v-if="domain.tls" name="lucide:lock" class="size-4 text-success" />
-              <span class="truncate font-medium">{{ domain.hostname }}{{ domain.pathPrefix }}</span>
-              <UiBadge :variant="DOMAIN_STATUS[domain.status].variant">
-                {{ DOMAIN_STATUS[domain.status].label }}
-              </UiBadge>
+          <div class="flex flex-wrap items-center gap-4">
+            <div class="min-w-0 flex-1">
+              <div class="flex items-center gap-2">
+                <Icon v-if="domain.tls" name="lucide:lock" class="size-4 text-success" />
+                <span class="truncate font-medium"
+                  >{{ domain.hostname }}{{ domain.pathPrefix }}</span
+                >
+                <UiBadge :variant="DOMAIN_STATUS[domain.status].variant">
+                  {{ DOMAIN_STATUS[domain.status].label }}
+                </UiBadge>
+              </div>
+              <p v-if="domain.lastError" class="mt-1 truncate text-xs text-danger">
+                {{ domain.lastError }}
+              </p>
             </div>
-            <p v-if="domain.lastError" class="mt-1 truncate text-xs text-danger">
-              {{ domain.lastError }}
-            </p>
+
+            <div class="flex flex-wrap items-center gap-2">
+              <UiButton
+                variant="secondary"
+                :loading="domainBusy === `${domain.id}:apply`"
+                @click="runDomainAction(domain, 'apply')"
+              >
+                Apply
+              </UiButton>
+              <UiButton
+                v-if="domain.tls"
+                variant="ghost"
+                :loading="domainBusy === `${domain.id}:renew`"
+                @click="runDomainAction(domain, 'renew')"
+              >
+                Renew
+              </UiButton>
+              <UiButton variant="ghost" @click="toggleDomainCertificate(domain)">
+                Certificate
+              </UiButton>
+              <UiButton variant="ghost" @click="startEditDomain(domain)">Edit</UiButton>
+              <button
+                type="button"
+                title="Remove"
+                class="rounded-lg p-2 text-content-muted transition-colors hover:text-danger"
+                @click="domainToRemove = domain"
+              >
+                <Icon name="lucide:trash-2" class="size-4" />
+              </button>
+            </div>
           </div>
 
-          <div class="flex items-center gap-2">
-            <UiButton
-              variant="secondary"
-              :loading="domainBusy === `${domain.id}:apply`"
-              @click="runDomainAction(domain, 'apply')"
-            >
-              Apply
-            </UiButton>
-            <UiButton
-              v-if="domain.tls"
-              variant="ghost"
-              :loading="domainBusy === `${domain.id}:renew`"
-              @click="runDomainAction(domain, 'renew')"
-            >
-              Renew
-            </UiButton>
-            <button
-              type="button"
-              title="Remove"
-              class="rounded-lg p-2 text-content-muted transition-colors hover:text-danger"
-              @click="domainToRemove = domain"
-            >
-              <Icon name="lucide:trash-2" class="size-4" />
-            </button>
+          <form
+            v-if="editingDomain === domain.id"
+            class="flex flex-col gap-3 border-t border-surface-border pt-3"
+            @submit.prevent="saveEditDomain"
+          >
+            <UiAlert v-if="editDomainError" variant="error">{{ editDomainError }}</UiAlert>
+
+            <div class="grid gap-4 sm:grid-cols-2">
+              <UiInput v-model="editDomainPathPrefix" label="Path prefix" placeholder="/api" />
+              <div class="flex items-end pb-2">
+                <UiCheckbox v-model="editDomainTls" label="Automatic HTTPS (Let's Encrypt)" />
+              </div>
+            </div>
+
+            <p class="text-xs text-content-muted">
+              To change the hostname or the linked application, remove this domain and add it again.
+            </p>
+
+            <div class="flex justify-end gap-2">
+              <UiButton variant="ghost" type="button" @click="editingDomain = ''">Cancel</UiButton>
+              <UiButton type="submit" :loading="editDomainBusy">Save</UiButton>
+            </div>
+          </form>
+
+          <div
+            v-if="domainCertificateOpen === domain.id"
+            class="border-t border-surface-border pt-3 text-sm"
+          >
+            <p v-if="domainCertificateLoading" class="text-content-muted">Loading…</p>
+            <p v-else-if="domainCertificateFailed[domain.id]" class="text-danger">
+              Failed to load the certificate.
+            </p>
+            <template v-else-if="domainCertificates[domain.id]">
+              <div class="flex flex-wrap items-center gap-3">
+                <UiBadge :variant="domainCertificates[domain.id]!.valid ? 'success' : 'danger'">
+                  {{ domainCertificates[domain.id]!.valid ? 'Valid' : 'Invalid' }}
+                </UiBadge>
+                <span v-if="domainCertificates[domain.id]!.issuer" class="text-content-muted">
+                  Issued by {{ domainCertificates[domain.id]!.issuer }}
+                </span>
+              </div>
+              <p v-if="domainCertificates[domain.id]!.expiresAt" class="mt-1 text-content-muted">
+                Expires
+                {{
+                  new Date(domainCertificates[domain.id]!.expiresAt!).toLocaleDateString('en-US')
+                }}
+                <span
+                  v-if="domainDaysRemaining(domainCertificates[domain.id]!.expiresAt) !== undefined"
+                >
+                  ({{ domainDaysRemaining(domainCertificates[domain.id]!.expiresAt) }} days
+                  remaining)
+                </span>
+              </p>
+            </template>
           </div>
         </div>
       </div>

@@ -46,6 +46,7 @@ export const useDatabases = () => {
 
   const list = (filter: { serverId?: string; engine?: DatabaseEngine } = {}) =>
     api.get<Paginated<Database>>(base(), { query: { size: 100, ...filter } });
+  const get = (databaseId: string) => api.get<{ database: Database }>(`${base()}/${databaseId}`);
   const create = (body: CreateDatabaseBody) => api.post<{ database: Database }>(base(), { body });
   const credentials = (databaseId: string) =>
     api.get<{ credentials: DatabaseCredentials }>(`${base()}/${databaseId}/credentials`);
@@ -54,5 +55,5 @@ export const useDatabases = () => {
   const remove = (databaseId: string, removeData = false) =>
     api.del<{ message: string }>(`${base()}/${databaseId}`, { query: { removeData } });
 
-  return { list, create, credentials, lifecycle, remove };
+  return { list, get, create, credentials, lifecycle, remove };
 };

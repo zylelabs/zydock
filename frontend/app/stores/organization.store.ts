@@ -23,10 +23,6 @@ interface IOrganizationStore {
   loaded: boolean;
 }
 
-/**
- * The organizations the signed-in user belongs to. The *selected* one lives in the session store
- * (`organizationId`); this store holds the list itself, loaded from the API on entering the app.
- */
 export const useOrganizationStore = defineStore('organization', {
   state: (): IOrganizationStore => ({
     organizations: [],
@@ -46,10 +42,14 @@ export const useOrganizationStore = defineStore('organization', {
         this.organizations.unshift(organization);
       }
     },
+    remove(organizationId: string) {
+      this.organizations = this.organizations.filter(
+        organization => organization.id !== organizationId,
+      );
+    },
     clear() {
       this.$reset();
     },
   },
-  // Loaded from the API each time the app opens, so nothing to persist.
   persist: false,
 });
