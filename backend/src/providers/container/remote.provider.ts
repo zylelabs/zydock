@@ -1,5 +1,6 @@
 import { createAgentClient, isAbortError, readAgentEvents, searchParams } from '../../utils/agent';
 import type {
+  ArchiveStream,
   BuildImageSpec,
   ContainerConnection,
   ContainerFilter,
@@ -26,6 +27,28 @@ export const createRemoteContainerProvider = (
   const { send, json, discard } = createAgentClient(connection);
 
   const containerPath = (id: string) => `/containers/${encodeURIComponent(id)}`;
+
+  /**
+   * An archive has no size limit and no deadline, so it is streamed both ways: `streamed` drops the
+   * request timeout, and the answer's body is handed over as it arrives.
+   */
+  const archive = async (path: string, body?: unknown): Promise<ArchiveStream> => {
+    const response = await send(path, { method: 'POST', body, streamed: true });
+
+    if (!response.body) {
+      throw new Error(`Agent of server ${connection.serverId} answered ${path} with no archive`);
+    }
+
+    return response.body;
+  };
+
+  /** A restore stages the archive on the server first: the command travels in its own JSON body. */
+  const stage = (data: ArchiveStream) =>
+    json<{ id: string; sizeBytes: number }>('/backups/uploads', {
+      method: 'POST',
+      raw: data,
+      streamed: true,
+    });
 
   return {
     createContainer: (spec: ContainerSpec) =>
@@ -158,5 +181,30 @@ export const createRemoteContainerProvider = (
     removeVolume: name => discard(`/volumes/${encodeURIComponent(name)}`, { method: 'DELETE' }),
 
     listVolumes: () => json<VolumeInfo[]>('/volumes'),
+
+    archiveVolume: name => archive(`/backups/volumes/${encodeURIComponent(name)}/archive`),
+
+    restoreVolume: async (name, data) => {
+      const { id } = await stage(data);
+
+      await discard(`/backups/volumes/${encodeURIComponent(name)}/restore`, {
+        method: 'POST',
+        body: { upload: id },
+        streamed: true,
+      });
+    },
+
+    archiveFromContainer: (id, command) =>
+      archive(`/backups${containerPath(id)}/archive`, { command }),
+
+    restoreIntoContainer: async (id, command, data) => {
+      const upload = await stage(data);
+
+      await discard(`/backups${containerPath(id)}/restore`, {
+        method: 'POST',
+        body: { command, upload: upload.id },
+        streamed: true,
+      });
+    },
   };
 };

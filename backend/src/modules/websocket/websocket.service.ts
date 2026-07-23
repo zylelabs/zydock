@@ -43,7 +43,9 @@ const clients = new Map<string, Client>();
 
 const authorizers = new Map<string, TopicAuthorizer>();
 
-const listeners = new Map<string, TopicListener>();
+// A resource can have more than one listener — an application streams both logs and metrics, each in
+// its own module — so listeners are kept as a list and every one is notified; each filters by channel.
+const listeners = new Map<string, TopicListener[]>();
 
 export { upgradeWebSocket, websocket };
 
@@ -86,7 +88,9 @@ export const authorizeTopic = async (auth: AuthPayload, topic: string) => {
 };
 
 export const registerTopicListener = (resource: string, listener: TopicListener) => {
-  listeners.set(resource, listener);
+  const existing = listeners.get(resource) ?? [];
+
+  listeners.set(resource, [...existing, listener]);
 };
 
 const countSubscribers = (topic: string) => {
@@ -103,13 +107,16 @@ const countSubscribers = (topic: string) => {
 
 const notifyTopic = (kind: 'subscribed' | 'unsubscribed', topic: string, clientId: string) => {
   const parsed = parseTopic(topic);
-  const listener = parsed && listeners.get(parsed.resource);
 
-  if (!parsed || !listener) {
+  if (!parsed) {
     return;
   }
 
-  listener[kind]({ topic, ...parsed, clientId, subscribers: countSubscribers(topic) });
+  const event = { topic, ...parsed, clientId, subscribers: countSubscribers(topic) };
+
+  for (const listener of listeners.get(parsed.resource) ?? []) {
+    listener[kind](event);
+  }
 };
 
 export const countClients = () => clients.size;

@@ -1,6 +1,8 @@
 import { generateUniqueSlug } from '../../utils';
 import inviteModel from './invite.model';
 import { type OrganizationRole } from './membership.schema';
+import { removeBackupsOfOrganization } from '../backups/backup.service';
+import { removeNotificationsOfOrganization } from '../notifications/notification.service';
 import { removeProjectsOfOrganization } from '../projects/project.service';
 import { removeServersOfOrganization } from '../servers/server.service';
 import { createMembership, removeAllMemberships } from './membership.service';
@@ -32,6 +34,8 @@ export const createOrganization = async (
 export const deleteOrganization = async (organizationId: string) => {
   await removeProjectsOfOrganization(organizationId);
   await removeServersOfOrganization(organizationId);
+  await removeBackupsOfOrganization(organizationId);
+  await removeNotificationsOfOrganization(organizationId);
   await removeAllMemberships(organizationId);
   await inviteModel.deleteMany({ organizationId });
   await organizationModel.deleteOne({ _id: organizationId });

@@ -11,6 +11,9 @@ export type SystemMetrics = {
   memoryTotalMb: number;
   diskUsedGb?: number;
   diskTotalGb?: number;
+  /** Cumulative interface counters since boot; consumers take the delta to get a rate. */
+  networkRxBytes?: number;
+  networkTxBytes?: number;
   uptimeSeconds: number;
   containersRunning: number;
   containersTotal: number;
@@ -43,6 +46,33 @@ const readLoadPercent = async () => {
     return Math.min(100, Math.round((load / cores) * 100));
   } catch {
     return undefined;
+  }
+};
+
+/** Sums received/transmitted bytes across every interface except loopback, from `/proc/net/dev`. */
+const readNetwork = async () => {
+  try {
+    const raw = await readFile('/proc/net/dev', 'utf8');
+
+    let rx = 0;
+    let tx = 0;
+
+    for (const line of raw.split('\n')) {
+      const [name, rest] = line.split(':');
+
+      if (!rest || name.trim() === 'lo') {
+        continue;
+      }
+
+      const columns = rest.trim().split(/\s+/);
+
+      rx += Number(columns[0]) || 0;
+      tx += Number(columns[8]) || 0;
+    }
+
+    return { networkRxBytes: rx, networkTxBytes: tx };
+  } catch {
+    return {};
   }
 };
 
@@ -133,7 +163,11 @@ export const collectSystemMetrics = () =>
   systemCache.resolve(async () => {
     const containers = await resolveContainerProvider().listContainers();
 
-    const [cpuPercent, disk] = await Promise.all([readLoadPercent(), readDisk()]);
+    const [cpuPercent, disk, network] = await Promise.all([
+      readLoadPercent(),
+      readDisk(),
+      readNetwork(),
+    ]);
 
     logDebug('metrics collected', { containers: containers.length });
 
@@ -142,6 +176,7 @@ export const collectSystemMetrics = () =>
       memoryUsedMb: Math.round((totalmem() - freemem()) / MB),
       memoryTotalMb: Math.round(totalmem() / MB),
       ...disk,
+      ...network,
       uptimeSeconds: Math.round(uptime()),
       containersRunning: containers.filter(container => container.state === 'running').length,
       containersTotal: containers.length,

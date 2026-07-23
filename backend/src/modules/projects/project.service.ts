@@ -60,6 +60,9 @@ export const removeProjectsOfOrganization = async (organizationId: string) => {
   }
 };
 
+export const listProjectsOfOrganization = (organizationId: string) =>
+  projectModel.find({ organizationId }).sort({ createdAt: 1 });
+
 export const serializeProject = (project: Project) => ({
   id: String(project._id),
   organizationId: String(project.organizationId),

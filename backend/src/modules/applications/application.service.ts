@@ -2,6 +2,7 @@ import { generateUniqueSlug } from '../../utils';
 import { decryptSecret, encryptSecret } from '../../utils/crypto';
 import type { AuthPayload } from '../auth/auth.middleware';
 import { removeDeploymentsOfApplications } from '../deployments/deployment.service';
+import { removeDomainsOfApplications } from '../domains/domain.service';
 import { findMembership } from '../organizations/membership.service';
 import { isSuperuser } from '../users/user.service';
 import { registerTopicAuthorizer } from '../websocket/websocket.service';
@@ -130,7 +131,7 @@ export const updateApplication = async (
   return applicationModel.findById(application._id);
 };
 
-/** Applications never disappear alone: their deployment history goes with them. */
+/** Applications never disappear alone: their deployment history and domains go with them. */
 const removeApplicationsWhere = async (filter: Record<string, unknown>) => {
   const applications = await applicationModel.find(filter).select('_id');
 
@@ -138,7 +139,10 @@ const removeApplicationsWhere = async (filter: Record<string, unknown>) => {
     return;
   }
 
-  await removeDeploymentsOfApplications(applications.map(application => String(application._id)));
+  const applicationIds = applications.map(application => String(application._id));
+
+  await removeDomainsOfApplications(applicationIds);
+  await removeDeploymentsOfApplications(applicationIds);
   await applicationModel.deleteMany(filter);
 };
 
@@ -169,6 +173,9 @@ const authorizeApplicationTopic = async (auth: AuthPayload, applicationId: strin
 };
 
 registerTopicAuthorizer('application', authorizeApplicationTopic);
+
+export const listApplicationsOfOrganization = (organizationId: string) =>
+  applicationModel.find({ organizationId }).sort({ createdAt: 1 });
 
 export const serializeApplication = (application: Application) => ({
   id: String(application._id),

@@ -5,7 +5,7 @@ import { errorMessage } from '../../utils';
 import { agentFailureStatus } from '../../utils/agent';
 import { logWarn } from '../../utils/logger';
 import { authMiddleware } from '../auth/auth.middleware';
-import { APPLICATION_LABEL } from '../deployments/pipeline.service';
+import { APPLICATION_LABEL } from '../deployments/naming';
 import { createOrganizationRoleGuard } from '../organizations/organizations.middleware';
 import { serverIdParamSchema } from '../servers/server.schema';
 import { serverRuntimeMiddleware } from './container.middleware';

@@ -2,6 +2,7 @@ import type { Context } from 'hono';
 import { createRouter, validator } from 'hono-route-docs';
 import { paginationQuery } from '../../utils/pagination';
 import { countApplicationsOfServer } from '../applications/application.service';
+import { countDatabasesOfServer } from '../databases/database.service';
 import { authMiddleware } from '../auth/auth.middleware';
 import { OrganizationIdParam, organizationIdParamSchema } from '../organizations/membership.schema';
 import { createOrganizationRoleGuard } from '../organizations/organizations.middleware';
@@ -205,7 +206,7 @@ del(
       return c.json({ error: 'Server not found' }, 404);
     }
 
-    // Removing the server would leave its applications pointing nowhere.
+    // Removing the server would leave its applications and databases pointing nowhere.
     const applications = await countApplicationsOfServer(serverId);
 
     if (applications > 0) {
@@ -213,6 +214,15 @@ del(
         {
           error: `This server still runs ${applications} application(s). Move or remove them first`,
         },
+        409,
+      );
+    }
+
+    const databases = await countDatabasesOfServer(serverId);
+
+    if (databases > 0) {
+      return c.json(
+        { error: `This server still runs ${databases} database(s). Remove them first` },
         409,
       );
     }

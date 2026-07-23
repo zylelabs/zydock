@@ -138,6 +138,9 @@ export const isAgentOnline = (server: Server) => {
 export const removeServersOfOrganization = (organizationId: string) =>
   serverModel.deleteMany({ organizationId });
 
+export const listServersOfOrganization = (organizationId: string) =>
+  serverModel.find({ organizationId }).sort({ createdAt: 1 });
+
 export const serializeServer = (server: Server) => ({
   id: String(server._id),
   organizationId: String(server.organizationId),

@@ -8,8 +8,10 @@ import { decryptVariables, findApplicationWithSecrets } from '../applications/ap
 import { enqueueJob, registerJobHandler } from '../queue/queue.service';
 import { buildAgentConnection, findServerById } from '../servers/server.service';
 import { decryptSecret } from '../../utils/crypto';
+import { applyApplicationDomains } from '../domains/domain.service';
 import deploymentModel from './deployment.model';
 import type { DeploymentStep } from './deployment.schema';
+import { APPLICATION_LABEL, AUTOHEAL_LABEL, containerNameOf, DEPLOYMENT_LABEL } from './naming';
 import {
   appendBuildLog,
   createDeployment,
@@ -20,10 +22,6 @@ import {
 } from './deployment.service';
 
 export const DEPLOY_JOB = 'deployment.run';
-
-export const APPLICATION_LABEL = 'zydock.application';
-export const DEPLOYMENT_LABEL = 'zydock.deployment';
-export const AUTOHEAL_LABEL = 'zydock.autoheal';
 
 const HEALTHCHECK_POLL_MS = 2000;
 
@@ -38,8 +36,6 @@ type CloneResult = {
 
 /** Docker refuses uppercase in a tag; slugs are already lowercase. */
 const imageTagOf = (slug: string, commit: string) => `zydock/${slug}:${commit.slice(0, 7)}`;
-
-const containerNameOf = (slug: string) => `zydock-${slug}`;
 
 const environmentOf = (application: Application) =>
   Object.fromEntries(
@@ -63,7 +59,9 @@ const specOf = (application: Application, deploymentId: string, image: string): 
   environment: environmentOf(application),
   ports: [{ containerPort: application.port, protocol: 'tcp' }],
   volumes: application.volumes,
-  networks: application.networks,
+  // The shared proxy network is always attached, so a domain can be pointed at the container later
+  // without a redeploy; the proxy dials it by the stable container name.
+  networks: [...new Set([config.proxy.network, ...application.networks])],
   labels: {
     [APPLICATION_LABEL]: String(application._id),
     [DEPLOYMENT_LABEL]: deploymentId,
@@ -114,6 +112,9 @@ const replaceContainer = async (
   image: string,
 ) => {
   const containers = resolveContainerProvider(connection);
+
+  // The shared proxy network has to exist before a container can join it; creating it is idempotent.
+  await containers.createNetwork(config.proxy.network);
 
   const previous = await containers.listContainers({
     labels: { [APPLICATION_LABEL]: String(application._id) },
@@ -273,9 +274,16 @@ export const runDeployment = async (deploymentId: string) => {
 
     await finishStep(container.name);
 
-    // 4. Reverse proxy: the route needs a domain, and domains arrive in Fase 11.
+    // 4. Reverse proxy: point every domain of the application at the (stable) container name.
     startStep('proxy');
-    await finishStep('No domain configured for this application', 'skipped');
+
+    const domains = await applyApplicationDomains(application, connection);
+
+    if (domains.length === 0) {
+      await finishStep('No domain configured for this application', 'skipped');
+    } else {
+      await finishStep(domains.map(domain => domain.hostname).join(', '));
+    }
 
     // 5. Wait until the container is actually up.
     startStep('healthcheck');

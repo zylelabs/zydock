@@ -20,10 +20,14 @@ export type ProvisioningStep =
   | 'connect'
   | 'install-docker'
   | 'install-runtime'
+  | 'install-proxy'
   | 'upload-agent'
   | 'configure-agent'
   | 'start-agent'
   | 'verify-agent';
+
+const PROXY_CONTAINER = 'zydock-proxy';
+const PROXY_CADDYFILE = `${AGENT_ENV_DIR}/Caddyfile`;
 
 export type ProvisioningResult = {
   step: ProvisioningStep;
@@ -100,6 +104,34 @@ if ! command -v bun >/dev/null 2>&1 && [ ! -x /usr/local/bin/bun ]; then
   ${prefix}install -m 0755 "$HOME/.bun/bin/bun" /usr/local/bin/bun
 fi
 /usr/local/bin/bun --version
+`;
+
+/**
+ * Runs the reverse proxy (Caddy) as a container on the shared network, so it dials application
+ * containers by their stable name. The admin API listens on `0.0.0.0:2019` inside the container but
+ * is published only to the host loopback — the agent reaches it, the outside world does not
+ * ([ADR-0020]). The agent creates the Zydock server block on the first route it applies; here we
+ * only bootstrap the admin listener.
+ */
+const installProxy = (prefix: string, network: string) => `
+set -e
+docker network inspect ${network} >/dev/null 2>&1 || docker network create ${network}
+${prefix}mkdir -p ${AGENT_ENV_DIR}
+${prefix}tee ${PROXY_CADDYFILE} >/dev/null <<'EOF'
+{
+	admin 0.0.0.0:2019
+}
+EOF
+if [ -z "$(docker ps -q -f name=^/${PROXY_CONTAINER}$)" ]; then
+  docker rm -f ${PROXY_CONTAINER} >/dev/null 2>&1 || true
+  docker run -d --name ${PROXY_CONTAINER} --restart unless-stopped \\
+    --network ${network} \\
+    -p 80:80 -p 443:443 -p 127.0.0.1:2019:2019 \\
+    -v zydock-caddy-data:/data -v zydock-caddy-config:/config \\
+    -v ${PROXY_CADDYFILE}:/etc/caddy/Caddyfile:ro \\
+    caddy:2
+fi
+docker inspect -f '{{.State.Status}}' ${PROXY_CONTAINER}
 `;
 
 const systemdUnit = () => `[Unit]
@@ -187,6 +219,15 @@ export const provisionServer = async (server: Server & Document) => {
     const gitVersion = await runChecked(session, installGit(prefix), 'Failed to install git');
 
     record({ step: 'install-runtime', ok: true, detail: `${runtimeVersion} · ${gitVersion}` });
+
+    currentStep = 'install-proxy';
+
+    const proxyStatus = await runChecked(
+      session,
+      installProxy(prefix, config.proxy.network),
+      'Failed to start the reverse proxy',
+    );
+    record({ step: 'install-proxy', ok: true, detail: proxyStatus });
 
     currentStep = 'upload-agent';
 

@@ -126,6 +126,9 @@ export type VolumeInfo = {
   mountpoint: string;
 };
 
+/** Bytes of an archive as they come out of the runtime — a tar of a volume, a dump of a database. */
+export type ArchiveStream = ReadableStream<Uint8Array>;
+
 export type ContainerProvider = {
   createContainer: (spec: ContainerSpec) => Promise<ContainerInfo>;
   startContainer: (id: string) => Promise<void>;
@@ -147,6 +150,12 @@ export type ContainerProvider = {
   createVolume: (name: string) => Promise<VolumeInfo>;
   removeVolume: (name: string) => Promise<void>;
   listVolumes: () => Promise<VolumeInfo[]>;
+  // The archive of a restore is read from a file on this host: the agent stages the upload first,
+  // so the command and the bytes never have to travel in the same request.
+  archiveVolume: (name: string) => Promise<ArchiveStream>;
+  restoreVolume: (name: string, archivePath: string) => Promise<void>;
+  archiveFromContainer: (id: string, command: string[]) => Promise<ArchiveStream>;
+  restoreIntoContainer: (id: string, command: string[], archivePath: string) => Promise<void>;
 };
 
 export type ContainerProviderFactory = () => ContainerProvider;

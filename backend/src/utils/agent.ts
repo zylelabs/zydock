@@ -11,6 +11,8 @@ export type AgentRequest = {
   method?: 'GET' | 'POST' | 'PUT' | 'DELETE';
   query?: URLSearchParams;
   body?: unknown;
+  /** Sent as-is, for archives: bytes travel raw, never wrapped in JSON. */
+  raw?: ReadableStream<Uint8Array>;
   /** Streamed calls answer with an event stream, so they use the caller's signal instead of a timeout. */
   signal?: AbortSignal;
   streamed?: boolean;
@@ -124,7 +126,15 @@ export const agentFailureStatus = (error: unknown): 400 | 404 | 502 => {
  */
 export const createAgentClient = (connection: AgentConnection) => {
   const send = async (path: string, options: AgentRequest = {}) => {
-    const { method = 'GET', query, body, signal, streamed = false, allowedStatuses = [] } = options;
+    const {
+      method = 'GET',
+      query,
+      body,
+      raw,
+      signal,
+      streamed = false,
+      allowedStatuses = [],
+    } = options;
 
     const url = new URL(`/api${path}`, connection.endpoint);
 
@@ -140,8 +150,11 @@ export const createAgentClient = (connection: AgentConnection) => {
         headers: {
           'X-Agent-Token': connection.token,
           ...(body === undefined ? {} : { 'Content-Type': 'application/json' }),
+          ...(raw === undefined ? {} : { 'Content-Type': 'application/octet-stream' }),
         },
-        body: body === undefined ? undefined : JSON.stringify(body),
+        body: raw ?? (body === undefined ? undefined : JSON.stringify(body)),
+        // A streamed request body has to say it does not wait for the answer to start writing.
+        ...(raw === undefined ? {} : { duplex: 'half' }),
         signal: streamed ? signal : AbortSignal.timeout(config.node.requestTimeoutMs),
       });
     } catch (error) {

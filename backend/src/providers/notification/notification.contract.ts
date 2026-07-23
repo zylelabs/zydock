@@ -2,7 +2,9 @@ export const NOTIFICATION_CHANNELS = ['email', 'webhook'] as const;
 
 export type NotificationChannel = (typeof NOTIFICATION_CHANNELS)[number];
 
-export type NotificationSeverity = 'info' | 'success' | 'warning' | 'error';
+export const NOTIFICATION_SEVERITIES = ['info', 'success', 'warning', 'error'] as const;
+
+export type NotificationSeverity = (typeof NOTIFICATION_SEVERITIES)[number];
 
 export type NotificationMessage = {
   subject: string;

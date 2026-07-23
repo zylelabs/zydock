@@ -8,7 +8,7 @@ import {
 import { errorMessage } from '../../utils';
 import { logDebug, logError } from '../../utils/logger';
 import applicationModel from '../applications/application.model';
-import { APPLICATION_LABEL } from '../deployments/pipeline.service';
+import { APPLICATION_LABEL } from '../deployments/naming';
 import { buildAgentConnection, findServerById } from '../servers/server.service';
 import {
   publish,

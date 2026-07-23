@@ -1,5 +1,6 @@
 import { logDebug } from '../../utils/logger';
 import type {
+  ArchiveStream,
   BuildImageSpec,
   ContainerFilter,
   ContainerHealth,
@@ -56,6 +57,59 @@ const runChecked = async (args: string[], description: string) => {
   }
 
   return result.stdout.trim();
+};
+
+/** Image used to tar a volume: a container is the only way to read a volume from outside. */
+const ARCHIVE_IMAGE = 'alpine:3';
+
+/**
+ * The command's output as a stream. A non-zero exit **errors the stream** instead of closing it, so
+ * whoever is reading gets a broken body and never mistakes a truncated archive for a whole one.
+ */
+const streamOf = async (args: string[], description: string): Promise<ArchiveStream> => {
+  const process = Bun.spawn(['docker', ...args], { stdout: 'pipe', stderr: 'pipe' });
+
+  const reader = process.stdout.getReader();
+
+  return new ReadableStream<Uint8Array>({
+    pull: async controller => {
+      const { done, value } = await reader.read();
+
+      if (!done) {
+        controller.enqueue(value);
+        return;
+      }
+
+      const code = await process.exited;
+
+      if (code !== 0) {
+        const stderr = await new Response(process.stderr).text();
+
+        controller.error(new Error(`${description}: ${stderr.trim() || `exit ${code}`}`));
+        return;
+      }
+
+      controller.close();
+    },
+    cancel: () => {
+      process.kill();
+    },
+  });
+};
+
+/** Runs the command with an archive on this host as its standard input. */
+const runPiped = async (args: string[], archivePath: string, description: string) => {
+  const process = Bun.spawn(['docker', ...args], {
+    stdin: Bun.file(archivePath),
+    stdout: 'pipe',
+    stderr: 'pipe',
+  });
+
+  const [stderr, code] = await Promise.all([new Response(process.stderr).text(), process.exited]);
+
+  if (code !== 0) {
+    throw new Error(`${description}: ${stderr.trim() || `docker exited with ${code}`}`);
+  }
 };
 
 const parseHealth = (raw: unknown): ContainerHealth => {
@@ -545,5 +599,56 @@ export const createDockerProvider = (): ContainerProvider => ({
 
         return { name: name ?? '', driver: driver ?? '', mountpoint: mountpoint ?? '' };
       });
+  },
+
+  archiveVolume: async name => {
+    await runChecked(['volume', 'inspect', name], `Volume ${name} not found`);
+
+    return streamOf(
+      [
+        'run',
+        '--rm',
+        '-v',
+        `${name}:/data:ro`,
+        ARCHIVE_IMAGE,
+        'tar',
+        '-czf',
+        '-',
+        '-C',
+        '/data',
+        '.',
+      ],
+      `Failed to archive volume ${name}`,
+    );
+  },
+
+  // Extracts over what is already there; files the archive does not carry are left untouched.
+  restoreVolume: async (name, archivePath) => {
+    await runChecked(['volume', 'inspect', name], `Volume ${name} not found`);
+
+    await runPiped(
+      [
+        'run',
+        '--rm',
+        '-i',
+        '-v',
+        `${name}:/data`,
+        ARCHIVE_IMAGE,
+        'tar',
+        '-xzf',
+        '-',
+        '-C',
+        '/data',
+      ],
+      archivePath,
+      `Failed to restore volume ${name}`,
+    );
+  },
+
+  archiveFromContainer: async (id, command) =>
+    streamOf(['exec', id, ...command], `Failed to archive from container ${id}`),
+
+  restoreIntoContainer: async (id, command, archivePath) => {
+    await runPiped(['exec', '-i', id, ...command], archivePath, `Failed to restore into ${id}`);
   },
 });

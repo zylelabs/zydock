@@ -54,10 +54,29 @@ export const createLocalStorageProvider = (): StorageProvider => ({
 
     await mkdir(dirname(path), { recursive: true });
 
-    if (data instanceof ReadableStream) {
-      await Bun.write(path, new Response(data));
-    } else {
+    if (!(data instanceof ReadableStream)) {
       await Bun.write(path, data);
+      return;
+    }
+
+    // Chunk by chunk, and never `Bun.write(path, new Response(stream))`: a body with no length —
+    // an archive as it is produced — makes that call wait forever for a size that never comes.
+    const reader = data.getReader();
+    const writer = Bun.file(path).writer();
+
+    try {
+      for (;;) {
+        const { done, value } = await reader.read();
+
+        if (done) {
+          break;
+        }
+
+        writer.write(value);
+        await writer.flush();
+      }
+    } finally {
+      await writer.end();
     }
   },
 

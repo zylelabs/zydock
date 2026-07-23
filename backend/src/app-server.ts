@@ -9,6 +9,7 @@ import config from './config';
 import { connectDatabase, disconnectDatabase } from './config/mongodb';
 import routes from './modules/routes';
 import { stopLogStreams } from './modules/logs/log.service';
+import { stopMetricStreams } from './modules/metrics/metric.service';
 import { startWorker, stopWorker } from './modules/queue/queue.service';
 import { logError, logInfo } from './utils/logger';
 
@@ -29,6 +30,7 @@ const cleanup = async () => {
   try {
     stopWorker();
     stopLogStreams();
+    stopMetricStreams();
     await disconnectDatabase();
   } catch (error) {
     logError('Failed to release resources during shutdown', error);

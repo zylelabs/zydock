@@ -9,6 +9,8 @@ export const heartbeatSchema = z.object({
       memoryTotalMb: z.number().min(0).optional(),
       diskUsedGb: z.number().min(0).optional(),
       diskTotalGb: z.number().min(0).optional(),
+      networkRxBytes: z.number().min(0).optional(),
+      networkTxBytes: z.number().min(0).optional(),
       uptimeSeconds: z.number().min(0).optional(),
       containersRunning: z.number().int().min(0).optional(),
       containersTotal: z.number().int().min(0).optional(),

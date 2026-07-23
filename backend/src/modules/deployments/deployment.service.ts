@@ -4,11 +4,23 @@ import { isSuperuser } from '../users/user.service';
 import { findMembership } from '../organizations/membership.service';
 import { classifyLine, filterLogs, type ClassifiedLog } from '../logs/log.filter';
 import type { LogsQuery } from '../logs/logs.schema';
+import { notifyDeploymentEvent } from '../notifications/notification.service';
+import type { NotificationEvent } from '../notifications/notification.schema';
+import { logError } from '../../utils/logger';
 import { publish, registerTopicAuthorizer } from '../websocket/websocket.service';
 import deploymentModel from './deployment.model';
 import type { DeploymentStep, DeploymentStepStatus, DeploymentTrigger } from './deployment.schema';
 
 const topicOf = (deploymentId: string) => `deployment:${deploymentId}:steps`;
+
+/** The pipeline never waits on — nor fails because of — a notification channel. */
+const notify = (deploymentId: string, event: NotificationEvent) =>
+  notifyDeploymentEvent(deploymentId, event).catch(error =>
+    logError('Failed to emit a deployment notification', error, {
+      deployment: deploymentId,
+      event,
+    }),
+  );
 
 export const findDeployment = (organizationId: string, deploymentId: string) =>
   deploymentModel.findOne({ _id: deploymentId, organizationId });
@@ -42,6 +54,8 @@ export const markRunning = async (deploymentId: string) => {
   );
 
   publish(topicOf(deploymentId), 'status', { deploymentId, status: 'running' });
+
+  await notify(deploymentId, 'deployment.started');
 };
 
 export const recordStep = async (
@@ -102,6 +116,11 @@ export const finishDeployment = async (
   );
 
   publish(topicOf(deploymentId), 'status', { deploymentId, status: outcome.status });
+
+  await notify(
+    deploymentId,
+    outcome.status === 'succeeded' ? 'deployment.succeeded' : 'deployment.failed',
+  );
 };
 
 export const setCommit = (deploymentId: string, commit: DeploymentCommit) =>

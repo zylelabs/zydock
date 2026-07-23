@@ -33,8 +33,14 @@ export type DatabaseCredentials = {
   database?: string;
 };
 
+/** Where the dump goes (or comes from) and the credentials the engine command needs. */
+export type DatabaseBackupSpec = {
+  containerId: string;
+  credentials: DatabaseCredentials;
+  storageKey: string;
+};
+
 export type DatabaseBackup = {
-  id: string;
   storageKey: string;
   sizeBytes: number;
   createdAt: string;
@@ -53,8 +59,8 @@ export type DatabaseProvider = {
   destroy: (id: string, removeData?: boolean) => Promise<void>;
   getStatus: (id: string) => Promise<DatabaseStatus>;
   getCredentials: (id: string) => Promise<DatabaseCredentials>;
-  backup: (id: string) => Promise<DatabaseBackup>;
-  restore: (id: string, backupId: string) => Promise<void>;
+  backup: (spec: DatabaseBackupSpec) => Promise<DatabaseBackup>;
+  restore: (spec: DatabaseBackupSpec) => Promise<void>;
 };
 
 export type DatabaseProviderDependencies = {

@@ -18,6 +18,8 @@ export const metricsDocs = {
           memoryTotalMb: { type: 'integer' },
           diskUsedGb: { type: 'number', nullable: true },
           diskTotalGb: { type: 'number', nullable: true },
+          networkRxBytes: { type: 'integer', nullable: true },
+          networkTxBytes: { type: 'integer', nullable: true },
           uptimeSeconds: { type: 'integer' },
           containersRunning: { type: 'integer' },
           containersTotal: { type: 'integer' },

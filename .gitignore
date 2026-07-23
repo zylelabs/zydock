@@ -32,6 +32,10 @@ examples
 # Build artifacts
 backend/server
 node/dist
+frontend/.nuxt
+frontend/.output
+frontend/.nitro
+frontend/.data
 
 # Temporary
 *.md

@@ -42,6 +42,9 @@ export const removeEnvironmentsOfProject = (projectId: string) =>
 export const countEnvironmentsOfProject = (projectId: string) =>
   environmentModel.countDocuments({ projectId });
 
+export const listEnvironmentsOfProjects = (projectIds: string[]) =>
+  environmentModel.find({ projectId: { $in: projectIds } }).sort({ createdAt: 1 });
+
 export const serializeEnvironment = (environment: Environment) => ({
   id: String(environment._id),
   projectId: String(environment.projectId),

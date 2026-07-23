@@ -1,4 +1,5 @@
 import { createRouter } from 'hono-route-docs';
+import backupsRoute from './backups/backups.route';
 import commandsRoute from './commands/commands.route';
 import consoleRoute from './containers/console.route';
 import containersRoute from './containers/containers.route';
@@ -21,6 +22,7 @@ route('/networks', networksRoute);
 route('/volumes', volumesRoute);
 route('/proxy', proxyRoute);
 route('/repositories', repositoriesRoute);
+route('/backups', backupsRoute);
 route('/commands', commandsRoute);
 
 export default router;

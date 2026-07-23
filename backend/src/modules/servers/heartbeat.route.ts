@@ -1,6 +1,7 @@
 import type { Context } from 'hono';
 import { createRouter, validator } from 'hono-route-docs';
 import { decryptSecret } from '../../utils/crypto';
+import { recordServerMetrics } from '../metrics/metric.service';
 import { publish } from '../websocket/websocket.service';
 import { HeartbeatDTO, heartbeatSchema } from './heartbeat.schema';
 import serverModel from './server.model';
@@ -46,6 +47,9 @@ post(
 
     if (body.metrics) {
       publish(`server:${serverId}:metrics`, 'server.metrics', body.metrics);
+
+      // Persist the sample for history; failures only warn, never break the heartbeat.
+      await recordServerMetrics(serverId, body.metrics);
     }
 
     return c.json({ message: 'Heartbeat accepted' });

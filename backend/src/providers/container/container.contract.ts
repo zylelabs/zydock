@@ -133,6 +133,9 @@ export type VolumeInfo = {
   mountpoint: string;
 };
 
+/** Bytes of an archive as they travel: a tar of a volume, a dump of a database. */
+export type ArchiveStream = ReadableStream<Uint8Array>;
+
 export type ContainerProvider = {
   createContainer: (spec: ContainerSpec) => Promise<ContainerInfo>;
   startContainer: (id: string) => Promise<void>;
@@ -154,6 +157,10 @@ export type ContainerProvider = {
   createVolume: (name: string) => Promise<VolumeInfo>;
   removeVolume: (name: string) => Promise<void>;
   listVolumes: () => Promise<VolumeInfo[]>;
+  archiveVolume: (name: string) => Promise<ArchiveStream>;
+  restoreVolume: (name: string, archive: ArchiveStream) => Promise<void>;
+  archiveFromContainer: (id: string, command: string[]) => Promise<ArchiveStream>;
+  restoreIntoContainer: (id: string, command: string[], archive: ArchiveStream) => Promise<void>;
 };
 
 export type ContainerProviderFactory = (connection: ContainerConnection) => ContainerProvider;
