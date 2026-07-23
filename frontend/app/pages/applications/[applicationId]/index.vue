@@ -533,6 +533,72 @@
       savingToken.value = false;
     }
   };
+
+  // --- Git webhook (auto-deploy) ------------------------------------------------------------------
+
+  const webhookBusy = ref(false);
+  const webhookCopied = ref(false);
+
+  const onConfigureWebhook = async () => {
+    actionError.value = '';
+    webhookBusy.value = true;
+
+    try {
+      await applications.configureWebhook(applicationId.value);
+      await refresh();
+    } catch (error) {
+      actionError.value =
+        (error as { message?: string }).message || 'Failed to configure the webhook.';
+    } finally {
+      webhookBusy.value = false;
+    }
+  };
+
+  const onRemoveWebhook = async () => {
+    actionError.value = '';
+    webhookBusy.value = true;
+
+    try {
+      await applications.removeWebhook(applicationId.value);
+      await refresh();
+    } catch (error) {
+      actionError.value =
+        (error as { message?: string }).message || 'Failed to remove the webhook.';
+    } finally {
+      webhookBusy.value = false;
+    }
+  };
+
+  const copyWebhookUrl = async () => {
+    if (!application.value?.git.webhookUrl) {
+      return;
+    }
+
+    await navigator.clipboard.writeText(application.value.git.webhookUrl);
+    webhookCopied.value = true;
+    setTimeout(() => (webhookCopied.value = false), 2000);
+  };
+
+  // --- Danger zone (delete application) -----------------------------------------------------------
+
+  const confirmDeleteOpen = ref(false);
+  const deletingApp = ref(false);
+
+  const onDeleteApplication = async () => {
+    actionError.value = '';
+    deletingApp.value = true;
+
+    try {
+      const projectId = application.value?.projectId;
+
+      await applications.remove(applicationId.value);
+      await navigateTo(projectId ? `/projects/${projectId}` : '/projects');
+    } catch (error) {
+      actionError.value =
+        (error as { message?: string }).message || 'Failed to delete the application.';
+      deletingApp.value = false;
+    }
+  };
 </script>
 
 <template>
@@ -1077,6 +1143,64 @@
       </div>
     </UiCard>
 
+    <!-- Git webhook -->
+    <UiCard v-if="canManage" title="Git webhook">
+      <template #header>
+        <div class="flex items-center justify-between">
+          <h2>Git webhook</h2>
+          <UiButton
+            v-if="!application.git.hasWebhook"
+            variant="secondary"
+            :loading="webhookBusy"
+            @click="onConfigureWebhook"
+          >
+            Configure webhook
+          </UiButton>
+        </div>
+      </template>
+
+      <div class="flex flex-col gap-3">
+        <div class="flex items-center gap-2 text-sm">
+          <UiBadge :variant="application.git.hasWebhook ? 'success' : 'neutral'">
+            {{ application.git.hasWebhook ? 'Configured' : 'Not configured' }}
+          </UiBadge>
+          <span class="text-content-muted">
+            {{
+              application.git.hasWebhook
+                ? 'GitHub notifies this URL on every push, triggering auto-deploy.'
+                : 'Without it, auto-deploy only runs if the webhook is set up manually on the repository.'
+            }}
+          </span>
+        </div>
+
+        <div
+          v-if="application.git.hasWebhook && application.git.webhookUrl"
+          class="flex items-center gap-2"
+        >
+          <code
+            class="flex-1 truncate rounded-lg border border-surface-border bg-surface px-3 py-2 text-xs"
+          >
+            {{ application.git.webhookUrl }}
+          </code>
+          <UiButton variant="ghost" type="button" @click="copyWebhookUrl">
+            <Icon :name="webhookCopied ? 'lucide:check' : 'lucide:copy'" class="size-4" />
+            {{ webhookCopied ? 'Copied' : 'Copy' }}
+          </UiButton>
+        </div>
+
+        <UiAlert v-if="!application.git.hasWebhook && application.git.autoDeploy" variant="info">
+          Auto-deploy is enabled but no webhook is configured — configure it above so pushes deploy
+          automatically.
+        </UiAlert>
+
+        <div v-if="application.git.hasWebhook" class="flex justify-end">
+          <UiButton variant="ghost" :loading="webhookBusy" @click="onRemoveWebhook">
+            Remove webhook
+          </UiButton>
+        </div>
+      </div>
+    </UiCard>
+
     <!-- Access token (private repository) -->
     <UiCard v-if="canManage" title="Access token">
       <template #header>
@@ -1234,6 +1358,16 @@
       </ul>
     </UiCard>
 
+    <!-- Danger zone -->
+    <UiCard v-if="canManage" title="Danger zone">
+      <div class="flex items-center justify-between gap-4">
+        <p class="text-sm text-content-muted">
+          Deletes this application, its deployment history and its domains. This cannot be undone.
+        </p>
+        <UiButton variant="danger" @click="confirmDeleteOpen = true">Delete application</UiButton>
+      </div>
+    </UiCard>
+
     <UiConfirm
       :open="Boolean(rollbackTarget)"
       title="Roll back deploy"
@@ -1253,6 +1387,17 @@
       :loading="removingDomain"
       @confirm="confirmRemoveDomain"
       @update:open="value => !value && (domainToRemove = null)"
+    />
+
+    <UiConfirm
+      :open="confirmDeleteOpen"
+      title="Delete application"
+      :message="`Delete “${application.name}”? Its deployments and domains are removed too. This cannot be undone.`"
+      confirm-label="Delete"
+      danger
+      :loading="deletingApp"
+      @confirm="onDeleteApplication"
+      @update:open="value => (confirmDeleteOpen = value)"
     />
   </section>
 

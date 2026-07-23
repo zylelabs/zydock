@@ -40,6 +40,11 @@ export const useProjects = () => {
     api.post<{ environment: Environment }>(`${base()}/${projectId}/environments`, {
       body: { name },
     });
+  const updateEnvironment = (projectId: string, environmentId: string, name: string) =>
+    api.patch<{ environment: Environment }>(
+      `${base()}/${projectId}/environments/${environmentId}`,
+      { body: { name } },
+    );
   const removeEnvironment = (projectId: string, environmentId: string) =>
     api.del<{ message: string }>(`${base()}/${projectId}/environments/${environmentId}`);
 
@@ -51,6 +56,7 @@ export const useProjects = () => {
     remove,
     listEnvironments,
     createEnvironment,
+    updateEnvironment,
     removeEnvironment,
   };
 };

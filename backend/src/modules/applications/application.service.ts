@@ -8,6 +8,7 @@ import { isSuperuser } from '../users/user.service';
 import { registerTopicAuthorizer } from '../websocket/websocket.service';
 import applicationModel from './application.model';
 import type { CreateApplicationDTO, UpdateApplicationDTO } from './application.schema';
+import { callbackUrlOf } from './webhook.service';
 
 const uniqueSlug = (environmentId: string, name: string) =>
   generateUniqueSlug(name, 'application', async slug =>
@@ -202,6 +203,9 @@ export const serializeApplication = (application: Application) => ({
     autoDeploy: application.git.autoDeploy,
     /** Never the token itself — only whether the application carries one. */
     hasToken: application.git.hasToken,
+    hasWebhook: Boolean(application.git.webhookId),
+    // The URL is not a secret — only the payload signature is (`webhookSecret`, never returned).
+    webhookUrl: application.git.webhookId ? callbackUrlOf(String(application._id)) : undefined,
   },
   port: application.port,
   portMappings: application.portMappings,

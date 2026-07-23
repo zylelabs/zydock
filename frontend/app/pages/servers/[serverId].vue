@@ -1,4 +1,5 @@
 <script setup lang="ts">
+  import { z } from 'zod';
   import {
     APPLICATION_LABEL,
     CONTAINER_STATES,
@@ -9,6 +10,11 @@
   import type { NetworkInfo } from '~/composables/use-networks';
   import type { VolumeInfo } from '~/composables/use-volumes';
   import type { MetricSample, SystemMetrics } from '~/composables/use-metrics';
+  import type {
+    ProvisioningResult,
+    ProvisioningStepName,
+    SshCredentials,
+  } from '~/composables/use-servers';
 
   const route = useRoute();
   const session = useSessionStore();
@@ -21,12 +27,13 @@
   const networksApi = useNetworks();
   const volumesApi = useVolumes();
   const metricsApi = useMetrics();
+  const { subscribe } = useWebSocket();
 
   const canManage = computed(() => ['owner', 'admin'].includes(current.value?.role ?? ''));
   const actionError = ref('');
   const busy = ref('');
 
-  const { data } = await useAsyncData(
+  const { data, refresh } = await useAsyncData(
     () => `server-${serverId.value}`,
     async () => {
       if (!session.organizationId) {
@@ -45,6 +52,179 @@
   const server = computed(() => data.value?.server ?? null);
 
   const percent = (used = 0, total = 0) => (total ? Math.round((used / total) * 100) : 0);
+
+  // --- Edit server ------------------------------------------------------------------------------
+
+  const editSchema = z
+    .object({
+      name: z.string().trim().min(1, 'Enter a name'),
+      changeSsh: z.boolean(),
+      host: z.string(),
+      port: z.string(),
+      username: z.string(),
+      authMethod: z.enum(['password', 'privateKey']),
+      password: z.string(),
+      privateKey: z.string(),
+      passphrase: z.string(),
+    })
+    .superRefine((value, ctx) => {
+      if (!value.changeSsh) {
+        return;
+      }
+
+      if (!value.host.trim()) {
+        ctx.addIssue({ code: 'custom', path: ['host'], message: 'Enter the host' });
+      }
+
+      if (!/^\d+$/.test(value.port)) {
+        ctx.addIssue({ code: 'custom', path: ['port'], message: 'Invalid port' });
+      }
+
+      if (!value.username.trim()) {
+        ctx.addIssue({ code: 'custom', path: ['username'], message: 'Enter the user' });
+      }
+
+      if (value.authMethod === 'password' && !value.password) {
+        ctx.addIssue({ code: 'custom', path: ['password'], message: 'Enter the password' });
+      }
+
+      if (value.authMethod === 'privateKey' && !value.privateKey) {
+        ctx.addIssue({ code: 'custom', path: ['privateKey'], message: 'Enter the private key' });
+      }
+    });
+
+  const editForm = useForm(editSchema, {
+    name: '',
+    changeSsh: false,
+    host: '',
+    port: '22',
+    username: 'root',
+    authMethod: 'password' as 'password' | 'privateKey',
+    password: '',
+    privateKey: '',
+    passphrase: '',
+  });
+
+  const authOptions = [
+    { value: 'password', label: 'Password' },
+    { value: 'privateKey', label: 'Private key' },
+  ];
+
+  const editing = ref(false);
+
+  const openEdit = () => {
+    if (!server.value) {
+      return;
+    }
+
+    editForm.reset();
+    editForm.values.name = server.value.name;
+    editForm.values.host = server.value.ssh.host ?? '';
+    editForm.values.username = server.value.ssh.username ?? 'root';
+    editForm.values.port = String(server.value.ssh.port ?? 22);
+    editing.value = true;
+  };
+
+  const buildSsh = (values: typeof editForm.values): SshCredentials => ({
+    host: values.host,
+    port: Number(values.port),
+    username: values.username,
+    ...(values.authMethod === 'password'
+      ? { password: values.password }
+      : { privateKey: values.privateKey, passphrase: values.passphrase || undefined }),
+  });
+
+  const onSaveEdit = editForm.submit(async values => {
+    await servers.update(serverId.value, {
+      name: values.name,
+      ...(values.changeSsh ? { ssh: buildSsh(values) } : {}),
+    });
+
+    await refresh();
+    editing.value = false;
+  });
+
+  // --- Refresh server -----------------------------------------------------------------------------
+
+  const refreshing = ref(false);
+  const refreshError = ref('');
+
+  const onRefreshServer = async () => {
+    refreshError.value = '';
+    refreshing.value = true;
+
+    try {
+      const probe = await servers.refresh(serverId.value);
+
+      if (!probe.reachable) {
+        refreshError.value = probe.error || 'The server is unreachable.';
+      }
+
+      await refresh();
+    } catch (error) {
+      refreshError.value =
+        (error as { message?: string }).message || 'Failed to refresh the server.';
+    } finally {
+      refreshing.value = false;
+    }
+  };
+
+  // --- Live provisioning (WebSocket) ---------------------------------------------------------------
+
+  const PROVISIONING_STEP_LABEL: Record<ProvisioningStepName, string> = {
+    connect: 'Connect',
+    'install-docker': 'Install Docker',
+    'install-runtime': 'Install runtime',
+    'install-proxy': 'Install proxy',
+    'upload-agent': 'Upload agent',
+    'configure-agent': 'Configure agent',
+    'start-agent': 'Start agent',
+    'verify-agent': 'Verify agent',
+  };
+
+  const provisioning = ref(false);
+  const provisioningSteps = ref<ProvisioningResult[]>([]);
+  const provisioningError = ref('');
+
+  const canProvision = computed(
+    () =>
+      server.value?.type === 'ssh' &&
+      ['pending', 'failed', 'offline'].includes(server.value.status),
+  );
+
+  const onProvisioningStep = (incoming: ProvisioningResult) => {
+    const index = provisioningSteps.value.findIndex(step => step.step === incoming.step);
+
+    if (index === -1) {
+      provisioningSteps.value.push(incoming);
+    } else {
+      provisioningSteps.value[index] = incoming;
+    }
+  };
+
+  const runProvision = async () => {
+    provisioningError.value = '';
+    provisioningSteps.value = [];
+    provisioning.value = true;
+
+    const stop = subscribe(servers.provisioningTopic(serverId.value), message => {
+      if (message.event === 'provisioning.step') {
+        onProvisioningStep(message.data as ProvisioningResult);
+      }
+    });
+
+    try {
+      const result = await servers.provision(serverId.value);
+      provisioningSteps.value = result.steps;
+      await refresh();
+    } catch (error) {
+      provisioningError.value =
+        (error as { message?: string }).message || 'Failed to provision the server.';
+    } finally {
+      provisioning.value = false;
+      stop();
+    }
+  };
 
   // --- Metrics snapshot + history -------------------------------------------------------------------
 
@@ -375,14 +555,129 @@
       Servers
     </NuxtLink>
 
-    <header class="flex items-center gap-3">
-      <h1>{{ server.name }}</h1>
-      <UiBadge v-if="server.type === 'local'" variant="neutral">local</UiBadge>
-      <UiBadge v-if="server.online" variant="success">online</UiBadge>
-      <UiBadge v-else variant="warning">offline</UiBadge>
+    <header class="flex flex-wrap items-center justify-between gap-3">
+      <div class="flex items-center gap-3">
+        <h1>{{ server.name }}</h1>
+        <UiBadge v-if="server.type === 'local'" variant="neutral">local</UiBadge>
+        <UiBadge v-if="server.online" variant="success">online</UiBadge>
+        <UiBadge v-else variant="warning">offline</UiBadge>
+      </div>
+
+      <div v-if="canManage" class="flex items-center gap-2">
+        <UiButton variant="ghost" type="button" @click="openEdit">Edit</UiButton>
+        <UiButton
+          v-if="server.type === 'ssh'"
+          variant="ghost"
+          type="button"
+          :loading="refreshing"
+          @click="onRefreshServer"
+        >
+          Refresh
+        </UiButton>
+        <UiButton
+          v-if="canProvision"
+          variant="secondary"
+          type="button"
+          :loading="provisioning"
+          @click="runProvision"
+        >
+          Provision
+        </UiButton>
+      </div>
     </header>
 
     <UiAlert v-if="actionError" variant="error">{{ actionError }}</UiAlert>
+    <UiAlert v-if="refreshError" variant="error">{{ refreshError }}</UiAlert>
+
+    <UiCard v-if="editing" title="Edit server">
+      <form class="flex flex-col gap-4" @submit.prevent="onSaveEdit">
+        <UiAlert v-if="editForm.formError.value" variant="error">{{
+          editForm.formError.value
+        }}</UiAlert>
+
+        <UiInput v-model="editForm.values.name" label="Name" :error="editForm.errors.value.name" />
+
+        <template v-if="server.type === 'ssh'">
+          <UiCheckbox v-model="editForm.values.changeSsh" label="Change SSH credentials" />
+
+          <template v-if="editForm.values.changeSsh">
+            <div class="grid gap-4 sm:grid-cols-2">
+              <UiInput
+                v-model="editForm.values.username"
+                label="SSH user"
+                :error="editForm.errors.value.username"
+              />
+              <UiSelect
+                v-model="editForm.values.authMethod"
+                label="Authentication"
+                :options="authOptions"
+              />
+              <UiInput
+                v-model="editForm.values.host"
+                label="Host"
+                :error="editForm.errors.value.host"
+              />
+              <UiInput
+                v-model="editForm.values.port"
+                label="SSH port"
+                :error="editForm.errors.value.port"
+              />
+            </div>
+
+            <UiInput
+              v-if="editForm.values.authMethod === 'password'"
+              v-model="editForm.values.password"
+              label="Password"
+              type="password"
+              :error="editForm.errors.value.password"
+            />
+
+            <template v-else>
+              <UiTextarea
+                v-model="editForm.values.privateKey"
+                label="Private key"
+                :rows="5"
+                placeholder="-----BEGIN OPENSSH PRIVATE KEY-----"
+                :error="editForm.errors.value.privateKey"
+              />
+              <UiInput
+                v-model="editForm.values.passphrase"
+                label="Passphrase (optional)"
+                type="password"
+              />
+            </template>
+          </template>
+        </template>
+
+        <div class="flex items-center justify-end gap-2">
+          <UiButton variant="ghost" type="button" @click="editing = false">Cancel</UiButton>
+          <UiButton type="submit" :loading="editForm.submitting.value">Save</UiButton>
+        </div>
+      </form>
+    </UiCard>
+
+    <UiCard v-if="provisioning || provisioningSteps.length" title="Provisioning">
+      <UiAlert v-if="provisioningError" variant="error">{{ provisioningError }}</UiAlert>
+
+      <div class="flex flex-wrap items-center gap-1.5">
+        <span
+          v-for="step in provisioningSteps"
+          :key="step.step"
+          :title="step.detail"
+          class="rounded px-2 py-0.5 text-xs font-medium"
+          :class="step.ok ? 'bg-success/15 text-success' : 'bg-danger/15 text-danger'"
+        >
+          {{ PROVISIONING_STEP_LABEL[step.step] }}
+        </span>
+        <span
+          v-if="provisioning"
+          class="inline-flex items-center gap-1.5 text-xs text-content-muted"
+        >
+          <Icon name="lucide:loader-circle" class="size-3.5 animate-spin" />
+          Provisioning…
+        </span>
+      </div>
+    </UiCard>
 
     <UiCard title="Metrics">
       <UiAlert v-if="metricsError" variant="error">{{ metricsError }}</UiAlert>

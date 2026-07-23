@@ -68,6 +68,27 @@ export interface CreateLocalServerBody {
 
 export type CreateServerBody = CreateSshServerBody | CreateLocalServerBody;
 
+export interface UpdateServerBody {
+  name?: string;
+  ssh?: SshCredentials;
+}
+
+export type ProvisioningStepName =
+  | 'connect'
+  | 'install-docker'
+  | 'install-runtime'
+  | 'install-proxy'
+  | 'upload-agent'
+  | 'configure-agent'
+  | 'start-agent'
+  | 'verify-agent';
+
+export interface ProvisioningResult {
+  step: ProvisioningStepName;
+  ok: boolean;
+  detail?: string;
+}
+
 export const useServers = () => {
   const api = useApi();
   const session = useSessionStore();
@@ -85,10 +106,18 @@ export const useServers = () => {
   const create = (body: CreateServerBody) =>
     api.post<{ server: Server; agentToken?: string }>(base(), { body });
 
+  const update = (serverId: string, body: UpdateServerBody) =>
+    api.patch<{ server: Server }>(`${base()}/${serverId}`, { body });
+
   const provision = (serverId: string) =>
-    api.post<{ steps: unknown }>(`${base()}/${serverId}/provision`);
+    api.post<{ steps: ProvisioningResult[] }>(`${base()}/${serverId}/provision`);
+
+  const refresh = (serverId: string) => api.post<ConnectionProbe>(`${base()}/${serverId}/refresh`);
 
   const remove = (serverId: string) => api.del<{ message: string }>(`${base()}/${serverId}`);
 
-  return { list, get, validate, create, provision, remove };
+  // Live provisioning steps stream on this topic while `provision` runs (`provisioning.step` events).
+  const provisioningTopic = (serverId: string) => `server:${serverId}:provisioning`;
+
+  return { list, get, validate, create, update, provision, refresh, remove, provisioningTopic };
 };
