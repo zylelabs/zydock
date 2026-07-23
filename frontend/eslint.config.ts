@@ -3,7 +3,9 @@ import eslintConfigPrettier from 'eslint-config-prettier';
 import eslintPluginPrettierRecommended from 'eslint-plugin-prettier/recommended';
 import prettierPlugin from 'eslint-plugin-prettier';
 
-const ignores = ['*.md', '**/.config.ts'];
+// `tests/` runs on Bun's test runner (`bun:test`), outside Nuxt's srcDir — linted by Prettier and
+// checked by `bun test`, not by the Nuxt/Vue ESLint pipeline.
+const ignores = ['*.md', '**/.config.ts', 'tests/**'];
 
 export default withNuxt({
   ignores,
