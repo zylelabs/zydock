@@ -264,6 +264,52 @@
     { immediate: true },
   );
 
+  // --- Reverse proxy (Caddy) ---------------------------------------------------------------------
+
+  /** Stable name the provisioning script gives the Caddy container — `provisioning.service.ts`. */
+  const PROXY_CONTAINER_NAME = 'zydock-proxy';
+
+  const proxyContainer = ref<ContainerInfo | null>(null);
+  const proxyLogsOpen = ref(false);
+  const proxyLogLines = ref<{ timestamp: string; stream: string; message: string }[]>([]);
+  const proxyLogsLoading = ref(false);
+  const proxyError = ref('');
+
+  const loadProxyContainer = async () => {
+    try {
+      const found = await containersApi.list(serverId.value, { namePrefix: PROXY_CONTAINER_NAME });
+      proxyContainer.value = found[0] ?? null;
+    } catch {
+      proxyContainer.value = null;
+    }
+  };
+
+  const toggleProxyLogs = async () => {
+    if (!proxyContainer.value) {
+      return;
+    }
+
+    if (proxyLogsOpen.value) {
+      proxyLogsOpen.value = false;
+      return;
+    }
+
+    proxyLogsOpen.value = true;
+    proxyLogsLoading.value = true;
+    proxyError.value = '';
+
+    try {
+      proxyLogLines.value = await containersApi.logs(serverId.value, proxyContainer.value.id, 200);
+    } catch (error) {
+      proxyLogLines.value = [];
+      proxyError.value = (error as { message?: string }).message || 'Failed to load logs.';
+    } finally {
+      proxyLogsLoading.value = false;
+    }
+  };
+
+  watch(serverId, loadProxyContainer, { immediate: true });
+
   // --- Tabs ------------------------------------------------------------------------------------
 
   type Tab = 'containers' | 'images' | 'networks' | 'volumes';
@@ -746,6 +792,35 @@
             />
           </div>
         </div>
+      </div>
+    </UiCard>
+
+    <UiCard v-if="proxyContainer" title="Reverse proxy">
+      <template #header>
+        <div class="flex items-center justify-between">
+          <h2>Reverse proxy</h2>
+          <UiBadge variant="info">{{ proxyContainer.state }}</UiBadge>
+        </div>
+      </template>
+
+      <div class="flex items-center justify-between gap-4">
+        <p class="text-xs text-content-muted">
+          Access log for every request routed through Caddy on this server — every domain and
+          application share this stream.
+        </p>
+        <UiButton variant="ghost" @click="toggleProxyLogs">
+          {{ proxyLogsOpen ? 'Hide logs' : 'View logs' }}
+        </UiButton>
+      </div>
+
+      <UiAlert v-if="proxyError" variant="error" class="mt-3">{{ proxyError }}</UiAlert>
+
+      <div v-if="proxyLogsOpen" class="mt-3 rounded-lg border border-surface-border bg-surface p-3">
+        <p v-if="proxyLogsLoading" class="text-xs text-content-muted">Loading…</p>
+        <p v-else-if="!proxyLogLines.length" class="text-xs text-content-muted">No log lines.</p>
+        <pre v-else class="max-h-64 overflow-y-auto font-mono text-xs leading-relaxed">{{
+          proxyLogLines.map(line => line.message).join('\n')
+        }}</pre>
       </div>
     </UiCard>
 
