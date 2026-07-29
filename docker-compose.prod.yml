@@ -1,0 +1,73 @@
+services:
+  mongo:
+    image: mongo:7
+    restart: unless-stopped
+    volumes:
+      - mongo-data:/data/db
+    environment:
+      MONGO_INITDB_ROOT_USERNAME: ${MONGO_USERNAME}
+      MONGO_INITDB_ROOT_PASSWORD: ${MONGO_PASSWORD}
+    healthcheck:
+      test: ['CMD', 'mongosh', '--quiet', '--eval', "db.adminCommand({ ping: 1 })"]
+      interval: 5s
+      timeout: 5s
+      retries: 10
+
+  backend:
+    build: ./backend
+    restart: unless-stopped
+    depends_on:
+      mongo:
+        condition: service_healthy
+    env_file: .env
+    environment:
+      MODE: prod
+      PORT: '8000'
+    volumes:
+      - backend-storage:/app/storage
+    ports:
+      - '8000:8000'
+    healthcheck:
+      test: ['CMD', 'wget', '-qO-', 'http://localhost:8000/api/health']
+      interval: 5s
+      timeout: 5s
+      retries: 20
+
+  frontend:
+    build: ./frontend
+    restart: unless-stopped
+    depends_on:
+      backend:
+        condition: service_healthy
+    env_file: .env
+    environment:
+      PORT: '3000'
+      HOST: 0.0.0.0
+      NUXT_URL_API: http://backend:8000
+    ports:
+      - '3000:3000'
+
+  # Only started when ZYDOCK_DOMAIN is set (`docker compose --profile domain ...`); gives the
+  # dashboard a single HTTPS domain instead of the raw frontend/backend ports.
+  caddy:
+    image: caddy:2
+    restart: unless-stopped
+    profiles: ['domain']
+    depends_on:
+      - frontend
+      - backend
+    ports:
+      - '80:80'
+      - '443:443'
+    volumes:
+      - ./scripts/Caddyfile:/etc/caddy/Caddyfile:ro
+      - caddy-data:/data
+      - caddy-config:/config
+    environment:
+      ZYDOCK_DOMAIN: ${ZYDOCK_DOMAIN}
+
+volumes:
+  mongo-data:
+  backend-storage:
+  caddy-data:
+  caddy-config:

@@ -1,0 +1,11 @@
+{$ZYDOCK_DOMAIN} {
+	# The browser connects to the WebSocket directly (it cannot pass through a JSON proxy) —
+	# everything else, including the API, goes through the frontend's own Nitro proxy.
+	handle /api/ws* {
+		reverse_proxy backend:8000
+	}
+
+	handle {
+		reverse_proxy frontend:3000
+	}
+}

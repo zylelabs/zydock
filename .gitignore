@@ -27,9 +27,6 @@ node_modules
 *.env
 !.env.example
 
-# Reference-only projects (never part of the implementation)
-examples
-
 # Build artifacts
 backend/server
 agent/dist
@@ -37,6 +34,3 @@ frontend/.nuxt
 frontend/.output
 frontend/.nitro
 frontend/.data
-
-# Temporary
-*.md
