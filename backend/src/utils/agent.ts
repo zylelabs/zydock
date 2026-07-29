@@ -1,6 +1,5 @@
 import config from '../config';
 
-/** Everything the backend needs to reach the agent installed on a managed server. */
 export type AgentConnection = {
   serverId: string;
   endpoint: string;
@@ -11,9 +10,7 @@ export type AgentRequest = {
   method?: 'GET' | 'POST' | 'PUT' | 'DELETE';
   query?: URLSearchParams;
   body?: unknown;
-  /** Sent as-is, for archives: bytes travel raw, never wrapped in JSON. */
   raw?: ReadableStream<Uint8Array>;
-  /** Streamed calls answer with an event stream, so they use the caller's signal instead of a timeout. */
   signal?: AbortSignal;
   streamed?: boolean;
   allowedStatuses?: number[];
@@ -64,7 +61,6 @@ const parseEvent = (raw: string): AgentEvent | null => {
   return data.length ? { event, data: data.join('\n') } : null;
 };
 
-/** Reads a `text/event-stream` answer, one event at a time. */
 export const readAgentEvents = async function* (response: Response): AsyncGenerator<AgentEvent> {
   if (!response.body) {
     return;
@@ -107,23 +103,14 @@ export const readAgentEvents = async function* (response: Response): AsyncGenera
 export const isAbortError = (error: unknown) =>
   error instanceof Error && error.name === 'AbortError';
 
-/** A failure the agent itself answered carries the status it used. */
 type AgentFailure = Error & { agentStatus?: number };
 
-/**
- * Status the API should answer for a failed agent call: a refusal (400/404) blames the request,
- * anything else — including no answer at all — blames the gateway between us and the runtime.
- */
 export const agentFailureStatus = (error: unknown): 400 | 404 | 502 => {
   const status = error instanceof Error ? (error as AgentFailure).agentStatus : undefined;
 
   return status === 400 || status === 404 ? status : 502;
 };
 
-/**
- * HTTP client of the agent, shared by every provider that delegates to a managed server. Failures
- * carry the server id, so an error surfaces where it happened.
- */
 export const createAgentClient = (connection: AgentConnection) => {
   const send = async (path: string, options: AgentRequest = {}) => {
     const {
@@ -153,7 +140,6 @@ export const createAgentClient = (connection: AgentConnection) => {
           ...(raw === undefined ? {} : { 'Content-Type': 'application/octet-stream' }),
         },
         body: raw ?? (body === undefined ? undefined : JSON.stringify(body)),
-        // A streamed request body has to say it does not wait for the answer to start writing.
         ...(raw === undefined ? {} : { duplex: 'half' }),
         signal: streamed ? signal : AbortSignal.timeout(config.agent.requestTimeoutMs),
       });

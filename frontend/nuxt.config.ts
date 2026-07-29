@@ -26,16 +26,12 @@ export default defineNuxtConfig({
     },
   ],
   runtimeConfig: {
-    // Only the Nitro server knows where the API is: the browser always talks to `/api/proxy`.
     urlApi: 'http://localhost:8000',
     public: {
-      // A WebSocket cannot pass through the JSON proxy, so this one URL does reach the browser.
       wsUrl: '',
     },
   },
   app: {
-    // Title and favicon are owned by `useTheme`, so the organization's branding drives them from the
-    // first render; only the viewport meta is static here.
     head: {
       meta: [{ name: 'viewport', content: 'width=device-width, initial-scale=1' }],
     },

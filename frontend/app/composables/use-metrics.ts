@@ -37,7 +37,6 @@ export interface MetricHistoryFilter {
   limit?: number;
 }
 
-/** Metrics of the single container running an application, joined with its inspect fields. */
 export type ApplicationMetrics = {
   containerId: string;
   name: string;

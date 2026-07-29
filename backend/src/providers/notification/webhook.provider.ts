@@ -4,10 +4,6 @@ import type { NotificationProvider } from './notification.contract';
 const REQUEST_TIMEOUT_MS = 10000;
 const SIGNATURE_HEADER = 'X-Zydock-Signature';
 
-/**
- * HTTP delivery. When the target carries a secret, the body is signed the same way Zydock verifies
- * incoming webhooks: `sha256=<hmac hex>`, so the receiver can prove the message came from here.
- */
 export const createWebhookProvider = (): NotificationProvider => ({
   send: async (target, message) => {
     if (target.channel !== 'webhook') {

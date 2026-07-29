@@ -52,7 +52,6 @@
     { label: 'Domains', value: data.value?.counts.domains ?? 0, icon: 'lucide:globe' },
   ]);
 
-  // Live metrics of online servers, over the WebSocket (one subscription per server).
   const metrics = reactive<Record<string, ServerMetric>>({});
   const subscribed = new Set<string>();
 

@@ -4,10 +4,6 @@ const FORWARDED_HEADERS = ['authorization', 'content-type', 'x-api-key'];
 
 const BODYLESS_METHODS = ['GET', 'HEAD', 'DELETE'];
 
-/**
- * The single door between the browser and the API. Everything the client asks for goes through here,
- * so the API URL never reaches the browser — not in a request, and not in the message of a failure.
- */
 export default defineEventHandler(async event => {
   const { urlApi } = useRuntimeConfig(event);
 
@@ -22,8 +18,6 @@ export default defineEventHandler(async event => {
   );
 
   try {
-    // `raw` because the status matters: the API answers `201` when it creates and `202` when it
-    // only accepts, and the browser has to see the difference.
     const response = await $fetch.raw(target, {
       method,
       headers,
@@ -33,8 +27,6 @@ export default defineEventHandler(async event => {
 
     setResponseStatus(event, response.status);
 
-    // A binary body (e.g. a backup download) comes back from ofetch as a Blob, not JSON — h3 does
-    // not know how to serialize that, so forward it as bytes with the headers the browser needs.
     if (response._data instanceof Blob) {
       const contentType = response.headers.get('content-type');
       const contentDisposition = response.headers.get('content-disposition');

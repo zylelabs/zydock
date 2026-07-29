@@ -11,7 +11,6 @@ export const workspaceParamSchema = z.object({
 export type WorkspaceParam = z.infer<typeof workspaceParamSchema>;
 
 export const cloneSchema = z.object({
-  /** Already authenticated by the backend when the repository is private. */
   url: z.string().url().max(2048),
   branch: z.string().trim().min(1).max(200),
   workspace: z

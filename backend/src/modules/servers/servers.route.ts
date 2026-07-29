@@ -72,8 +72,6 @@ post(
     const { organizationId } = c.req.valid('param' as never) as OrganizationIdParam;
     const body = c.req.valid('json' as never) as CreateServerDTO;
 
-    // A `local` server is not reached over SSH: the operator runs the agent by hand, so the
-    // backend only mints the shared token and returns it once — there is nothing to probe.
     if (body.type === 'local') {
       const token = generateAgentToken();
 
@@ -236,7 +234,6 @@ del(
       return c.json({ error: 'Server not found' }, 404);
     }
 
-    // Removing the server would leave its applications and databases pointing nowhere.
     const applications = await countApplicationsOfServer(serverId);
 
     if (applications > 0) {

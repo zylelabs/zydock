@@ -50,13 +50,6 @@ export const findBackup = (organizationId: string, backupId: string) =>
 export const fileNameOf = (backup: Backup) =>
   backup.storageKey.split('/').pop() ?? backup.storageKey;
 
-// --- Configuration export ------------------------------------------------------------------------
-
-/**
- * A readable snapshot of what the organization has configured, built from the same serializers the
- * API answers with — so it carries **no secret**: no SSH key, no agent or git token, no database
- * password, no variable value. It documents the platform; it is not a dump that can be replayed.
- */
 const exportConfiguration = async (organizationId: string) => {
   const organization = await findOrganizationById(organizationId);
   const projects = await listProjectsOfOrganization(organizationId);
@@ -82,8 +75,6 @@ const exportConfiguration = async (organizationId: string) => {
     notificationChannels: channels.map(serializeNotificationChannel),
   };
 };
-
-// --- Creation ------------------------------------------------------------------------------------
 
 type BackupTarget = {
   label: string;
@@ -121,11 +112,6 @@ const targetOf = (body: CreateBackupDTO, context: { database?: ManagedDatabase }
   return { label: 'configuration', extension: 'json' };
 };
 
-/**
- * Records the backup and hands it to the queue: producing an archive can take minutes, and nobody
- * should hold an HTTP request open for it. A backup is never retried — a half-written object would
- * be replaced by a fresh attempt anyway, and the operator decides when to try again.
- */
 export const startBackup = async (params: {
   organizationId: string;
   body: CreateBackupDTO;
@@ -155,8 +141,6 @@ export const startBackup = async (params: {
   return backup;
 };
 
-// --- Running -------------------------------------------------------------------------------------
-
 const serverOf = async (backup: Backup) => {
   const server = await findServerById(String(backup.serverId));
 
@@ -167,7 +151,6 @@ const serverOf = async (backup: Backup) => {
   return server;
 };
 
-/** Produces the archive of one backup and answers its size in bytes. */
 const produce = async (backup: Backup) => {
   if (backup.type === 'configuration') {
     const payload = await exportConfiguration(String(backup.organizationId));
@@ -230,8 +213,6 @@ export const runBackup = async (backupId: string) => {
 
     logInfo('Backup completed', { backup: backupId, type: backup.type, sizeBytes });
   } catch (error) {
-    // A failed archive is a half-written object: it goes, so the storage never holds a backup that
-    // cannot be restored.
     await storage()
       .delete(backup.storageKey)
       .catch(cleanupError =>
@@ -260,12 +241,6 @@ registerJobHandler(BACKUP_JOB, async payload => {
   await runBackup(String(payload.backupId));
 });
 
-// --- Restore and download ------------------------------------------------------------------------
-
-/**
- * A restore takes as long as the archive is big, so it goes through the queue too — an HTTP request
- * would time out long before `pg_restore` is done. The record carries the outcome.
- */
 export const startRestore = async (backup: Backup) => {
   await backupModel.updateOne(
     { _id: backup._id },

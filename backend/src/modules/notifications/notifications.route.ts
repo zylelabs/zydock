@@ -114,7 +114,6 @@ patch(
       return c.json({ error: 'Notification channel not found' }, 404);
     }
 
-    // The address is validated against the stored kind, which the body cannot change.
     const issue = body.address ? addressIssue(channel.channel, body.address) : undefined;
 
     if (issue) {

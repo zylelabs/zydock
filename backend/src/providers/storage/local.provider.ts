@@ -6,10 +6,6 @@ import type { StorageObject, StorageProvider } from './storage.contract';
 
 const root = resolve(config.providers.storage.localPath);
 
-/**
- * Keeps every object inside the storage root: a key like `../../etc/passwd` resolves outside it and
- * is refused before any file is touched.
- */
 const pathOf = (key: string) => {
   if (!key.trim()) {
     throw new Error('Storage key must not be empty');
@@ -44,10 +40,6 @@ const keyOf = (path: string) =>
     .split(sep)
     .join('/');
 
-/**
- * Objects are files under `STORAGE_LOCAL_PATH`. `contentType` is not stored — the filesystem has
- * nowhere to keep it, and the contract never reads it back.
- */
 export const createLocalStorageProvider = (): StorageProvider => ({
   put: async (key, data) => {
     const path = pathOf(key);
@@ -59,8 +51,6 @@ export const createLocalStorageProvider = (): StorageProvider => ({
       return;
     }
 
-    // Chunk by chunk, and never `Bun.write(path, new Response(stream))`: a body with no length —
-    // an archive as it is produced — makes that call wait forever for a size that never comes.
     const reader = data.getReader();
     const writer = Bun.file(path).writer();
 
@@ -91,7 +81,6 @@ export const createLocalStorageProvider = (): StorageProvider => ({
   },
 
   delete: async key => {
-    // Removing what is already gone succeeds: deleting is idempotent.
     await rm(pathOf(key), { force: true });
   },
 

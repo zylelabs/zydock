@@ -15,7 +15,6 @@ describe('crypto (AES-256-GCM)', () => {
   test('a tampered payload fails authentication', () => {
     const payload = encryptSecret('do-not-touch');
     const [iv, tag, data] = payload.split('.');
-    // Flip the last character of the ciphertext.
     const tampered = `${iv}.${tag}.${data!.slice(0, -1)}${data!.at(-1) === 'A' ? 'B' : 'A'}`;
 
     expect(() => decryptSecret(tampered)).toThrow();

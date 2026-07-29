@@ -79,7 +79,6 @@ ${prefix}systemctl enable --now docker
 docker --version
 `;
 
-/** The deploy clones on the server itself, so git has to be there before any application arrives. */
 const installGit = (prefix: string) => `
 set -e
 if ! command -v git >/dev/null 2>&1; then
@@ -109,13 +108,6 @@ fi
 /usr/local/bin/bun --version
 `;
 
-/**
- * Runs the reverse proxy (Caddy) as a container on the shared network, so it dials application
- * containers by their stable name. The admin API listens on `0.0.0.0:2019` inside the container but
- * is published only to the host loopback — the agent reaches it, the outside world does not
- * ([ADR-0020]). The agent creates the Zydock server block on the first route it applies; here we
- * only bootstrap the admin listener.
- */
 const installProxy = (prefix: string, network: string) => `
 set -e
 docker network inspect ${network} >/dev/null 2>&1 || docker network create ${network}

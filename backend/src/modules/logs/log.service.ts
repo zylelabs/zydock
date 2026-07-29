@@ -22,7 +22,6 @@ const CHANNEL = 'logs';
 
 type LiveStream = {
   abort: AbortController;
-  /** Last lines delivered, so whoever arrives later does not stare at an empty screen. */
   recent: LogEntry[];
 };
 
@@ -38,10 +37,6 @@ const remember = (stream: LiveStream, entry: LogEntry) => {
   }
 };
 
-/**
- * Resolves the container currently running an application, by the same label the deploy stamps.
- * Shared by the live stream and the history query, so both look at exactly one container.
- */
 const resolveApplicationContainer = async (
   applicationId: string,
 ): Promise<{ containers: ContainerProvider; container: ContainerInfo | null }> => {
@@ -66,11 +61,6 @@ const resolveApplicationContainer = async (
   return { containers, container: container ?? null };
 };
 
-/**
- * Follows the logs of the container currently running the application and republishes every line to
- * the topic. One stream serves every subscriber: the agent is asked once, no matter how many people
- * are watching.
- */
 const openStream = async (topic: string, applicationId: string) => {
   const stream: LiveStream = { abort: new AbortController(), recent: [] };
 
@@ -96,7 +86,6 @@ const openStream = async (topic: string, applicationId: string) => {
       publish(topic, 'log', entry);
     }
 
-    // Aborting is how the last subscriber closes the stream: nobody is left to be told about it.
     if (!stream.abort.signal.aborted) {
       publish(topic, 'ended', { reason: 'The container stopped writing logs' });
     }
@@ -105,7 +94,6 @@ const openStream = async (topic: string, applicationId: string) => {
 
     logError('Log stream failed', error, { topic });
   } finally {
-    // Only if it is still this stream: a new audience may have opened another one in the meantime.
     if (streams.get(topic) === stream) {
       streams.delete(topic);
     }
@@ -152,7 +140,6 @@ const onUnsubscribed = (event: TopicEvent) => {
 
 registerTopicListener('application', { subscribed: onSubscribed, unsubscribed: onUnsubscribed });
 
-/** Shutdown: closing the streams releases the connections held open against the agents. */
 export const stopLogStreams = () => {
   for (const topic of [...streams.keys()]) {
     closeStream(topic);
@@ -170,11 +157,6 @@ export type ApplicationLogs = {
   entries: ClassifiedLog[];
 };
 
-/**
- * The history of an application's logs is the retained output of the container running it now —
- * Docker keeps it, so the platform does not persist a copy ([ADR-0026]). `since`, `until` and `tail`
- * are applied by the agent; search, stream and level are applied here, over what came back.
- */
 export const fetchApplicationLogs = async (
   applicationId: string,
   query: ApplicationLogsQuery,

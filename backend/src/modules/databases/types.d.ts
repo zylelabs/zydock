@@ -3,7 +3,6 @@ interface DatabaseCredentialsData {
   port: number;
   username: string;
   database: string;
-  /** Encrypted, `select: false`: the platform has to hand them back, not compare them. */
   password: string;
   connectionUri: string;
 }

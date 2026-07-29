@@ -84,8 +84,6 @@ post(
       tls: body.tls,
     });
 
-    // Best-effort immediate configuration: if the container and proxy are ready, the domain is live
-    // at once; otherwise it stays pending/error and the next deploy (or an apply) configures it.
     await applyDomain(domain).catch(() => undefined);
 
     return c.json({ domain: serializeDomain((await domainModel.findById(domain._id))!) }, 201);

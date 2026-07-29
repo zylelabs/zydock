@@ -1,6 +1,4 @@
 <script setup lang="ts">
-  // A single field: label, control, hint and error. `v-model` binds the value; `error` (from the
-  // form's validation) turns the border red and shows the message below.
   const {
     label = '',
     type = 'text',

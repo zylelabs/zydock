@@ -5,10 +5,6 @@ import jobModel from './job.model';
 
 export type JobHandler = (payload: Record<string, unknown>, job: Job) => Promise<void>;
 
-/**
- * Handlers register themselves, the same way WebSocket topic authorizers do
- * ([ADR-0018](../../../docs-ia/decisions.md)): the queue never imports a business module.
- */
 const handlers = new Map<string, JobHandler>();
 
 const workerId = randomUUID();
@@ -34,14 +30,9 @@ export const enqueueJob = (
     runAt: options.runAt ?? new Date(),
   });
 
-/** Exponential backoff, so a failing dependency is not hammered every second. */
 const nextAttemptAt = (attempts: number) =>
   new Date(Date.now() + config.queue.retryDelayMs * 2 ** (attempts - 1));
 
-/**
- * Claims one job atomically: the `findOneAndUpdate` is what keeps two workers — or two backend
- * instances — from running the same job.
- */
 const claimJob = () =>
   jobModel.findOneAndUpdate(
     { status: 'pending', runAt: { $lte: new Date() } },
@@ -52,7 +43,6 @@ const claimJob = () =>
     { sort: { runAt: 1 }, new: true },
   );
 
-/** A worker that dies leaves its job `running` forever; this puts it back in the queue. */
 const requeueStaleJobs = async () => {
   const threshold = new Date(Date.now() - config.queue.jobTimeoutSeconds * 1000);
 
@@ -117,7 +107,6 @@ const runJob = async (job: Job) => {
   }
 };
 
-/** One pass: recovers abandoned jobs, then fills the free slots up to the configured concurrency. */
 export const drainQueue = async () => {
   await requeueStaleJobs();
 

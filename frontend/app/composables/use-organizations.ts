@@ -1,10 +1,6 @@
 import type { Paginated } from '~/composables/use-api';
 import type { Organization, OrganizationBranding } from '~/stores/organization.store';
 
-/**
- * Access to the organizations of the signed-in user, and to the *current* one — the organization
- * every resource route hangs from. Switching one applies its branding (ADR-0033) at once.
- */
 export const useOrganizations = () => {
   const api = useApi();
   const store = useOrganizationStore();
@@ -26,10 +22,6 @@ export const useOrganizations = () => {
     applyBranding(organization);
   };
 
-  /**
-   * Loads the list and resolves the current organization: keeps the one the session already points
-   * at, or falls back to the first. Applies the resulting branding (or the platform default).
-   */
   const load = async () => {
     const { items } = await api.get<Paginated<Organization>>('/organizations', {
       query: { size: 100 },
@@ -70,7 +62,6 @@ export const useOrganizations = () => {
 
     store.upsert(organization);
 
-    // If it is the current one, its branding takes effect immediately.
     if (organization.id === session.organizationId) {
       applyBranding(organization);
     }

@@ -44,7 +44,6 @@ export interface ContainerLogEntry {
   message: string;
 }
 
-/** The label the deploy pipeline stamps on a container — its presence means "owned by an application". */
 export const APPLICATION_LABEL = 'zydock.application';
 
 export const useContainers = () => {

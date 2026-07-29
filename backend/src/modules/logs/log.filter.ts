@@ -17,8 +17,6 @@ export type LogFilters = {
   level?: LogLevel;
 };
 
-// Whole words, so "error" matches but "mirror" does not. The build output of most runtimes speaks
-// English, and this is a highlight, not a parser — a missed line still shows up, just as `info`.
 const ERROR_PATTERN = /\b(error|err|fatal|panic|exception|fail(?:ed|ure|s)?)\b/i;
 const WARN_PATTERN = /\b(warn(?:ing)?|deprecat(?:ed|ion))\b/i;
 
@@ -34,7 +32,6 @@ export const classifyLevel = (message: string): LogLevel => {
   return 'info';
 };
 
-/** Turns a runtime `LogEntry` into the classified shape the API returns. */
 export const classifyEntry = (entry: LogEntry): ClassifiedLog => ({
   timestamp: entry.timestamp,
   stream: entry.stream,
@@ -42,7 +39,6 @@ export const classifyEntry = (entry: LogEntry): ClassifiedLog => ({
   level: classifyLevel(entry.message),
 });
 
-/** Build logs are plain lines with no timestamp or stream; they are all `stdout` by convention. */
 export const classifyLine = (message: string): ClassifiedLog => ({
   stream: 'stdout',
   message,
@@ -69,7 +65,6 @@ export const filterLogs = (entries: ClassifiedLog[], filters: LogFilters): Class
   });
 };
 
-/** Plain-text rendering for the download endpoints: `<timestamp> [<stream>] <message>`. */
 export const logsToText = (entries: ClassifiedLog[]) =>
   entries
     .map(entry =>

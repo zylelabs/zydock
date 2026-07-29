@@ -21,11 +21,6 @@ export interface Invite {
   createdAt: string;
 }
 
-/**
- * The team of the current organization: members (with roles) and pending invites. The invite
- * preview/accept take an explicit organization id, because they run from an e-mail link before any
- * organization is selected.
- */
 export const useTeam = () => {
   const api = useApi();
   const session = useSessionStore();

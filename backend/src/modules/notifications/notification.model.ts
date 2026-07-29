@@ -34,13 +34,11 @@ const notificationSchema = new Schema(
   },
 );
 
-// A delivery record is history, not state: it expires on its own, the same way metric samples do.
 notificationSchema.index(
   { createdAt: 1 },
   { expireAfterSeconds: config.notifications.retentionHours * 3600 },
 );
 
-// The history is always read as "this organization, most recent first".
 notificationSchema.index({ organizationId: 1, createdAt: -1 });
 
 export default model('notifications', notificationSchema) as unknown as PaginateModel<

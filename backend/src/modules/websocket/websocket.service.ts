@@ -23,15 +23,9 @@ export type TopicEvent = {
   resourceId: string;
   channel: string;
   clientId: string;
-  /** How many clients are subscribed to the topic after this event. */
   subscribers: number;
 };
 
-/**
- * Lets the module that owns a resource know when someone starts or stops watching one of its
- * topics — which is what allows a stream to exist only while there is an audience, without the
- * WebSocket knowing any business module, as with the authorizers.
- */
 export type TopicListener = {
   subscribed: (event: TopicEvent) => void;
   unsubscribed: (event: TopicEvent) => void;
@@ -43,8 +37,6 @@ const clients = new Map<string, Client>();
 
 const authorizers = new Map<string, TopicAuthorizer>();
 
-// A resource can have more than one listener — an application streams both logs and metrics, each in
-// its own module — so listeners are kept as a list and every one is notified; each filters by channel.
 const listeners = new Map<string, TopicListener[]>();
 
 export { upgradeWebSocket, websocket };
@@ -138,8 +130,6 @@ export const unregisterClient = (id: string) => {
     return;
   }
 
-  // The topics are read before the client leaves the map, so the count each listener sees already
-  // excludes it: a disconnect is the same as unsubscribing from everything.
   const topics = [...client.topics];
 
   clients.delete(id);
@@ -163,7 +153,6 @@ export const sendToClient = (id: string, event: string, data: unknown) => {
   return true;
 };
 
-/** Same shape as `publish`, but for a single subscriber — used to catch a newcomer up. */
 export const publishToClient = (clientId: string, topic: string, event: string, data: unknown) => {
   const client = clients.get(clientId);
 
@@ -243,7 +232,6 @@ export const handleClientMessage = async (id: string, raw: unknown) => {
     return;
   }
 
-  // Subscribing twice to the same topic must not look like a second audience to the listener.
   const isNew = !client.topics.has(message.topic);
 
   client.topics.add(message.topic);

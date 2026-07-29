@@ -13,7 +13,6 @@ let transporter: Transporter | null = null;
 
 const settings = () => config.providers.notification.smtp;
 
-/** One transport for the whole process: nodemailer reuses the connection between messages. */
 const transport = () => {
   const { host, port, secure, user, password } = settings();
 
@@ -41,7 +40,6 @@ const bodyOf = (message: NotificationMessage) => {
   return [message.body, '', ...metadata.map(([key, value]) => `${key}: ${value}`)].join('\n');
 };
 
-/** SMTP delivery. Fails loudly — `dispatchNotification` is what turns a failure into a result. */
 export const createEmailProvider = (): NotificationProvider => ({
   send: async (target, message) => {
     if (target.channel !== 'email') {

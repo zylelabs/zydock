@@ -22,10 +22,8 @@ const containers = resolveContainerProvider();
 
 const LOG_KEEPALIVE_MS = 5000;
 
-/** A keepalive that does not complete in this time means nobody is reading the other end. */
 const LOG_STALL_TIMEOUT_MS = 15000;
 
-/** Each `label` query parameter carries one `key=value` pair. */
 const parseLabels = (values: string[]) =>
   Object.fromEntries(
     values.flatMap(value => {
@@ -180,9 +178,6 @@ get(
     const controller = new AbortController();
 
     return streamSSE(c, async stream => {
-      // Writes are chained so that a `ping` never lands in the middle of a log line, and the ping
-      // itself exists because the server closes a connection left idle — a container can stay quiet
-      // far longer than that without the stream being dead.
       let queue = Promise.resolve();
       let keepalive: ReturnType<typeof setInterval> | undefined;
 
@@ -192,7 +187,6 @@ get(
         return queue;
       };
 
-      /** Aborting kills `docker logs` even if this handler is stuck writing to nobody. */
       const stop = () => {
         clearInterval(keepalive);
         controller.abort();
@@ -202,9 +196,6 @@ get(
 
       keepalive = setInterval(() => {
         const pending = write('ping', {});
-        // A client can vanish while the response is still being set up, and neither the write nor
-        // Hono ever reports it: the write simply stops completing. That silence is the only
-        // evidence left, and without it the log process would run forever.
         const stalled = setTimeout(stop, LOG_STALL_TIMEOUT_MS);
 
         void pending.finally(() => clearTimeout(stalled));

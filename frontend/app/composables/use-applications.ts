@@ -14,7 +14,6 @@ export interface ApplicationGit {
   hasToken?: boolean;
   token?: string;
   hasWebhook?: boolean;
-  /** The delivery URL the git host calls — not a secret, only present once a webhook is configured. */
   webhookUrl?: string;
 }
 

@@ -102,7 +102,6 @@ get(
       return c.json({ error: 'Database not found' }, 404);
     }
 
-    // Best-effort status refresh: a database whose agent is down still reads, with its last status.
     const server = await findServerWithAgentToken(organizationId, String(database.serverId));
 
     if (server?.agent.token) {

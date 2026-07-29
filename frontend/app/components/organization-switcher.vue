@@ -52,7 +52,6 @@
       <Icon name="lucide:chevrons-up-down" class="size-4 shrink-0 text-content-muted" />
     </button>
 
-    <!-- Camada para fechar ao clicar fora. -->
     <div v-if="dropdownOpen" class="fixed inset-0 z-10" @click="dropdownOpen = false" />
 
     <div

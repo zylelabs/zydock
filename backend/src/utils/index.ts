@@ -15,11 +15,6 @@ export const escapeRegex = (value: string) => value.replace(/[.*+?^${}()|[\]\\]/
 const SLUG_SUFFIX_BYTES = 3;
 const SLUG_ATTEMPTS = 5;
 
-/**
- * Derives a slug from a name and keeps trying with a random suffix until `taken` says it is free.
- * The caller decides the uniqueness scope — global for organizations, per organization for
- * projects, per project for environments.
- */
 export const generateUniqueSlug = async (
   name: string,
   fallback: string,

@@ -10,7 +10,6 @@ export interface UserSession {
   createdAt: string;
 }
 
-/** The user's own active sessions (devices signed in) — not organization-scoped. */
 export const useSessions = () => {
   const api = useApi();
 

@@ -14,7 +14,6 @@ export interface CreateApiKeyBody {
   expiresInDays?: number;
 }
 
-/** The user's own API keys — not organization-scoped, hangs off the authenticated session. */
 export const useApiKeys = () => {
   const api = useApi();
 

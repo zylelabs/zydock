@@ -29,7 +29,6 @@ export type ApplicationIdParam = z.infer<typeof applicationIdParamSchema>;
 
 const gitBaseSchema = z.object({
   host: z.enum(GIT_HOSTS),
-  /** `owner/repository`, as every supported host names it. */
   repository: z
     .string()
     .trim()

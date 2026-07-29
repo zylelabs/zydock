@@ -1,5 +1,4 @@
 <script setup lang="ts">
-  // Styled native select: label, options and error, like `UiInput`. Options are `{ value, label }`.
   const {
     label = '',
     error = '',

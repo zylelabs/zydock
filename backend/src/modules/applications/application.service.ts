@@ -15,7 +15,6 @@ const uniqueSlug = (environmentId: string, name: string) =>
     Boolean(await applicationModel.exists({ environmentId, slug })),
   );
 
-/** Variable values and the git token are encrypted: the platform has to use them, not compare them. */
 const encryptVariables = (variables: CreateApplicationDTO['variables']) =>
   variables.map(variable => ({
     key: variable.key,
@@ -33,7 +32,6 @@ export const decryptVariables = (variables: ApplicationVariable[]) =>
 export const findApplication = (organizationId: string, applicationId: string) =>
   applicationModel.findOne({ _id: applicationId, organizationId });
 
-/** Only for the deploy path and the variables endpoint — everything else must not see the values. */
 export const findApplicationWithSecrets = (organizationId: string, applicationId: string) =>
   applicationModel
     .findOne({ _id: applicationId, organizationId })
@@ -102,8 +100,6 @@ export const updateApplication = async (
     }
   }
 
-  // Dotted paths, one per informed field: replacing the whole `git` object would drop the token,
-  // which is `select: false` and therefore absent from the document in hand.
   for (const [field, value] of Object.entries(changes.git ?? {})) {
     if (value === undefined) {
       continue;
@@ -139,7 +135,6 @@ export const updateApplication = async (
   return applicationModel.findById(application._id);
 };
 
-/** Applications never disappear alone: their deployment history and domains go with them. */
 const removeApplicationsWhere = async (filter: Record<string, unknown>) => {
   const applications = await applicationModel.find(filter).select('_id');
 
@@ -201,15 +196,12 @@ export const serializeApplication = (application: Application) => ({
     dockerfilePath: application.git.dockerfilePath,
     buildContext: application.git.buildContext,
     autoDeploy: application.git.autoDeploy,
-    /** Never the token itself — only whether the application carries one. */
     hasToken: application.git.hasToken,
     hasWebhook: Boolean(application.git.webhookId),
-    // The URL is not a secret — only the payload signature is (`webhookSecret`, never returned).
     webhookUrl: application.git.webhookId ? callbackUrlOf(String(application._id)) : undefined,
   },
   port: application.port,
   portMappings: application.portMappings,
-  // Values stay out: `variables.value` is `select: false` and never leaves through here.
   variables: application.variables.map(variable => ({
     key: variable.key,
     secret: variable.secret,

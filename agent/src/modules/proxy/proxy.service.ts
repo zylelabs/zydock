@@ -4,7 +4,6 @@ import { errorMessage } from '../../utils';
 import { logInfo } from '../../utils/logger';
 import type { RouteSpecDTO } from './proxy.schema';
 
-/** Name of the HTTP server Zydock owns inside the Caddy config. */
 const SERVER_NAME = 'zydock';
 const ROUTE_ID_PREFIX = 'zydock-route-';
 const PROBE_TIMEOUT_MS = 5000;
@@ -45,7 +44,6 @@ type CaddyConfig = {
 
 const routeIdOf = (id: string) => `${ROUTE_ID_PREFIX}${id}`;
 
-/** Certificate fields carry either a single value or every occurrence of the attribute. */
 const firstValue = (value: string | string[] | undefined) =>
   Array.isArray(value) ? value[0] : value;
 
@@ -76,9 +74,7 @@ const request = async (path: string, init: { method?: string; body?: unknown } =
       if (typeof parsed.error === 'string') {
         message = parsed.error;
       }
-    } catch {
-      // Caddy answers with plain text on some failures; the raw body is the message.
-    }
+    } catch {}
 
     throw new Error(`Caddy admin API refused ${method} ${path}: ${message}`);
   }
@@ -86,11 +82,6 @@ const request = async (path: string, init: { method?: string; body?: unknown } =
   return response;
 };
 
-/**
- * Reads the whole configuration. Caddy refuses to traverse a path whose parent does not exist
- * (`invalid traversal path at: config/apps/tls`), so every read starts from the root and walks the
- * object in memory.
- */
 const readConfig = async (): Promise<CaddyConfig> => {
   const body = (await (await request('/config/')).text()).trim();
 
@@ -166,13 +157,6 @@ const fromCaddyRoute = (route: CaddyRoute, managedDomains: string[]): RouteSpec 
   };
 };
 
-/**
- * Creates the Zydock HTTP server inside the Caddy config the first time it is needed, and turns on
- * access logging if it is missing — servers provisioned before access logging existed still get it
- * the next time a route is applied. `logs: {}` uses Caddy's default logger, which writes JSON to
- * stderr when stdout/stderr is not a TTY (true inside the container), so every request lands in the
- * same `docker logs` output already exposed through `ContainerProvider.getLogs`/`streamLogs`.
- */
 const ensureServer = async () => {
   const current = await readConfig();
   const servers = current.apps?.http?.servers ?? {};
@@ -257,7 +241,6 @@ export const listRoutes = async (): Promise<RouteSpec[]> => {
 export const getRoute = async (id: string) =>
   (await listRoutes()).find(route => route.id === id) ?? null;
 
-/** Adds the domain to the TLS automation policies, so Caddy issues and renews its certificate. */
 export const enableTls = async (domain: string) => {
   const current = await ensureServer();
   const policies = current.apps?.tls?.automation?.policies ?? [];
@@ -283,11 +266,6 @@ export const enableTls = async (domain: string) => {
   logInfo('TLS enabled for domain', { domain });
 };
 
-/**
- * Reads the certificate the local proxy actually serves for the domain. Probing through SNI on
- * this host — instead of resolving the domain publicly — reports what the proxy has, without
- * depending on external DNS.
- */
 export const getCertificateStatus = (domain: string) =>
   new Promise<CertificateStatus>(resolve => {
     const socket = connect(
@@ -329,11 +307,6 @@ export const getCertificateStatus = (domain: string) =>
     socket.on('error', () => resolve({ domain, valid: false }));
   });
 
-/**
- * Caddy renews certificates on its own and exposes no endpoint to force it. Re-applying the
- * configuration makes it evaluate the domain again, which obtains a missing or expiring
- * certificate right away — an already valid one is kept.
- */
 export const renewCertificate = async (domain: string) => {
   await enableTls(domain);
   await reload();

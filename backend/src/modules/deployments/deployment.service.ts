@@ -13,7 +13,6 @@ import type { DeploymentStep, DeploymentStepStatus, DeploymentTrigger } from './
 
 const topicOf = (deploymentId: string) => `deployment:${deploymentId}:steps`;
 
-/** The pipeline never waits on — nor fails because of — a notification channel. */
 const notify = (deploymentId: string, event: NotificationEvent) =>
   notifyDeploymentEvent(deploymentId, event).catch(error =>
     logError('Failed to emit a deployment notification', error, {
@@ -33,7 +32,6 @@ export const createDeployment = (params: {
   trigger: DeploymentTrigger;
   triggeredBy?: string;
   commit?: string;
-  // A rollback carries the full commit and the prebuilt image of the deployment it reuses.
   commitDetail?: DeploymentCommit;
   imageTag?: string;
 }) =>
@@ -76,7 +74,6 @@ export const recordStep = async (
   publish(topicOf(deploymentId), 'step', { deploymentId, ...result });
 };
 
-/** Keeps only the tail of the build output: the deployment document is not a log store. */
 export const appendBuildLog = async (deploymentId: string, lines: string[]) => {
   if (!lines.length) {
     return;
@@ -172,10 +169,5 @@ export const serializeDeploymentDetail = (deployment: Deployment) => ({
   buildLog: deployment.buildLog,
 });
 
-/**
- * The build log of a deploy as classified entries — the same shape as an application's runtime
- * logs, so search, level highlight and download work the same way. Build lines carry no timestamp
- * or stream, so `since`/`until` do not apply here; `tail` keeps the last lines.
- */
 export const buildLogEntries = (deployment: Deployment, query: LogsQuery): ClassifiedLog[] =>
   filterLogs(deployment.buildLog.slice(-query.tail).map(classifyLine), query);

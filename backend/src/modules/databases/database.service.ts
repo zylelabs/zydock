@@ -16,7 +16,6 @@ const uniqueSlug = (serverId: string, name: string) =>
     Boolean(await databaseModel.exists({ serverId, slug })),
   );
 
-/** The container provider (agent) and storage a database provider needs to do its work. */
 const dependenciesOf = (server: Server) => ({
   containers: resolveContainerProvider(buildAgentConnection(server)),
   storage: resolveStorageProvider(),
@@ -33,11 +32,6 @@ export const findDatabaseWithSecrets = (organizationId: string, databaseId: stri
 export const countDatabasesOfServer = (serverId: string) =>
   databaseModel.countDocuments({ serverId });
 
-/**
- * Provisions the database as a container on the server through the engine provider, then stores the
- * generated credentials encrypted — the platform is their only source of truth, like every other
- * secret it keeps.
- */
 export const provisionDatabase = async (
   organizationId: string,
   server: Server,
@@ -82,7 +76,6 @@ const providerOf = (server: Server, engine: DatabaseEngineName) =>
 const persistStatus = (databaseId: string, status: DatabaseStatus) =>
   databaseModel.updateOne({ _id: databaseId }, { $set: { status } });
 
-/** Runs a lifecycle action on the container and refreshes the stored status from the agent. */
 export const runLifecycle = async (
   database: ManagedDatabase,
   server: Server,
@@ -127,7 +120,6 @@ export const destroyDatabase = async (
     await provider.destroy(database.containerId, removeData);
   }
 
-  // The data volume is named, so `docker rm` never takes it — it goes only when asked, explicitly.
   if (removeData) {
     await containers
       .removeVolume(volumeNameOf(database.slug))
@@ -139,7 +131,6 @@ export const destroyDatabase = async (
   await databaseModel.deleteOne({ _id: database._id });
 };
 
-/** Extension of the dump this engine produces, so a downloaded backup opens with the right tool. */
 export const dumpExtensionOf = (engine: DatabaseEngineName) => ENGINES[engine].extension;
 
 const backupSpecOf = (database: ManagedDatabase, storageKey: string) => {
@@ -150,7 +141,6 @@ const backupSpecOf = (database: ManagedDatabase, storageKey: string) => {
   return { containerId: database.containerId, credentials: readCredentials(database), storageKey };
 };
 
-/** Both take the database **with its secrets**: the engine command authenticates as the owner. */
 export const backupDatabase = (database: ManagedDatabase, server: Server, storageKey: string) =>
   providerOf(server, database.engine).backup(backupSpecOf(database, storageKey));
 
@@ -179,7 +169,6 @@ export const serializeDatabase = (database: ManagedDatabase) => ({
   version: database.version,
   status: database.status,
   containerId: database.containerId,
-  // Non-secret parts only; the password and URI come from the credentials endpoint.
   connection: {
     host: database.credentials.host,
     port: database.credentials.port,

@@ -20,7 +20,6 @@ const projectSchema = new Schema(
   },
 );
 
-// A slug identifies a project inside its organization, never across the platform.
 projectSchema.index({ organizationId: 1, slug: 1 }, { unique: true });
 
 export default model('projects', projectSchema) as unknown as PaginateModel<Project & Document>;

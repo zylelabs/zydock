@@ -13,8 +13,6 @@ const serverSchema = new Schema(
     name: { type: String, required: true, trim: true },
     type: { type: String, required: true, enum: SERVER_TYPES, default: 'ssh' },
     status: { type: String, required: true, enum: SERVER_STATUSES, default: 'pending' },
-    // Only `ssh` servers carry credentials; a `local` server leaves this empty and is reached
-    // through `agent.host` instead.
     ssh: {
       host: { type: String, trim: true },
       port: { type: Number, default: 22 },
@@ -25,7 +23,6 @@ const serverSchema = new Schema(
       fingerprint: { type: String },
     },
     agent: {
-      // Address the backend dials to reach the agent. Falls back to `ssh.host` for `ssh` servers.
       host: { type: String, trim: true },
       port: { type: Number, required: true, default: 9000 },
       token: { type: String, select: false },

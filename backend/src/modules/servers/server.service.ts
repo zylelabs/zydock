@@ -10,7 +10,6 @@ import serverModel from './server.model';
 
 const SECRET_FIELDS = ['privateKey', 'password', 'passphrase'] as const;
 
-/** Length (in bytes) of the shared secret the agent authenticates with. */
 export const AGENT_TOKEN_BYTES = 32;
 
 export const generateAgentToken = () => generateToken(AGENT_TOKEN_BYTES);
@@ -49,16 +48,11 @@ export const findServerById = (serverId: string) =>
 export const findServerWithAgentToken = (organizationId: string, serverId: string) =>
   serverModel.findOne({ _id: serverId, organizationId }).select('+agent.token');
 
-/**
- * Connection to the agent installed on the server. Requires a document loaded with the secrets —
- * the token is `select: false`.
- */
 export const buildAgentConnection = (server: Server) => {
   if (!server.agent.token) {
     throw new Error(`Server ${String(server._id)} has no agent token: provision it first`);
   }
 
-  // `local` servers are reached through `agent.host`; `ssh` servers through their SSH host.
   const host = server.agent.host ?? server.ssh.host;
 
   return {

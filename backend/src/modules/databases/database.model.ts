@@ -9,8 +9,6 @@ const credentialsSchema = new Schema(
     port: { type: Number, required: true },
     username: { type: String, required: true },
     database: { type: String, required: true },
-    // Encrypted, never hashed: the platform must return them so applications can connect. The URI
-    // is stored (not rebuilt) because its shape is engine-specific and already carries the password.
     password: { type: String, required: true, select: false },
     connectionUri: { type: String, required: true, select: false },
   },
@@ -48,7 +46,6 @@ const databaseSchema = new Schema(
   },
 );
 
-// A slug names the database inside its server: the container is `zydock-db-<slug>`, unique per host.
 databaseSchema.index({ serverId: 1, slug: 1 }, { unique: true });
 
 export default model('databases', databaseSchema) as unknown as PaginateModel<

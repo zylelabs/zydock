@@ -40,11 +40,6 @@ const messageOf = (error: IFetchNativeError) => {
   return error.statusMessage || 'Request failed';
 };
 
-/**
- * Turns whatever `$fetch` threw into `{ statusCode, error }` and sets the same status on the answer.
- * The native error carries the API URL in its message, url and stack — none of it may reach the
- * browser, so only the status and the message the API itself wrote are kept.
- */
 export const normalizeFetchError = (event: H3Event, error: unknown): IApiError => {
   if (typeof error === 'object' && error !== null && 'statusCode' in error) {
     const failure = error as IFetchNativeError;

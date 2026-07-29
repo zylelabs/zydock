@@ -6,10 +6,6 @@ import type {
   RouteSpec,
 } from './reverse-proxy.contract';
 
-/**
- * Talks to the agent installed on the server, which owns the proxy configuration. The proxy admin
- * API stays bound to the server's loopback interface — the backend never reaches it directly.
- */
 export const createRemoteReverseProxyProvider = (
   connection: ReverseProxyConnection,
 ): ReverseProxyProvider => {

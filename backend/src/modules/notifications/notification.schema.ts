@@ -1,5 +1,4 @@
 import { z } from 'zod';
-// Imported from the contract, not the index: the index re-exports them as types only.
 import {
   NOTIFICATION_CHANNELS,
   NOTIFICATION_SEVERITIES,
@@ -35,10 +34,6 @@ const webhookAddressSchema = z
   .max(500)
   .refine(value => /^https?:\/\//i.test(value), 'The webhook URL must use http or https');
 
-/**
- * The address means a different thing per channel: an e-mail for `email`, an HTTP endpoint for
- * `webhook`. Returns the problem, or nothing when the address fits the channel.
- */
 export const addressIssue = (channel: NotificationChannelKind, address: string) => {
   if (channel === 'email') {
     return emailAddressSchema.safeParse(address).success
@@ -55,7 +50,6 @@ const channelFieldsSchema = z.object({
   name: z.string().trim().min(1).max(80),
   channel: z.enum(NOTIFICATION_CHANNELS),
   address: z.string().trim().min(1).max(500),
-  // Only a webhook uses it: the body is signed with it, like every webhook Zydock verifies.
   secret: z.string().trim().min(8).max(200).optional(),
   events: z
     .array(z.enum(NOTIFICATION_EVENTS))
@@ -82,7 +76,6 @@ export const createNotificationChannelSchema = channelFieldsSchema.superRefine((
 
 export type CreateNotificationChannelDTO = z.infer<typeof createNotificationChannelSchema>;
 
-// The channel is immutable: an e-mail address is not a URL, and the secret only fits one of them.
 export const updateNotificationChannelSchema = channelFieldsSchema
   .omit({ channel: true })
   .extend({ secret: z.string().trim().min(8).max(200).nullable() })

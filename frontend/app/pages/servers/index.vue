@@ -40,8 +40,6 @@
 
   const actionError = ref('');
 
-  // --- Add server --------------------------------------------------------------------------------
-
   const adding = ref(false);
   const probe = ref<ConnectionProbe | null>(null);
 
@@ -166,11 +164,8 @@
     adding.value = true;
   };
 
-  // --- Local machine connection instructions -----------------------------------------------------
-
   const created = ref<{ server: Server; token: string; port: string } | null>(null);
 
-  // The plaintext token is shown only here, once — the backend stores it encrypted afterwards.
   const envText = computed(() => {
     if (!created.value) {
       return '';
@@ -196,8 +191,6 @@
     copied.value = true;
     setTimeout(() => (copied.value = false), 2000);
   };
-
-  // --- Provision / remove ------------------------------------------------------------------------
 
   const provisioning = ref('');
 
@@ -330,7 +323,6 @@ bun --env-file=agent.env run start</code></pre>
             />
           </div>
 
-          <!-- Local machine: no SSH, the agent is started by hand. -->
           <template v-if="form.values.type === 'local'">
             <UiInput
               v-model="form.values.agentHost"
@@ -344,7 +336,6 @@ bun --env-file=agent.env run start</code></pre>
             </UiAlert>
           </template>
 
-          <!-- Remote server: connection and provisioning via SSH. -->
           <template v-else>
             <div class="grid gap-4 sm:grid-cols-2">
               <UiInput

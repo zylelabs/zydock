@@ -8,11 +8,6 @@ declare module 'hono' {
   }
 }
 
-/**
- * Resolves the container runtime of the server in the path, so that every route of this layer works
- * against the `ContainerProvider` and never against Docker itself. The organization guard runs
- * before this one — reaching here already means the caller belongs to the organization.
- */
 export const serverRuntimeMiddleware = async (c: Context, next: Next) => {
   const organizationId = c.req.param('organizationId');
   const serverId = c.req.param('serverId');

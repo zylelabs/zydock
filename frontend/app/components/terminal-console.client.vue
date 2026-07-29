@@ -3,9 +3,6 @@
   import { FitAddon } from '@xterm/addon-fit';
   import '@xterm/xterm/css/xterm.css';
 
-  // Client-only (`.client`): Xterm needs the DOM. Bridges the browser to the agent's interactive
-  // console through the backend WebSocket — the one exception that reaches the browser directly
-  // (the access token travels in the query string, like every other socket).
   const { serverId, containerId } = defineProps<{ serverId: string; containerId: string }>();
 
   const session = useSessionStore();

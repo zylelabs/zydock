@@ -2,8 +2,6 @@ import { describe, expect, test } from 'bun:test';
 import { reactive, ref } from 'vue';
 import { z } from 'zod';
 
-// `useForm` relies on Nuxt auto-imports (`reactive`, `ref`) — free identifiers at runtime. Defining
-// them on the global scope lets the real composable file run unchanged, with no copy.
 Object.assign(globalThis, { reactive, ref });
 
 const { useForm } = await import('../../app/composables/use-form');

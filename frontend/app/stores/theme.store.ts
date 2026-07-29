@@ -8,7 +8,6 @@ export interface IThemeBranding {
 }
 
 interface IThemeStore {
-  /** Name shown in the sidebar and in the tab title — the organization's, or the platform's. */
   name: string;
   logo: string;
   favicon: string;
@@ -16,10 +15,6 @@ interface IThemeStore {
   secondaryColor: string;
 }
 
-/**
- * Platform defaults: what the interface shows before any organization branding is applied, and what
- * it falls back to whenever an organization leaves a field empty.
- */
 export const THEME_DEFAULTS: IThemeStore = {
   name: 'Zydock',
   logo: '',
@@ -31,10 +26,6 @@ export const THEME_DEFAULTS: IThemeStore = {
 export const useThemeStore = defineStore('theme', {
   state: (): IThemeStore => ({ ...THEME_DEFAULTS }),
   actions: {
-    /**
-     * Only non-empty fields override the defaults, so a half-filled branding never blanks a color
-     * nor empties the name. Applied at render time from the organization the session is looking at.
-     */
     apply(name: string | undefined, branding: IThemeBranding | undefined) {
       this.name = name?.trim() || THEME_DEFAULTS.name;
       this.logo = branding?.logo?.trim() || THEME_DEFAULTS.logo;
@@ -46,7 +37,5 @@ export const useThemeStore = defineStore('theme', {
       this.$patch({ ...THEME_DEFAULTS });
     },
   },
-  // Not persisted: the theme is resolved from the organization at render time (SSR included), so a
-  // stored value could outlive the branding it came from and mismatch the server-rendered markup.
   persist: false,
 });

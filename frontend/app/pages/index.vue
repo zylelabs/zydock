@@ -8,7 +8,6 @@
 
   const api = useApi();
 
-  // Proves the whole path on the first render: browser → Nitro proxy → API.
   const { data: health, error } = await useAsyncData('health', () =>
     api.get<Health>('/health', { anonymous: true }),
   );

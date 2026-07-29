@@ -22,11 +22,6 @@ export interface JobFilter {
   type?: string;
 }
 
-/**
- * Background job queue (deploys, backups, notification delivery). Not organization-scoped — every
- * route lives under `/queue` and requires a superuser account, unlike the rest of the platform's
- * per-organization role guards.
- */
 export const useQueue = () => {
   const api = useApi();
 

@@ -1,6 +1,4 @@
 <script setup lang="ts">
-  // Surface container: the neutral panel every screen composes from. Optional title/description
-  // header, with the body in the default slot.
   defineProps<{
     title?: string;
     description?: string;

@@ -12,7 +12,6 @@ const backupSchema = new Schema(
     },
     type: { type: String, required: true, enum: BACKUP_TYPES },
     status: { type: String, required: true, enum: BACKUP_STATUSES, default: 'running' },
-    // Only the target of this kind of backup is filled: a database, or a volume on a server.
     serverId: { type: Schema.Types.ObjectId, ref: 'servers' },
     databaseId: { type: Schema.Types.ObjectId, ref: 'databases' },
     applicationId: { type: Schema.Types.ObjectId, ref: 'applications' },
@@ -24,7 +23,6 @@ const backupSchema = new Schema(
     error: { type: String },
     finishedAt: { type: Date },
     durationMs: { type: Number },
-    // A restore is long too, so it runs in the queue and reports back on the same record.
     restoreStatus: { type: String, enum: BACKUP_STATUSES },
     restoreError: { type: String },
     lastRestoredAt: { type: Date },
@@ -37,7 +35,6 @@ const backupSchema = new Schema(
   },
 );
 
-// The listing is always "this organization, most recent first".
 backupSchema.index({ organizationId: 1, createdAt: -1 });
 
 export default model('backups', backupSchema) as unknown as PaginateModel<Backup & Document>;

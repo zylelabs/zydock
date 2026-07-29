@@ -51,8 +51,6 @@
     ...JOB_STATUSES.map(status => ({ value: status, label: STATUS[status].label })),
   ];
 
-  // Known job types across the platform — `type` is a free string on the backend, not an enum, so a
-  // future job kind needs adding here too.
   const JOB_TYPE_LABELS: Record<string, string> = {
     'deployment.run': 'Deployment',
     'backup.run': 'Backup',
@@ -80,8 +78,6 @@
       busy.value = '';
     }
   };
-
-  // --- Removal ----------------------------------------------------------------------------------
 
   const toRemove = ref<Job | null>(null);
   const removing = ref(false);

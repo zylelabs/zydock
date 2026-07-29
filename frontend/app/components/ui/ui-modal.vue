@@ -1,6 +1,4 @@
 <script setup lang="ts">
-  // Generic dialog: `v-model:open` controls it, the header comes from `title`/`description`, the body
-  // from the default slot and the actions from the `footer` slot. Closes on backdrop click and Esc.
   const { title = '', description = '' } = defineProps<{ title?: string; description?: string }>();
 
   const open = defineModel<boolean>('open', { default: false });

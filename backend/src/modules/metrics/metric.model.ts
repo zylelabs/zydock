@@ -18,20 +18,16 @@ const metricSampleSchema = new Schema(
   },
   {
     versionKey: false,
-    // No `updatedAt`: a sample is written once and never touched.
     timestamps: { createdAt: true, updatedAt: false },
     statics: paginateStatics,
   },
 );
 
-// History is bounded by a TTL — old samples expire on their own, so the collection cannot grow
-// without limit. The window comes from config, evaluated once at model definition.
 metricSampleSchema.index(
   { capturedAt: 1 },
   { expireAfterSeconds: config.metrics.retentionHours * 3600 },
 );
 
-// The history query is always "this server, most recent first".
 metricSampleSchema.index({ serverId: 1, capturedAt: -1 });
 
 export default model('metric_samples', metricSampleSchema) as unknown as PaginateModel<

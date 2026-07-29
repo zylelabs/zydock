@@ -19,7 +19,6 @@ let isShuttingDown = false;
 
 const connect = () => {
   connectDatabase()
-    // The worker only starts after the database is up: every job lives in MongoDB.
     .then(startWorker)
     .catch(error => {
       logError('Failed to connect to MongoDB', error);

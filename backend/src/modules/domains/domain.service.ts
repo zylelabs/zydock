@@ -11,12 +11,9 @@ import { containerNameOf } from '../deployments/naming';
 import { buildAgentConnection, findServerById } from '../servers/server.service';
 import domainModel from './domain.model';
 
-/** The proxy route of a domain is keyed by the domain id; the agent prefixes it on the proxy side. */
 const routeSpecOf = (domain: Domain, application: Application): RouteSpec => ({
   id: String(domain._id),
   domain: domain.hostname,
-  // The upstream is the stable container name on the shared proxy network — it does not change
-  // between deploys, so the route stays valid without being rewritten each time.
   upstreams: [{ host: containerNameOf(application.slug), port: application.port }],
   pathPrefix: domain.pathPrefix,
   tls: domain.tls,
@@ -35,7 +32,6 @@ const resolveProxyOfServer = async (serverId: string): Promise<ReverseProxyProvi
   return resolveReverseProxyProvider(buildAgentConnection(server));
 };
 
-/** Upserts the route and, when asked, hands the domain to the proxy's automatic HTTPS. */
 const applyRoute = async (
   proxy: ReverseProxyProvider,
   domain: Domain,
@@ -66,11 +62,6 @@ const applyRoute = async (
   }
 };
 
-/**
- * Configures every domain of an application on its server's proxy, pointing at the container running
- * now. Called by the deploy pipeline, which already holds the agent connection. Returns the domains
- * it configured, so the pipeline can report them.
- */
 export const applyApplicationDomains = async (
   application: Application,
   connection: { serverId: string; endpoint: string; token: string },
@@ -90,7 +81,6 @@ export const applyApplicationDomains = async (
   return domains;
 };
 
-/** Applies a single domain on demand, without waiting for the next deploy. */
 export const applyDomain = async (domain: Domain) => {
   const application = await applicationModel.findById(domain.applicationId);
 
@@ -115,7 +105,6 @@ export const renewDomainCertificate = async (domain: Domain) => {
   await proxy.renewCertificate(domain.hostname);
 };
 
-/** Best-effort removal of the route on the proxy; the document goes regardless. */
 const removeRoute = async (domain: Domain) => {
   try {
     const proxy = await resolveProxyOfServer(String(domain.serverId));
@@ -131,7 +120,6 @@ export const removeDomain = async (domain: Domain) => {
   await domainModel.deleteOne({ _id: domain._id });
 };
 
-/** Cascade for application removal: drop the routes and the documents. */
 export const removeDomainsOfApplications = async (applicationIds: string[]) => {
   const domains = await domainModel.find({ applicationId: { $in: applicationIds } });
 

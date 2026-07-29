@@ -11,7 +11,6 @@ export type SystemMetrics = {
   memoryTotalMb: number;
   diskUsedGb?: number;
   diskTotalGb?: number;
-  /** Cumulative interface counters since boot; consumers take the delta to get a rate. */
   networkRxBytes?: number;
   networkTxBytes?: number;
   uptimeSeconds: number;
@@ -49,7 +48,6 @@ const readLoadPercent = async () => {
   }
 };
 
-/** Sums received/transmitted bytes across every interface except loopback, from `/proc/net/dev`. */
 const readNetwork = async () => {
   try {
     const raw = await readFile('/proc/net/dev', 'utf8');

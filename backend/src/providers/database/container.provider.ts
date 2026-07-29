@@ -13,28 +13,17 @@ import type {
   ProvisionedDatabase,
 } from './database.contract';
 
-/**
- * Everything one engine needs that the others do not: the image, the port it listens on, where it
- * keeps its data, how credentials become environment (or a command), and how a connection URI reads.
- * The lifecycle around it is identical for every engine, so it lives in the shared factory below.
- */
 export type EngineConfig = {
   image: (version: string) => string;
   port: number;
   dataPath: string;
-  /** The default admin/owner user; Redis has none, so it is optional. */
   username?: string;
   environment: (credentials: EngineCredentials) => Record<string, string>;
-  /** Some engines take the password as a command flag (Redis) rather than an env var. */
   command?: (credentials: EngineCredentials) => string[];
   connectionUri: (credentials: EngineCredentials & { host: string }) => string;
-  /** Command run inside the container that writes the whole dump to standard output. */
   dump: (credentials: DatabaseCredentials) => string[];
-  /** Command run inside the container that reads a dump from standard input. */
   restore: (credentials: DatabaseCredentials) => string[];
-  /** Redis only loads its snapshot at startup, so a restore is only visible after a restart. */
   restartAfterRestore?: boolean;
-  /** Extension of the dump file, so a downloaded backup opens with the right tool. */
   extension: string;
 };
 
@@ -56,7 +45,6 @@ const STATE_TO_STATUS: Record<string, DatabaseStatus> = {
 
 const PASSWORD_BYTES = 24;
 
-// base64url has no `@`, `:` or `/`, so a generated password drops straight into a connection URI.
 const generatePassword = () => {
   const buffer = new Uint8Array(PASSWORD_BYTES);
 
@@ -65,7 +53,6 @@ const generatePassword = () => {
   return Buffer.from(buffer).toString('base64url');
 };
 
-/** The container name doubles as the network hostname other containers dial. */
 const containerNameOf = (name: string) => `zydock-db-${name}`;
 
 const volumeNameOf = (name: string) => `zydock-db-${name}-data`;
@@ -82,10 +69,6 @@ const toInstance = (container: ContainerInfo, spec: DatabaseSpec): DatabaseInsta
   createdAt: container.startedAt ?? new Date().toISOString(),
 });
 
-/**
- * A database is a container like any other, so the whole lifecycle is delegated to the
- * `ContainerProvider` (the agent). Each engine plugs in only its own knowledge through `EngineConfig`.
- */
 export const createContainerDatabaseProvider = (
   engine: EngineConfig,
   { containers, storage }: DatabaseProviderDependencies,
@@ -99,10 +82,8 @@ export const createContainerDatabaseProvider = (
       port: engine.port,
     };
 
-    // A named volume keeps the data across restarts and image upgrades.
     await containers.createVolume(volumeNameOf(spec.name));
 
-    // The shared network lets applications reach the database by its container name.
     await containers.createNetwork(config.proxy.network);
 
     const containerSpec: ContainerSpec = {
@@ -140,12 +121,9 @@ export const createContainerDatabaseProvider = (
     toStatus(await containers.inspectContainer(id));
 
   const unsupportedCredentials = (): Promise<DatabaseCredentials> => {
-    // Credentials are generated at provision and stored (encrypted) by the databases module; the
-    // provider is not their source of truth, so there is nothing to read back from the container.
     throw new Error('Credentials are managed by the databases module, not the provider');
   };
 
-  /** The dump is produced inside the container and streamed straight into storage. */
   const backup = async ({
     containerId,
     credentials,

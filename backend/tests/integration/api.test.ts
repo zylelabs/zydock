@@ -4,10 +4,6 @@ import { createApp } from '../../src/app-server';
 import { connectDatabase, disconnectDatabase } from '../../src/config/mongodb';
 import { stopWorker } from '../../src/modules/queue/queue.service';
 
-/**
- * Integration: the real Hono app answered in-process (`app.request`) against a throwaway Mongo. No
- * network, no listening socket — the same routing, middlewares and services the server runs.
- */
 let app: ReturnType<typeof createApp>;
 
 const email = `it-${Date.now()}@zydock.test`;
@@ -232,7 +228,6 @@ describe('applications (private repo token)', () => {
     );
     const projectId = ((await project.json()) as { project: { id: string } }).project.id;
 
-    // createProject seeds a default environment.
     const envs = await json(
       `/organizations/${organizationId}/projects/${projectId}/environments`,
       'GET',
@@ -355,7 +350,6 @@ describe('applications (private repo token)', () => {
   });
 
   test('rollback to a non-succeeded deployment is 400', async () => {
-    // The queue does not run in tests (huge poll interval), so this stays `queued`.
     const deploy = await json(
       `/organizations/${organizationId}/applications/${applicationId}/deploy`,
       'POST',

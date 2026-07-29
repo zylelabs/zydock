@@ -5,7 +5,6 @@ import config from '../../config';
 
 const root = resolve(config.workspacePath, 'backups');
 
-/** An upload id is generated here, but the resolved path is checked against the root anyway. */
 const pathOf = (upload: string) => {
   const target = resolve(root, upload);
 
@@ -16,17 +15,11 @@ const pathOf = (upload: string) => {
   return target;
 };
 
-/**
- * Stages an archive on this host. A restore needs the bytes *and* the command that consumes them;
- * staging first keeps the command in a JSON body instead of a query string or a header.
- */
 export const stageUpload = async (body: ReadableStream<Uint8Array>) => {
   const id = randomUUID();
 
   await mkdir(root, { recursive: true });
 
-  // Chunk by chunk, and never `Bun.write(path, new Response(body))`: a request body with no length
-  // — an archive as it is uploaded — makes that call wait forever for a size that never comes.
   const reader = body.getReader();
   const writer = Bun.file(join(root, id)).writer();
 
@@ -55,7 +48,6 @@ export const uploadPath = (upload: string) => pathOf(upload);
 
 export const uploadExists = (upload: string) => Bun.file(pathOf(upload)).exists();
 
-/** A staged archive is disposable: it is removed as soon as the restore that needed it is over. */
 export const discardUpload = async (upload: string) => {
   await rm(pathOf(upload), { force: true });
 };

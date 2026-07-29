@@ -1,7 +1,6 @@
 import { z } from 'zod';
 import { projectIdParamSchema } from './project.schema';
 
-/** Every project starts with this environment, so it is usable right after creation. */
 export const DEFAULT_ENVIRONMENT_NAME = 'production';
 
 export const environmentIdParamSchema = projectIdParamSchema.extend({

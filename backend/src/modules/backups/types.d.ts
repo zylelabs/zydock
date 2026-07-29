@@ -7,7 +7,6 @@ interface BackupData {
   applicationId?: string;
   volumeName?: string;
   engine?: string;
-  /** What was backed up, in words — the database or volume name, or the organization. */
   label: string;
   storageKey: string;
   sizeBytes?: number;

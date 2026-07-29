@@ -28,7 +28,6 @@ export const containerSchema = {
   },
 };
 
-/** Every route of this layer reaches the runtime through the agent of the server. */
 const unreachable = errorRes('The agent of this server could not be reached.');
 
 const notProvisioned = errorRes('This server has no agent yet.');

@@ -20,7 +20,6 @@ const gitProviderOf = (application: Application) =>
 export const callbackUrlOf = (applicationId: string) =>
   `${config.backendUrl}/api/webhooks/git/${applicationId}`;
 
-/** Registers the webhook on the git host and keeps the secret encrypted on our side. */
 export const configureWebhook = async (application: Application) => {
   const secret = randomBytes(SECRET_BYTES).toString('hex');
   const applicationId = String(application._id);
@@ -65,10 +64,6 @@ export const removeWebhook = async (application: Application) => {
   return true;
 };
 
-/**
- * Decides whether a push deserves a deploy. Everything that is not a deployable push — bad
- * signature, another branch, auto deploy turned off — is refused before anything is enqueued.
- */
 export const handleGitWebhook = async (
   application: Application,
   request: GitWebhookRequest,

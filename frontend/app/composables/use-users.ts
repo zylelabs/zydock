@@ -45,8 +45,6 @@ export const useUsers = () => {
   const changePassword = (body: ChangePasswordBody) =>
     api.post<{ message: string }>('/users/me/password', { body });
 
-  // Superuser only — platform-wide user administration, not organization-scoped. `disable` is the
-  // real effect of `DELETE /users/:id`: the backend deactivates the account, it never hard-deletes.
   const list = (filter: UserFilter = {}) =>
     api.get<Paginated<UserAccount>>('/users', { query: { size: 100, ...filter } });
   const update = (id: string, body: UpdateUserBody) =>

@@ -24,7 +24,6 @@ export const listBackupsQuerySchema = z.object({
 
 export type ListBackupsQuery = z.infer<typeof listBackupsQuerySchema>;
 
-/** A volume name as Docker accepts it — the same shape the agent validates on its side. */
 const volumeNameSchema = z
   .string()
   .trim()
@@ -41,7 +40,6 @@ export const createBackupSchema = z.discriminatedUnion('type', [
     type: z.literal('volume'),
     serverId: z.string().length(24),
     volumeName: volumeNameSchema,
-    /** Only context: which application the volume belongs to, when it belongs to one. */
     applicationId: z.string().length(24).optional(),
   }),
   z.object({

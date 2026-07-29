@@ -47,15 +47,12 @@ export type ApplicationMetrics = {
 
 const agentClientFor = (server: Server) => createAgentClient(buildAgentConnection(server));
 
-// --- Live reads from the agent -------------------------------------------------------------------
-
 export const fetchServerMetrics = (server: Server) =>
   agentClientFor(server).json<SystemMetrics>('/metrics');
 
 export const fetchServerContainerMetrics = (server: Server) =>
   agentClientFor(server).json<ContainerMetrics[]>('/metrics/containers');
 
-/** Metrics of the single container running an application, joined with its inspect fields. */
 export const fetchApplicationMetrics = async (
   application: Application,
   server: Server,
@@ -92,8 +89,6 @@ export const fetchApplicationMetrics = async (
   };
 };
 
-// --- History -------------------------------------------------------------------------------------
-
 const serializeSample = (sample: MetricSample) => ({
   capturedAt: sample.capturedAt,
   cpuPercent: sample.cpuPercent,
@@ -107,7 +102,6 @@ const serializeSample = (sample: MetricSample) => ({
   containersTotal: sample.containersTotal,
 });
 
-/** Persists one sample; called from the heartbeat, so a failure only warns and never breaks it. */
 export const recordServerMetrics = async (serverId: string, metrics: Partial<SystemMetrics>) => {
   await metricModel
     .create({ serverId, capturedAt: new Date(), ...metrics })
@@ -126,14 +120,11 @@ export const serverMetricsHistory = async (
   return samples.map(serializeSample);
 };
 
-// --- Deploy metrics ------------------------------------------------------------------------------
-
 const DEPLOY_WINDOW = 100;
 
 const average = (values: number[]) =>
   values.length ? Math.round(values.reduce((sum, value) => sum + value, 0) / values.length) : null;
 
-/** Aggregates over the last {@link DEPLOY_WINDOW} deployments of an application. */
 export const deploymentMetrics = async (applicationId: string) => {
   const deployments = await deploymentModel
     .find({ applicationId })
@@ -173,8 +164,6 @@ export const deploymentMetrics = async (applicationId: string) => {
       : null,
   };
 };
-
-// --- Streaming (one poller per topic, alive only while there is an audience) ---------------------
 
 const streams = new Map<string, ReturnType<typeof setInterval>>();
 
@@ -249,7 +238,6 @@ const listenerFor = (produce: (resourceId: string) => Promise<unknown>) => ({
 registerTopicListener('server', listenerFor(produceServerMetrics));
 registerTopicListener('application', listenerFor(produceApplicationMetrics));
 
-/** Shutdown: stop every poller so nothing keeps hitting the agents. */
 export const stopMetricStreams = () => {
   for (const topic of [...streams.keys()]) {
     stopStream(topic);

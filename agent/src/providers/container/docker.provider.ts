@@ -59,13 +59,8 @@ const runChecked = async (args: string[], description: string) => {
   return result.stdout.trim();
 };
 
-/** Image used to tar a volume: a container is the only way to read a volume from outside. */
 const ARCHIVE_IMAGE = 'alpine:3';
 
-/**
- * The command's output as a stream. A non-zero exit **errors the stream** instead of closing it, so
- * whoever is reading gets a broken body and never mistakes a truncated archive for a whole one.
- */
 const streamOf = async (args: string[], description: string): Promise<ArchiveStream> => {
   const process = Bun.spawn(['docker', ...args], { stdout: 'pipe', stderr: 'pipe' });
 
@@ -97,7 +92,6 @@ const streamOf = async (args: string[], description: string): Promise<ArchiveStr
   });
 };
 
-/** Runs the command with an archive on this host as its standard input. */
 const runPiped = async (args: string[], archivePath: string, description: string) => {
   const process = Bun.spawn(['docker', ...args], {
     stdin: Bun.file(archivePath),
@@ -494,9 +488,6 @@ export const createDockerProvider = (): ContainerProvider => ({
   },
 
   listImages: async (): Promise<ImageInfo[]> => {
-    // `--all` because an image that lost its tag still occupies the disk, and the default listing
-    // hides it. `image ls` reports the size already formatted for humans, so the ids come first and
-    // the sizes in bytes come from a single inspect over all of them.
     const listed = await runChecked(
       ['image', 'ls', '--all', '--quiet', '--no-trunc'],
       'Failed to list images',
@@ -622,7 +613,6 @@ export const createDockerProvider = (): ContainerProvider => ({
     );
   },
 
-  // Extracts over what is already there; files the archive does not carry are left untouched.
   restoreVolume: async (name, archivePath) => {
     await runChecked(['volume', 'inspect', name], `Volume ${name} not found`);
 

@@ -8,8 +8,6 @@ import {
 import { createContainerDatabaseProvider } from './container.provider';
 import { ENGINES } from './engines';
 
-// Every engine is the same container lifecycle with a different `EngineConfig`; the factory closes
-// over the engine's config so the registry keeps the same shape as the other provider registries.
 const factories: Partial<Record<DatabaseEngine, DatabaseProviderFactory>> = Object.fromEntries(
   DATABASE_ENGINES.map(engine => [
     engine,

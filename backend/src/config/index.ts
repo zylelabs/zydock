@@ -115,17 +115,13 @@ export default {
     streamTail: readNumber('LOGS_STREAM_TAIL', 100),
   },
   proxy: {
-    // Docker network shared by the reverse proxy and the deployed containers, so the proxy can
-    // dial a container by its stable name instead of a host port that changes every deploy.
     network: readString('PROXY_NETWORK', 'zydock'),
   },
   metrics: {
-    // How long a server metric sample is kept (TTL index), and how often a live subscriber is fed.
     retentionHours: readNumber('METRICS_RETENTION_HOURS', 168),
     streamIntervalSeconds: readNumber('METRICS_STREAM_INTERVAL_SECONDS', 5),
   },
   notifications: {
-    // How long a delivery record is kept (TTL index): it is history, not state.
     retentionHours: readNumber('NOTIFICATIONS_RETENTION_HOURS', 720),
   },
   providers: {

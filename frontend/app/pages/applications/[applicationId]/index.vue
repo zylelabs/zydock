@@ -140,7 +140,6 @@
       name: values.name,
       port: Number(values.port),
       restartPolicy: values.restartPolicy,
-      // Dotted paths on the backend keep the token intact even when git is patched.
       git: {
         repository: values.repository,
         branch: values.branch,
@@ -153,8 +152,6 @@
     await refresh();
   });
 
-  // --- Deploy ------------------------------------------------------------------------------------
-
   const deploying = ref(false);
 
   const triggerDeploy = async () => {
@@ -162,7 +159,6 @@
     deploying.value = true;
 
     try {
-      // Straight to the live log of the deploy just started.
       const { deployment } = await applications.deploy(applicationId.value);
 
       await navigateTo(`/applications/${applicationId.value}/deployments/${deployment.id}`);
@@ -173,8 +169,6 @@
       deploying.value = false;
     }
   };
-
-  // --- Rollback ----------------------------------------------------------------------------------
 
   const rollbackTarget = ref<Deployment | null>(null);
   const rollingBack = ref(false);
@@ -194,7 +188,6 @@
       );
 
       rollbackTarget.value = null;
-      // Straight to the live log of the rollback deploy.
       await navigateTo(`/applications/${applicationId.value}/deployments/${deployment.id}`);
     } catch (error) {
       actionError.value = (error as { message?: string }).message || 'Failed to roll back.';
@@ -202,8 +195,6 @@
       rollingBack.value = false;
     }
   };
-
-  // --- Lifecycle (restart / stop / start) -----------------------------------------------
 
   const lifecycleBusy = ref('');
 
@@ -220,8 +211,6 @@
       lifecycleBusy.value = '';
     }
   };
-
-  // --- Network (port mappings) ------------------------------------------------------------
 
   type PortDraft = { hostPort: string; containerPort: string; protocol: 'tcp' | 'udp' };
 
@@ -278,8 +267,6 @@
       savingPorts.value = false;
     }
   };
-
-  // --- Advanced (volumes, networks, healthcheck, recursos) --------------------------------------
 
   const editingAdv = ref(false);
   const savingAdv = ref(false);
@@ -379,7 +366,6 @@
           : {}),
       };
     } else {
-      // `null` removes the healthcheck on the backend.
       body.healthcheck = null;
     }
 
@@ -396,8 +382,6 @@
       savingAdv.value = false;
     }
   };
-
-  // --- Domains ----------------------------------------------------------------------------------
 
   const domainList = computed(() => data.value?.domains ?? []);
 
@@ -507,8 +491,6 @@
     }
   };
 
-  // --- Domain certificate --------------------------------------------------------------------------
-
   const domainCertificates = ref<Record<string, DomainCertificate>>({});
   const domainCertificateFailed = ref<Record<string, boolean>>({});
   const domainCertificateOpen = ref('');
@@ -539,8 +521,6 @@
 
   const domainDaysRemaining = (expiresAt?: string) =>
     expiresAt ? Math.ceil((new Date(expiresAt).getTime() - Date.now()) / 86400000) : undefined;
-
-  // --- Variables ---------------------------------------------------------------------------------
 
   const editingVars = ref(false);
   const draft = ref<ApplicationVariable[]>([]);
@@ -573,8 +553,6 @@
     }
   };
 
-  // --- Access token (private repository) -----------------------------------------------------
-
   const editingToken = ref(false);
   const tokenDraft = ref('');
   const savingToken = ref(false);
@@ -584,7 +562,6 @@
     editingToken.value = true;
   };
 
-  // `null` clears the token; a string sets or replaces it.
   const saveToken = async (token: string | null) => {
     actionError.value = '';
     savingToken.value = true;
@@ -599,8 +576,6 @@
       savingToken.value = false;
     }
   };
-
-  // --- Git webhook (auto-deploy) ------------------------------------------------------------------
 
   const webhookBusy = ref(false);
   const webhookCopied = ref(false);
@@ -644,8 +619,6 @@
     webhookCopied.value = true;
     setTimeout(() => (webhookCopied.value = false), 2000);
   };
-
-  // --- Danger zone (delete application) -----------------------------------------------------------
 
   const confirmDeleteOpen = ref(false);
   const deletingApp = ref(false);
@@ -903,7 +876,6 @@
       </form>
     </UiCard>
 
-    <!-- Domains -->
     <UiCard v-if="canManage" title="Domains">
       <template #header>
         <div class="flex items-center justify-between">
@@ -1059,7 +1031,6 @@
       </div>
     </UiCard>
 
-    <!-- Network -->
     <UiCard v-if="canManage" title="Network">
       <template #header>
         <div class="flex items-center justify-between">
@@ -1132,7 +1103,6 @@
       </div>
     </UiCard>
 
-    <!-- Advanced -->
     <UiCard v-if="canManage" title="Advanced">
       <template #header>
         <div class="flex items-center justify-between">
@@ -1141,7 +1111,6 @@
         </div>
       </template>
 
-      <!-- Read -->
       <dl v-if="!editingAdv" class="grid gap-x-6 gap-y-3 text-sm sm:grid-cols-2">
         <div class="flex justify-between gap-2 sm:col-span-2">
           <dt class="text-content-muted">Volumes</dt>
@@ -1184,7 +1153,6 @@
         </div>
       </dl>
 
-      <!-- Edit -->
       <div v-else class="flex flex-col gap-6">
         <UiAlert v-if="advError" variant="error">{{ advError }}</UiAlert>
 
@@ -1273,7 +1241,6 @@
       </div>
     </UiCard>
 
-    <!-- Git webhook -->
     <UiCard v-if="canManage" title="Git webhook">
       <template #header>
         <div class="flex items-center justify-between">
@@ -1331,7 +1298,6 @@
       </div>
     </UiCard>
 
-    <!-- Access token (private repository) -->
     <UiCard v-if="canManage" title="Access token">
       <template #header>
         <div class="flex items-center justify-between">
@@ -1382,7 +1348,6 @@
       </div>
     </UiCard>
 
-    <!-- Environment variables -->
     <UiCard v-if="canManage" title="Environment variables">
       <template #header>
         <div class="flex items-center justify-between">
@@ -1434,7 +1399,6 @@
       </div>
     </UiCard>
 
-    <!-- Deployment history -->
     <UiCard title="Deployments">
       <p v-if="!deploymentList.length" class="text-sm text-content-muted">No deployments yet.</p>
 
@@ -1488,7 +1452,6 @@
       </ul>
     </UiCard>
 
-    <!-- Danger zone -->
     <UiCard v-if="canManage" title="Danger zone">
       <div class="flex items-center justify-between gap-4">
         <p class="text-sm text-content-muted">

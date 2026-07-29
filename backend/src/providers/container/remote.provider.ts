@@ -17,10 +17,6 @@ import type {
   VolumeInfo,
 } from './container.contract';
 
-/**
- * Talks to the agent installed on the server. Every Docker operation runs there — the backend never
- * reaches a container runtime directly.
- */
 export const createRemoteContainerProvider = (
   connection: ContainerConnection,
 ): ContainerProvider => {
@@ -28,10 +24,6 @@ export const createRemoteContainerProvider = (
 
   const containerPath = (id: string) => `/containers/${encodeURIComponent(id)}`;
 
-  /**
-   * An archive has no size limit and no deadline, so it is streamed both ways: `streamed` drops the
-   * request timeout, and the answer's body is handed over as it arrives.
-   */
   const archive = async (path: string, body?: unknown): Promise<ArchiveStream> => {
     const response = await send(path, { method: 'POST', body, streamed: true });
 
@@ -42,7 +34,6 @@ export const createRemoteContainerProvider = (
     return response.body;
   };
 
-  /** A restore stages the archive on the server first: the command travels in its own JSON body. */
   const stage = (data: ArchiveStream) =>
     json<{ id: string; sizeBytes: number }>('/backups/uploads', {
       method: 'POST',
@@ -115,7 +106,6 @@ export const createRemoteContainerProvider = (
             }
           }
         } catch (error) {
-          // Aborting is how a caller closes the stream — the local provider ends quietly too.
           if (!isAbortError(error)) {
             throw error;
           }
@@ -123,7 +113,6 @@ export const createRemoteContainerProvider = (
       },
     }),
 
-    // `timeoutSeconds` is not enforced yet: the agent runs `docker exec` to completion.
     execCommand: (id, request: ExecRequest) =>
       json<ExecResult>(`${containerPath(id)}/exec`, { method: 'POST', body: request }),
 

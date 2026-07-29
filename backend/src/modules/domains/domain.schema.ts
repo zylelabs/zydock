@@ -5,8 +5,6 @@ export const DOMAIN_STATUSES = ['pending', 'active', 'error'] as const;
 
 export type DomainStatus = (typeof DOMAIN_STATUSES)[number];
 
-// A hostname: labels of letters, digits and hyphens, separated by dots, no scheme or path. Lower
-// case, because DNS is case-insensitive and the proxy matches on the literal value.
 const hostnameSchema = z
   .string()
   .trim()

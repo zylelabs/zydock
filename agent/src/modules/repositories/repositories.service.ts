@@ -15,7 +15,6 @@ export type CloneResult = {
   committedAt: string;
 };
 
-/** The workspace id is validated by Zod, and the resolved path is checked against the root anyway. */
 const pathOf = (workspace: string) => {
   const target = resolve(root, workspace);
 
@@ -31,7 +30,6 @@ const run = async (args: string[], cwd?: string) => {
     cwd,
     stdout: 'pipe',
     stderr: 'pipe',
-    // Never let git stop waiting for credentials on a private repository.
     env: { ...Bun.env, GIT_TERMINAL_PROMPT: '0' },
   });
 
@@ -44,7 +42,6 @@ const run = async (args: string[], cwd?: string) => {
   return { code, stdout: stdout.trim(), stderr: stderr.trim() };
 };
 
-/** Credentials travel inside the clone URL; they must never reach a log or an error message. */
 const withoutCredentials = (message: string) => message.replace(/\/\/[^@\s/]+@/g, '//');
 
 const runChecked = async (args: string[], description: string, cwd?: string) => {
@@ -60,7 +57,6 @@ const runChecked = async (args: string[], description: string, cwd?: string) => 
 export const cloneRepository = async (request: CloneDTO): Promise<CloneResult> => {
   const path = pathOf(request.workspace);
 
-  // A workspace is disposable: a leftover from a previous attempt must not affect this build.
   await rm(path, { recursive: true, force: true });
 
   const shallow = request.commit ? [] : ['--depth', '1'];

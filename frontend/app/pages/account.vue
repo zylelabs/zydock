@@ -10,8 +10,6 @@
 
   const actionError = ref('');
 
-  // --- Profile ------------------------------------------------------------------------------------
-
   const { data: profileData, refresh: refreshProfile } = await useAsyncData(
     'account-profile',
     () => usersApi.me(),
@@ -54,8 +52,6 @@
     await refreshProfile();
   });
 
-  // --- Password -----------------------------------------------------------------------------------
-
   const passwordForm = useForm(
     z
       .object({
@@ -88,8 +84,6 @@
     passwordChanged.value = true;
     passwordForm.reset();
   });
-
-  // --- API keys -------------------------------------------------------------------------------------
 
   const { data: keysData, refresh: refreshKeys } = await useAsyncData(
     'account-api-keys',
@@ -137,8 +131,6 @@
       revokingKey.value = '';
     }
   };
-
-  // --- Sessions ---------------------------------------------------------------------------------
 
   const { data: sessionsData, refresh: refreshSessions } = await useAsyncData(
     'account-sessions',

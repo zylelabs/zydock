@@ -70,8 +70,6 @@
     label: CHANNEL_LABELS[channel],
   }));
 
-  // --- New channel ---------------------------------------------------------------------------------
-
   const addingChannel = ref(false);
 
   const channelForm = useForm(
@@ -173,8 +171,6 @@
     await refresh();
   });
 
-  // --- Channel actions ------------------------------------------------------------------------------
-
   const testResult = ref<{ channelId: string; delivered: boolean; error?: string } | null>(null);
 
   const runTest = async (channel: NotificationChannel) => {
@@ -208,8 +204,6 @@
       busy.value = '';
     }
   };
-
-  // --- Removal ----------------------------------------------------------------------------------
 
   const toRemove = ref<NotificationChannel | null>(null);
   const removing = ref(false);

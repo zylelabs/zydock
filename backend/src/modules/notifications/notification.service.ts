@@ -27,8 +27,6 @@ const SEVERITY_OF_EVENT: Record<NotificationEvent, NotificationSeverityName> = {
   'deployment.failed': 'error',
 };
 
-// --- Channels ------------------------------------------------------------------------------------
-
 export const findNotificationChannel = (organizationId: string, channelId: string) =>
   notificationChannelModel.findOne({ _id: channelId, organizationId });
 
@@ -65,7 +63,6 @@ export const updateNotificationChannel = (
         ...(body.secret ? { secret: encryptSecret(body.secret), hasSecret: true } : {}),
         ...(body.secret === null ? { hasSecret: false } : {}),
       },
-      // An explicit `null` clears the signing secret; leaving the field out keeps it.
       ...(body.secret === null ? { $unset: { secret: '' } } : {}),
     },
     { new: true },
@@ -95,7 +92,6 @@ const recordChannelOutcome = (channelId: string, error?: string) =>
       : { $set: { lastDeliveryAt: new Date() }, $unset: { lastError: '' } },
   );
 
-/** Sends a message through one channel right now, without the queue — used by the test endpoint. */
 export const testNotificationChannel = async (channel: NotificationChannel) => {
   const withSecret = await findChannelWithSecret(String(channel._id));
 
@@ -114,12 +110,6 @@ export const testNotificationChannel = async (channel: NotificationChannel) => {
   return { delivered: Boolean(result?.delivered), error: result?.error };
 };
 
-// --- Emission ------------------------------------------------------------------------------------
-
-/**
- * Creates one delivery record per interested channel and hands each to the queue, so a channel that
- * is down is retried with backoff and never blocks whoever emitted the event.
- */
 export const emitNotification = async (
   organizationId: string,
   event: NotificationEvent,
@@ -176,10 +166,6 @@ const SUBJECT_OF_EVENT: Record<NotificationEvent, string> = {
   'deployment.failed': 'Deploy failed',
 };
 
-/**
- * Fans a deploy event out to the channels of the organization. The deployment is reloaded so the
- * message carries what was just written (status, duration, commit) and not a stale copy.
- */
 export const notifyDeploymentEvent = async (deploymentId: string, event: NotificationEvent) => {
   const deployment = await deploymentModel.findById(deploymentId);
 
@@ -217,8 +203,6 @@ export const notifyDeploymentEvent = async (deploymentId: string, event: Notific
     },
   });
 };
-
-// --- Delivery ------------------------------------------------------------------------------------
 
 const messageOf = (notification: Notification): NotificationMessage => ({
   subject: notification.subject,
@@ -273,12 +257,9 @@ registerJobHandler(NOTIFICATION_JOB, async (payload, job) => {
     await markFailure(String(notification._id), reason, job.attempts >= job.maxAttempts);
     await recordChannelOutcome(String(channel._id), reason);
 
-    // Rethrown on purpose: the queue is what schedules the retry and records the failed attempt.
     throw error;
   }
 });
-
-// --- Serialization -------------------------------------------------------------------------------
 
 export const listNotificationChannelsOfOrganization = (organizationId: string) =>
   notificationChannelModel.find({ organizationId }).sort({ createdAt: 1 });

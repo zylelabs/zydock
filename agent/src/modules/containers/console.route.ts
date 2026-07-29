@@ -12,11 +12,6 @@ const ALLOWED_SHELLS = ['sh', 'bash'] as const;
 const shellOf = (value: string | undefined) =>
   ALLOWED_SHELLS.includes(value as never) ? (value as string) : 'sh';
 
-/**
- * Interactive exec over WebSocket: the client's keystrokes go to the process stdin, and its output
- * comes back as text frames. It is `docker exec -i` without a TTY — Bun cannot allocate a PTY — so
- * a shell reading commands works, but full-screen programs (top, vi) will not render.
- */
 get(
   '/:id/console',
   consoleDocs.connect,
@@ -48,7 +43,6 @@ get(
         void pump(proc.stdout);
         void pump(proc.stderr);
 
-        // Docker exits with the shell; there is nothing left to stream, so the socket closes.
         void proc.exited.then(code => {
           logDebug('Console session ended', { container: id, code });
           ws.close();

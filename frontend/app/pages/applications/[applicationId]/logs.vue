@@ -52,7 +52,6 @@
     }
   };
 
-  // Lines that pass the current filters — applied to both history and live output.
   const visible = computed(() =>
     entries.value.filter(entry => {
       if (filters.stream && entry.stream !== filters.stream) {
@@ -81,7 +80,6 @@
         if (message.event === 'log') {
           entries.value.push(message.data as LogEntry);
 
-          // Keep the buffer bounded so a long stream never grows without limit.
           if (entries.value.length > 5000) {
             entries.value.splice(0, entries.value.length - 5000);
           }

@@ -27,7 +27,6 @@ const containers = resolveContainerProvider();
 const archiveResponse = (stream: ReadableStream<Uint8Array>) =>
   new Response(stream, { headers: { 'Content-Type': 'application/octet-stream' } });
 
-/** Resolves the staged archive or returns the answer to send instead. */
 const loadUpload = async (c: Context, upload: string) => {
   if (!(await uploadExists(upload))) {
     return { response: c.json({ error: `Upload ${upload} not found` }, 404) };

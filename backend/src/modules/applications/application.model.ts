@@ -6,7 +6,6 @@ import { APPLICATION_RESTART_POLICIES, APPLICATION_STATUSES } from './applicatio
 const variableSchema = new Schema(
   {
     key: { type: String, required: true, trim: true },
-    // Encrypted, never hashed: the platform has to inject the value into the container.
     value: { type: String, required: true, select: false },
     secret: { type: Boolean, required: true, default: false },
   },
@@ -57,12 +56,9 @@ const applicationSchema = new Schema(
       dockerfilePath: { type: String, required: true, trim: true, default: 'Dockerfile' },
       buildContext: { type: String, required: true, trim: true, default: '.' },
       autoDeploy: { type: Boolean, required: true, default: true },
-      // Encrypted and hidden; `hasToken` exists because a `select: false` field cannot be seen by
-      // the reads that only need to know whether a credential is configured.
       token: { type: String, select: false },
       hasToken: { type: Boolean, required: true, default: false },
       webhookId: { type: String },
-      // Encrypted: verifying an incoming signature needs the secret itself, not a hash of it.
       webhookSecret: { type: String, select: false },
     },
     port: { type: Number, required: true },
@@ -96,7 +92,6 @@ const applicationSchema = new Schema(
   },
 );
 
-// A slug identifies an application inside its environment.
 applicationSchema.index({ environmentId: 1, slug: 1 }, { unique: true });
 
 export default model('applications', applicationSchema) as unknown as PaginateModel<

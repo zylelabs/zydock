@@ -1,5 +1,4 @@
 import { z } from 'zod';
-// Imported from the contract, not the index: the index re-exports it as a type only.
 import { DATABASE_ENGINES } from '../../providers/database/database.contract';
 import { organizationIdParamSchema } from '../organizations/membership.schema';
 
@@ -15,7 +14,6 @@ export const DATABASE_INSTANCE_STATUSES = [
 
 export type DatabaseInstanceStatus = (typeof DATABASE_INSTANCE_STATUSES)[number];
 
-/** Sensible current image tag per engine, used when the request does not pin a version. */
 export const DEFAULT_VERSIONS: Record<DatabaseEngineName, string> = {
   postgresql: '16-alpine',
   mysql: '8',

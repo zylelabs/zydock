@@ -133,7 +133,6 @@ export type VolumeInfo = {
   mountpoint: string;
 };
 
-/** Bytes of an archive as they travel: a tar of a volume, a dump of a database. */
 export type ArchiveStream = ReadableStream<Uint8Array>;
 
 export type ContainerProvider = {

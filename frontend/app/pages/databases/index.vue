@@ -103,7 +103,6 @@
     }
   };
 
-  // --- Credentials ---
   const credentials = ref<DatabaseCredentials | null>(null);
   const credentialsOpen = ref(false);
 
@@ -121,7 +120,6 @@
     }
   };
 
-  // --- Removal ---
   const toRemove = ref<Database | null>(null);
   const removeData = ref(false);
   const removing = ref(false);
@@ -272,7 +270,6 @@
       </div>
     </template>
 
-    <!-- Credentials -->
     <UiModal v-model:open="credentialsOpen" title="Connection credentials">
       <div v-if="credentials" class="flex flex-col gap-2 font-mono text-xs">
         <p><span class="text-content-muted">host:</span> {{ credentials.host }}</p>
@@ -291,7 +288,6 @@
       </template>
     </UiModal>
 
-    <!-- Removal -->
     <UiModal
       :open="Boolean(toRemove)"
       title="Remove database"

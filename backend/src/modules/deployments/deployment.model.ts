@@ -45,7 +45,6 @@ const deploymentSchema = new Schema(
     imageTag: { type: String, trim: true },
     containerId: { type: String, trim: true },
     steps: { type: [stepSchema], default: [] },
-    // Bounded on write: a build log is not a log store, and Fase 10 owns log history.
     buildLog: { type: [String], default: [] },
     startedAt: { type: Date },
     finishedAt: { type: Date },

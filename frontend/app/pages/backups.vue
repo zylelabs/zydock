@@ -82,8 +82,6 @@
 
   const VOLUME_NAME_REGEX = /^[a-zA-Z0-9][a-zA-Z0-9_.-]*$/;
 
-  // --- New backup -----------------------------------------------------------------------------------
-
   const adding = ref(false);
 
   const form = useForm(
@@ -146,8 +144,6 @@
     await refresh();
   });
 
-  // --- Actions ------------------------------------------------------------------------------------
-
   const onDownload = async (backup: Backup) => {
     actionError.value = '';
     busy.value = `${backup.id}:download`;
@@ -182,8 +178,6 @@
       busy.value = '';
     }
   };
-
-  // --- Removal ----------------------------------------------------------------------------------
 
   const toRemove = ref<Backup | null>(null);
   const removing = ref(false);

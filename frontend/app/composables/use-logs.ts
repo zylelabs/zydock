@@ -14,10 +14,6 @@ export interface LogFilters {
   tail?: number;
 }
 
-/**
- * Runtime logs of an application. History comes over HTTP (with filters); the real-time follow is
- * the WebSocket topic `application:<id>:logs`, consumed through the single connection (`useWebSocket`).
- */
 export const useLogs = () => {
   const api = useApi();
   const session = useSessionStore();

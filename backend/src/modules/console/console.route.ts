@@ -12,11 +12,6 @@ const { router, get } = createRouter();
 
 const ALLOWED_SHELLS = ['sh', 'bash'];
 
-/**
- * Bridges a browser WebSocket to the agent's interactive console. The backend never runs Docker: it
- * opens a second WebSocket to the agent (authenticated by the agent token in a header, which a
- * browser could not send) and relays frames both ways. When one side closes, so does the other.
- */
 get(
   '/',
   consoleDocs.connect,
@@ -74,7 +69,6 @@ get(
       onMessage: event => {
         const frame = event.data as string | ArrayBuffer;
 
-        // Keystrokes typed before the agent socket is open are held, not dropped.
         if (agent?.readyState === WebSocket.OPEN) {
           agent.send(frame);
         } else {

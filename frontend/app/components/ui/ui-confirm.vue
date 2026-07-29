@@ -1,6 +1,4 @@
 <script setup lang="ts">
-  // Confirmation dialog for destructive actions, built on `UiModal`. `v-model:open` controls it; it
-  // emits `confirm` and shows `loading` on the action button so the caller can await the request.
   const {
     title,
     message,

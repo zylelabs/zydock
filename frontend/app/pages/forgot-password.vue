@@ -14,7 +14,6 @@
   const onSubmit = form.submit(async data => {
     await api.post('/auth/forgot-password', { body: data, anonymous: true });
 
-    // The API always answers the same way, so it never reveals whether the e-mail exists.
     sent.value = true;
   });
 </script>

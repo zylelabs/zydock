@@ -27,7 +27,6 @@
     try {
       const { organization } = await acceptInvite(organizationId.value, token.value);
 
-      // Reload the list (the user now belongs to one more) and land already inside it.
       await load();
       select(organization);
       await navigateTo('/');

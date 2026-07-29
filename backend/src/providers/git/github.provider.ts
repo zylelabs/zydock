@@ -12,7 +12,6 @@ import type {
 
 const DEFAULT_BASE_URL = 'https://api.github.com';
 const PAGE_SIZE = 100;
-/** Guard against following `Link: rel="next"` forever on an account with thousands of repositories. */
 const MAX_PAGES = 10;
 const REQUEST_TIMEOUT_MS = 15000;
 
@@ -68,7 +67,6 @@ const toRepository = (repository: RepositoryResponse): GitRepository => ({
   cloneUrl: repository.clone_url,
 });
 
-/** Headers arrive as they were received; GitHub is not consistent about their casing. */
 const readHeader = (headers: Record<string, string>, name: string) => {
   const wanted = name.toLowerCase();
 
@@ -111,10 +109,6 @@ const matchesSignature = (expected: string, received: string) => {
   return timingSafeEqual(a, b);
 };
 
-/**
- * GitHub REST API v3. An empty token is allowed and gives read-only access to public repositories —
- * every write operation then fails with GitHub's own message.
- */
 export const createGithubProvider = (credentials: GitCredentials): GitProvider => {
   const baseUrl = (credentials.baseUrl ?? DEFAULT_BASE_URL).replace(/\/+$/, '');
 
@@ -287,7 +281,6 @@ export const createGithubProvider = (credentials: GitCredentials): GitProvider =
         return null;
       }
 
-      // Branch deletions and tag pushes are not deployable events.
       if (payload.deleted || !payload.ref?.startsWith('refs/heads/')) {
         return null;
       }

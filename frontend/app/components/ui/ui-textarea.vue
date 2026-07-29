@@ -1,5 +1,4 @@
 <script setup lang="ts">
-  // Multi-line counterpart of `UiInput` — used for SSH keys, environment blocks and the like.
   const {
     label = '',
     placeholder = '',

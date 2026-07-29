@@ -18,7 +18,6 @@ export const createEnvironment = async (organizationId: string, projectId: strin
 export const findEnvironment = (projectId: string, environmentId: string) =>
   environmentModel.findOne({ _id: environmentId, projectId });
 
-/** Used by applications, which reach an environment through the organization, not the project. */
 export const findEnvironmentOfOrganization = (organizationId: string, environmentId: string) =>
   environmentModel.findOne({ _id: environmentId, organizationId });
 

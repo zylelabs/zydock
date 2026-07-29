@@ -21,7 +21,6 @@ interface NotificationData {
   body: string;
   severity: import('./notification.schema').NotificationSeverityName;
   metadata: Record<string, string>;
-  /** `pending` while the queue still has attempts left; `failed` only when they run out. */
   status: import('./notification.schema').NotificationStatus;
   sentAt?: Date;
   error?: string;

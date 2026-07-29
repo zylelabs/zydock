@@ -40,7 +40,6 @@ export interface Server {
   createdAt: string;
 }
 
-/** What `POST /servers/validate` answers: whether the host is reachable and what was probed on it. */
 export interface ConnectionProbe {
   reachable: boolean;
   error?: string;
@@ -102,7 +101,6 @@ export const useServers = () => {
   const validate = (ssh: SshCredentials) =>
     api.post<ConnectionProbe>(`${base()}/validate`, { body: { ssh } });
 
-  // A `local` server also returns `agentToken` — the plaintext token, shown only on creation.
   const create = (body: CreateServerBody) =>
     api.post<{ server: Server; agentToken?: string }>(base(), { body });
 
@@ -116,7 +114,6 @@ export const useServers = () => {
 
   const remove = (serverId: string) => api.del<{ message: string }>(`${base()}/${serverId}`);
 
-  // Live provisioning steps stream on this topic while `provision` runs (`provisioning.step` events).
   const provisioningTopic = (serverId: string) => `server:${serverId}:provisioning`;
 
   return { list, get, validate, create, update, provision, refresh, remove, provisioningTopic };

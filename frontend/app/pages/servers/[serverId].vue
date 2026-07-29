@@ -53,8 +53,6 @@
 
   const percent = (used = 0, total = 0) => (total ? Math.round((used / total) * 100) : 0);
 
-  // --- Edit server ------------------------------------------------------------------------------
-
   const editSchema = z
     .object({
       name: z.string().trim().min(1, 'Enter a name'),
@@ -144,8 +142,6 @@
     editing.value = false;
   });
 
-  // --- Refresh server -----------------------------------------------------------------------------
-
   const refreshing = ref(false);
   const refreshError = ref('');
 
@@ -168,8 +164,6 @@
       refreshing.value = false;
     }
   };
-
-  // --- Live provisioning (WebSocket) ---------------------------------------------------------------
 
   const PROVISIONING_STEP_LABEL: Record<ProvisioningStepName, string> = {
     connect: 'Connect',
@@ -226,8 +220,6 @@
     }
   };
 
-  // --- Metrics snapshot + history -------------------------------------------------------------------
-
   const metrics = ref<SystemMetrics | null>(null);
   const metricsError = ref('');
 
@@ -264,9 +256,6 @@
     { immediate: true },
   );
 
-  // --- Reverse proxy (Caddy) ---------------------------------------------------------------------
-
-  /** Stable name the provisioning script gives the Caddy container — `provisioning.service.ts`. */
   const PROXY_CONTAINER_NAME = 'zydock-proxy';
 
   const proxyContainer = ref<ContainerInfo | null>(null);
@@ -310,8 +299,6 @@
 
   watch(serverId, loadProxyContainer, { immediate: true });
 
-  // --- Tabs ------------------------------------------------------------------------------------
-
   type Tab = 'containers' | 'images' | 'networks' | 'volumes';
 
   const TABS: { key: Tab; label: string }[] = [
@@ -323,8 +310,6 @@
 
   const activeTab = ref<Tab>('containers');
   const loadedTabs = new Set<Tab>();
-
-  // --- Containers -----------------------------------------------------------------------------------
 
   const containers = ref<ContainerInfo[]>([]);
   const containersError = ref('');
@@ -396,8 +381,6 @@
     }
   };
 
-  // --- Images -----------------------------------------------------------------------------------
-
   const images = ref<ImageInfo[]>([]);
   const imagesError = ref('');
   const imagesLoading = ref(false);
@@ -450,8 +433,6 @@
       busy.value = '';
     }
   };
-
-  // --- Networks ---------------------------------------------------------------------------------
 
   const networks = ref<NetworkInfo[]>([]);
   const networksError = ref('');
@@ -507,8 +488,6 @@
       busy.value = '';
     }
   };
-
-  // --- Volumes ----------------------------------------------------------------------------------
 
   const volumes = ref<VolumeInfo[]>([]);
   const volumesError = ref('');
@@ -841,7 +820,6 @@
       </button>
     </div>
 
-    <!-- Containers -->
     <UiCard v-if="activeTab === 'containers'" title="Containers">
       <template #header>
         <div class="flex items-center justify-between">
@@ -928,7 +906,6 @@
       </div>
     </UiCard>
 
-    <!-- Images -->
     <UiCard v-if="activeTab === 'images'" title="Images">
       <form v-if="canManage" class="mb-4 flex gap-2" @submit.prevent="onPull">
         <div class="flex-1">
@@ -960,7 +937,6 @@
       </ul>
     </UiCard>
 
-    <!-- Networks -->
     <UiCard v-if="activeTab === 'networks'" title="Networks">
       <form v-if="canManage" class="mb-4 flex gap-2" @submit.prevent="onCreateNetwork">
         <div class="flex-1">
@@ -992,7 +968,6 @@
       </ul>
     </UiCard>
 
-    <!-- Volumes -->
     <UiCard v-if="activeTab === 'volumes'" title="Volumes">
       <form v-if="canManage" class="mb-4 flex gap-2" @submit.prevent="onCreateVolume">
         <div class="flex-1">

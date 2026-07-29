@@ -20,7 +20,6 @@
         deployments.list({ applicationId: applicationId.value }),
       ]);
 
-      // The running container is the one of the most recent deploy that produced one.
       const containerId = deps.items.find(deployment => deployment.containerId)?.containerId;
 
       return { serverId: app.application.serverId, containerId };

@@ -47,9 +47,6 @@ post(
     const spec = c.req.valid('json' as never) as BuildImageDTO;
 
     return streamSSE(c, async stream => {
-      // Build output arrives from a synchronous callback; chaining the writes keeps the events in
-      // order, since concurrent writeSSE calls would interleave their chunks. A closed connection
-      // must not turn a write into an unhandled rejection that crosses builds.
       let queue = Promise.resolve();
 
       const write = (event: string, data: unknown) => {

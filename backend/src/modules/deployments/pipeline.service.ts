@@ -34,7 +34,6 @@ type CloneResult = {
   committedAt: string;
 };
 
-/** Docker refuses uppercase in a tag; slugs are already lowercase. */
 const imageTagOf = (slug: string, commit: string) => `zydock/${slug}:${commit.slice(0, 7)}`;
 
 const environmentOf = (application: Application) =>
@@ -42,11 +41,6 @@ const environmentOf = (application: Application) =>
     decryptVariables(application.variables).map(variable => [variable.key, variable.value]),
   );
 
-/**
- * The application declares an HTTP path; Docker wants a shell command — and adds the `CMD-SHELL`
- * wrapper itself, so naming it here would turn it into the program to run. `wget` and `curl` cover
- * the usual base images, and the shell picks whichever exists.
- */
 const healthcheckCommandOf = (application: Application) => {
   const url = `http://127.0.0.1:${application.port}${application.healthcheck?.path}`;
 
@@ -109,7 +103,6 @@ const cloneStep = async (
   });
 };
 
-/** Replaces whatever is running for this application, matching by label and not by name. */
 const replaceContainer = async (
   connection: AgentConnection,
   application: Application,
@@ -118,7 +111,6 @@ const replaceContainer = async (
 ) => {
   const containers = resolveContainerProvider(connection);
 
-  // The shared proxy network has to exist before a container can join it; creating it is idempotent.
   await containers.createNetwork(config.proxy.network);
 
   const previous = await containers.listContainers({
@@ -223,7 +215,6 @@ export const runDeployment = async (deploymentId: string) => {
     let commit: DeploymentCommit | undefined;
 
     if (isRollback) {
-      // A rollback reuses the image an earlier deployment already built: no clone, no build.
       if (!deployment.imageTag) {
         throw new Error('This rollback has no target image');
       }
@@ -237,7 +228,6 @@ export const runDeployment = async (deploymentId: string) => {
       startStep('build');
       await finishStep(`Reusando a imagem ${image}`, 'skipped');
     } else {
-      // 1. Clone on the server itself: the build context never travels through the backend.
       startStep('clone');
 
       const clone = await cloneStep(
@@ -260,7 +250,6 @@ export const runDeployment = async (deploymentId: string) => {
       await setCommit(deploymentId, commit);
       await finishStep(`${clone.commit.slice(0, 7)} — ${clone.message}`);
 
-      // 2. Build, streaming the output to whoever is watching the deployment.
       startStep('build');
 
       image = imageTagOf(application.slug, clone.commit);
@@ -293,14 +282,12 @@ export const runDeployment = async (deploymentId: string) => {
       await finishStep(`${built.tag} (${Math.round(built.sizeBytes / 1024 / 1024)} MB)`);
     }
 
-    // 3. Replace the running container.
     startStep('container');
 
     const container = await replaceContainer(connection, application, deploymentId, image);
 
     await finishStep(container.name);
 
-    // 4. Reverse proxy: point every domain of the application at the (stable) container name.
     startStep('proxy');
 
     const domains = await applyApplicationDomains(application, connection);
@@ -311,7 +298,6 @@ export const runDeployment = async (deploymentId: string) => {
       await finishStep(domains.map(domain => domain.hostname).join(', '));
     }
 
-    // 5. Wait until the container is actually up.
     startStep('healthcheck');
 
     const state = await healthcheckStep(
@@ -358,7 +344,6 @@ export const runDeployment = async (deploymentId: string) => {
 
     logError('Deployment failed', error, { deployment: deploymentId, step: currentStep });
   } finally {
-    // The workspace is disposable; keeping it would fill the disk one deploy at a time.
     if (connection && workspace) {
       const { discard } = createAgentClient(connection);
 
@@ -373,7 +358,6 @@ registerJobHandler(DEPLOY_JOB, async payload => {
   await runDeployment(String(payload.deploymentId));
 });
 
-/** Creates the deployment and hands it to the queue — the caller never waits for the pipeline. */
 export const enqueueDeployment = async (params: {
   application: Application;
   trigger: 'manual' | 'webhook';
@@ -396,10 +380,6 @@ export const enqueueDeployment = async (params: {
   return deployment;
 };
 
-/**
- * Rolls the application back to a previous successful deployment by redeploying its image — no clone
- * and no build. The image must still exist on the server (a deploy that pruned it cannot be reused).
- */
 export const enqueueRollback = async (params: {
   application: Application;
   source: Deployment;

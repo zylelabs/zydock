@@ -1,13 +1,5 @@
-/**
- * Test environment. Preloaded by `bunfig.toml` so it runs before `src/config` reads the environment.
- *
- * `MONGO_URI` and `MODE` are **forced** — never inherited — so a developer's `.env` (which Bun
- * auto-loads and which may point at a real database) can never be touched by the suite. The
- * integration tests drop this database when they finish.
- */
 process.env.MODE = 'prod';
 process.env.MONGO_URI = 'mongodb://127.0.0.1:27017/zydock_test';
-// High enough that the worker never polls during a test run.
 process.env.QUEUE_POLL_INTERVAL_MS = '3600000';
 
 const optional: Record<string, string> = {

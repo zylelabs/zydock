@@ -5,7 +5,6 @@ interface DomainData {
   hostname: string;
   pathPrefix?: string;
   tls: boolean;
-  /** `pending` until a deploy (or an explicit apply) configures the route on the proxy. */
   status: DomainStatus;
   lastError?: string;
 }

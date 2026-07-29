@@ -21,7 +21,6 @@ describe('classifyLevel', () => {
 
   test('defaults to info, and does not match substrings', () => {
     expect(classifyLevel('listening on port 3000')).toBe('info');
-    // "mirror" contains "err" but is not the whole word.
     expect(classifyLevel('mirror synced')).toBe('info');
   });
 });

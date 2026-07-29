@@ -12,7 +12,6 @@ const uniqueSlug = (organizationId: string, name: string) =>
 export const findProject = (organizationId: string, projectId: string) =>
   projectModel.findOne({ _id: projectId, organizationId });
 
-/** A new project already comes with the default environment: an empty project deploys nothing. */
 export const createProject = async (organizationId: string, name: string, description?: string) => {
   const project = await projectModel.create({
     organizationId,

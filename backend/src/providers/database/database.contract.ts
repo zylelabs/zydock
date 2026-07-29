@@ -33,7 +33,6 @@ export type DatabaseCredentials = {
   database?: string;
 };
 
-/** Where the dump goes (or comes from) and the credentials the engine command needs. */
 export type DatabaseBackupSpec = {
   containerId: string;
   credentials: DatabaseCredentials;

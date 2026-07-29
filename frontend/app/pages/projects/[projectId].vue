@@ -44,8 +44,6 @@
   const serverList = computed(() => data.value?.servers ?? []);
   const apps = computed(() => data.value?.applications ?? []);
 
-  // --- Edit project ---------------------------------------------------------------------------------
-
   const projectForm = useForm(
     z.object({
       name: z.string().trim().min(1, 'Enter a name'),
@@ -77,8 +75,6 @@
     editingProject.value = false;
   });
 
-  // --- Delete project ---------------------------------------------------------------------------
-
   const confirmDeleteProjectOpen = ref(false);
   const deletingProject = ref(false);
 
@@ -106,8 +102,6 @@
     stopped: { label: 'Stopped', variant: 'warning' },
     failed: { label: 'Failed', variant: 'danger' },
   };
-
-  // --- Environments ---------------------------------------------------------------------------------
 
   const newEnvironment = ref('');
   const addingEnvironment = ref(false);
@@ -178,8 +172,6 @@
     }
   };
 
-  // --- New application ----------------------------------------------------------------------------
-
   const addingApp = ref(false);
 
   const appForm = useForm(
@@ -237,7 +229,6 @@
         dockerfilePath: values.dockerfilePath,
         buildContext: '.',
         autoDeploy: values.autoDeploy,
-        // Only sent for private repositories; the backend stores it encrypted.
         token: values.token || undefined,
       },
     });
@@ -292,7 +283,6 @@
       </form>
     </UiCard>
 
-    <!-- Environments -->
     <UiCard title="Environments">
       <ul class="flex flex-col divide-y divide-surface-border">
         <li
@@ -350,7 +340,6 @@
       </form>
     </UiCard>
 
-    <!-- Applications -->
     <UiCard title="Applications">
       <template #header>
         <div class="flex items-center justify-between">

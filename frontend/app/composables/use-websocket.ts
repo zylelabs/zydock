@@ -12,10 +12,6 @@ const PING_INTERVAL_MS = 30000;
 const FIRST_RETRY_MS = 1000;
 const MAX_RETRY_MS = 15000;
 
-/**
- * One connection for the whole application: topics are multiplexed over it, so ten panels watching
- * logs and metrics cost one socket. The state lives in the module, not in the composable call.
- */
 const handlers = new Map<string, Set<TopicHandler>>();
 
 const status = ref<WebSocketStatus>('idle');
@@ -63,8 +59,6 @@ const open = () => {
     return;
   }
 
-  // The token travels in the query string because a browser WebSocket cannot carry headers; it is
-  // the short-lived access token, and the connection is upgraded before anything else is read.
   const url = new URL(runtime.wsUrl);
 
   url.searchParams.set('token', session.accessToken);
@@ -80,7 +74,6 @@ const open = () => {
     status.value = 'open';
     retryDelay = FIRST_RETRY_MS;
 
-    // A reconnection has to say again what it was watching: the server keeps no memory of it.
     for (const topic of handlers.keys()) {
       send({ action: 'subscribe', topic });
     }
@@ -99,13 +92,10 @@ const open = () => {
     socket = null;
     stopTimers();
 
-    // Reconnects only while something is still being watched, with a growing delay.
     if (!handlers.size) {
       return;
     }
 
-    // A connection that never opened was most likely refused for an expired access token — the one
-    // failure a retry alone can never fix, since the token in the query string would be the same.
     const attempt = opened ? open : reopenWithFreshToken;
 
     retry = setTimeout(attempt, retryDelay);
@@ -140,18 +130,12 @@ const close = () => {
     return;
   }
 
-  // Detached before closing: the late `onclose` of a socket nobody wants anymore must not put the
-  // status back to `closed` — this connection was ended on purpose.
   current.onopen = null;
   current.onmessage = null;
   current.onclose = null;
   current.close();
 };
 
-/**
- * Real time of the whole interface: deploy steps, logs and metrics arrive as events of a topic
- * (`<resource>:<id>:<channel>`), authorized by the backend at subscription time.
- */
 export const useWebSocket = () => {
   const subscribe = (topic: string, handler: TopicHandler) => {
     const existing = handlers.get(topic);
@@ -176,7 +160,6 @@ export const useWebSocket = () => {
       send({ action: 'unsubscribe', topic });
     };
 
-    // Inside a component, watching stops when the component goes — nobody has to remember it.
     if (getCurrentScope()) {
       onScopeDispose(stop);
     }

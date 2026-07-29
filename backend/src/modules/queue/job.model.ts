@@ -22,7 +22,6 @@ const jobSchema = new Schema(
   },
 );
 
-// The claim query: oldest runnable job first.
 jobSchema.index({ status: 1, runAt: 1 });
 
 export default model('jobs', jobSchema) as unknown as PaginateModel<Job & Document>;

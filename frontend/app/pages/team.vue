@@ -34,8 +34,6 @@
     { value: 'admin', label: 'Admin' },
   ];
 
-  // --- Membros -----------------------------------------------------------------------------------
-
   const { data: membersData, refresh: refreshMembers } = await useAsyncData(
     'members',
     () => (session.organizationId ? listMembers() : Promise.resolve(empty)),
@@ -60,8 +58,6 @@
       await refreshMembers();
     }
   };
-
-  // --- Convites ----------------------------------------------------------------------------------
 
   const { data: invitesData, refresh: refreshInvites } = await useAsyncData(
     'invites',
@@ -102,8 +98,6 @@
   };
 
   const formatDate = (value: string) => new Date(value).toLocaleDateString('en-US');
-
-  // --- Confirmations (remove / leave) -------------------------------------------------------------
 
   const confirmState = ref<{
     title: string;
@@ -176,7 +170,6 @@
     </UiCard>
 
     <template v-else>
-      <!-- Membros -->
       <UiCard title="Members">
         <ul class="flex flex-col divide-y divide-surface-border">
           <li v-for="member in members" :key="member.userId" class="flex items-center gap-3 py-3">
@@ -228,7 +221,6 @@
         </ul>
       </UiCard>
 
-      <!-- Convites (apenas admin/owner) -->
       <UiCard v-if="canManage" title="Invites" description="Invite people by email.">
         <form class="flex flex-col gap-3 sm:flex-row sm:items-start" @submit.prevent="onInvite">
           <div class="flex-1">

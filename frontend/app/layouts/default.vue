@@ -6,8 +6,6 @@
   const organizationStore = useOrganizationStore();
   const { load } = useOrganizations();
 
-  // On the client (the tokens live in localStorage), load the organizations once inside the app:
-  // it fills the switcher and applies the current organization's branding.
   onMounted(() => {
     if (session.isAuthenticated) {
       load().catch(() => undefined);
@@ -19,7 +17,6 @@
   const logout = async () => {
     loggingOut.value = true;
 
-    // Best effort: revoke the session on the server, but always clear it locally and leave.
     await api.post('/auth/logout').catch(() => undefined);
 
     organizationStore.clear();
@@ -36,13 +33,11 @@
     { label: 'Backups', icon: 'lucide:archive', to: '/backups' },
     { label: 'Notifications', icon: 'lucide:bell', to: '/notifications' },
     { label: 'Observability', icon: 'lucide:activity', to: '/observability' },
-    // Platform-wide capability, not an organization role — only shown to a superuser account.
     ...(session.user?.superuser
       ? [{ label: 'Queue', icon: 'lucide:list-todo', to: '/queue' }]
       : []),
   ]);
 
-  // The dashboard matches only its exact path; every other section stays lit for its sub-routes.
   const isActive = (to: string) => (to === '/' ? route.path === '/' : route.path.startsWith(to));
 
   const userInitial = computed(() => (session.user?.name || name.value).charAt(0).toUpperCase());

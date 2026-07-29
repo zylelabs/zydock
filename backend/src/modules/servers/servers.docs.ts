@@ -55,7 +55,6 @@ export const serverSchema = {
 
 const serverWrapped = { type: 'object', properties: { server: serverSchema } };
 
-// `local` servers also return the freshly minted agent token — the only time it is exposed.
 const serverCreatedSchema = {
   type: 'object',
   properties: {

@@ -191,7 +191,6 @@
 
     <UiAlert v-if="errorMessage" variant="error">{{ errorMessage }}</UiAlert>
 
-    <!-- Etapas do pipeline -->
     <div v-if="steps.length" class="flex flex-wrap gap-1.5">
       <span
         v-for="step in steps"

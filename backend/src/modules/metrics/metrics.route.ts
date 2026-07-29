@@ -19,7 +19,6 @@ const { router, get } = createRouter();
 const failed = (c: Context, error: unknown) =>
   c.json({ error: errorMessage(error) }, agentFailureStatus(error));
 
-/** Loads the server (with its agent token) or returns the response to send instead. */
 const loadServer = async (c: Context) => {
   const { organizationId, serverId } = c.req.valid('param' as never) as ServerIdParam;
   const server = await findServerWithAgentToken(organizationId, serverId);

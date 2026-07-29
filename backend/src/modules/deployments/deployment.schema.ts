@@ -31,7 +31,6 @@ export const listDeploymentsQuerySchema = z.object({
 export type ListDeploymentsQuery = z.infer<typeof listDeploymentsQuerySchema>;
 
 export const triggerDeploymentSchema = z.object({
-  /** Deploys the branch of the application by default. */
   branch: z.string().trim().min(1).max(200).optional(),
   commit: z
     .string()
@@ -42,7 +41,6 @@ export const triggerDeploymentSchema = z.object({
 export type TriggerDeploymentDTO = z.infer<typeof triggerDeploymentSchema>;
 
 export const rollbackSchema = z.object({
-  /** The earlier, successful deployment whose image will be redeployed. */
   deploymentId: z.string().length(24),
 });
 
