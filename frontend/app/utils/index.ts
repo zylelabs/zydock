@@ -6,6 +6,33 @@ export const sleep = (ms: number) => new Promise(resolve => setTimeout(resolve, 
 
 export const mergeClasses = (...classes: ClassNameValue[]) => twMerge(classes);
 
+const DAY_MS = 86_400_000;
+
+const windowStart = (days: number) => {
+  const today = new Date();
+
+  today.setHours(0, 0, 0, 0);
+
+  return today.getTime() - (days - 1) * DAY_MS;
+};
+
+export const dailyCounts = (dates: string[], days: number) => {
+  const from = windowStart(days);
+  const buckets = dates.map(date => Math.floor((new Date(date).getTime() - from) / DAY_MS));
+
+  return Array.from({ length: days }, (_, day) => buckets.filter(bucket => bucket === day).length);
+};
+
+export const dailyCumulative = (dates: string[], days: number) => {
+  const from = windowStart(days);
+  const before = dates.filter(date => new Date(date).getTime() < from).length;
+
+  return dailyCounts(dates, days).reduce<number[]>(
+    (series, count) => [...series, (series.at(-1) ?? before) + count],
+    [],
+  );
+};
+
 export const formatBytes = (bytes?: number) => {
   if (!bytes) {
     return '0 B';

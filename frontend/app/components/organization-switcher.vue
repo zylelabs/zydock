@@ -32,19 +32,21 @@
 </script>
 
 <template>
-  <div class="relative border-b border-surface-border">
+  <div class="relative">
     <button
       type="button"
-      class="flex w-full items-center gap-3 px-5 py-4 text-left transition-colors hover:bg-surface"
+      class="flex w-full items-center gap-2.5 rounded-lg p-1 text-left transition-colors hover:bg-surface-hover/60"
       @click="dropdownOpen = !dropdownOpen"
     >
       <span
-        class="flex size-8 shrink-0 items-center justify-center rounded-lg bg-primary text-sm font-semibold text-white"
+        class="flex size-8 shrink-0 items-center justify-center rounded-[7px] bg-linear-to-br from-primary to-primary-strong text-sm font-semibold text-white"
       >
         {{ label.charAt(0).toUpperCase() }}
       </span>
       <span class="min-w-0 flex-1">
-        <span class="block truncate text-sm font-semibold">{{ label }}</span>
+        <span class="block truncate text-[15px] font-semibold text-content-strong">{{
+          label
+        }}</span>
         <span v-if="current?.role" class="block text-xs text-content-muted capitalize">{{
           current.role
         }}</span>
@@ -56,13 +58,13 @@
 
     <div
       v-if="dropdownOpen"
-      class="absolute inset-x-3 top-full z-20 mt-1 rounded-lg border border-surface-border bg-surface-raised p-1 shadow-xl"
+      class="absolute inset-x-0 top-full z-20 mt-1 rounded-lg border border-surface-border bg-surface-overlay p-1 shadow-xl"
     >
       <button
         v-for="organization in organizations"
         :key="organization.id"
         type="button"
-        class="flex w-full items-center justify-between gap-2 rounded-md px-3 py-2 text-left text-sm transition-colors hover:bg-surface"
+        class="flex w-full items-center justify-between gap-2 rounded-md px-3 py-2 text-left text-sm transition-colors hover:bg-surface-hover"
         @click="choose(organization.id)"
       >
         <span class="truncate">{{ organization.name }}</span>
@@ -81,7 +83,7 @@
 
       <button
         type="button"
-        class="flex w-full items-center gap-2 rounded-md px-3 py-2 text-left text-sm text-content-muted transition-colors hover:bg-surface hover:text-content"
+        class="flex w-full items-center gap-2 rounded-md px-3 py-2 text-left text-sm text-content-muted transition-colors hover:bg-surface-hover hover:text-content-strong"
         @click="
           creating = true;
           dropdownOpen = false;
@@ -94,7 +96,7 @@
       <NuxtLink
         v-if="current"
         to="/team"
-        class="flex w-full items-center gap-2 rounded-md px-3 py-2 text-left text-sm text-content-muted transition-colors hover:bg-surface hover:text-content"
+        class="flex w-full items-center gap-2 rounded-md px-3 py-2 text-left text-sm text-content-muted transition-colors hover:bg-surface-hover hover:text-content-strong"
         @click="dropdownOpen = false"
       >
         <Icon name="lucide:users" class="size-4" />

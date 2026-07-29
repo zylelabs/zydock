@@ -19,8 +19,8 @@ export const THEME_DEFAULTS: IThemeStore = {
   name: 'Zydock',
   logo: '',
   favicon: '/favicon.svg',
-  primaryColor: '#3b82f6',
-  secondaryColor: '#22c55e',
+  primaryColor: '#7c5cff',
+  secondaryColor: '#9be821',
 };
 
 export const useThemeStore = defineStore('theme', {

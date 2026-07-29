@@ -42,7 +42,7 @@
       <div class="absolute inset-0 bg-black/60" />
 
       <div
-        class="relative w-full max-w-md rounded-xl border border-surface-border bg-surface-raised p-6 shadow-xl"
+        class="relative w-full max-w-md rounded-xl border border-surface-border bg-surface-overlay p-6 shadow-xl"
       >
         <header v-if="title || description" class="mb-4">
           <h2 v-if="title">{{ title }}</h2>
