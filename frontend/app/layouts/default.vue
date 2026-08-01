@@ -6,7 +6,6 @@
 
   const pageStore = usePageStore();
   const session = useSessionStore();
-  const user = useUserStore();
   const router = useRouter();
   const { load } = useOrganizations();
 
