@@ -26,7 +26,7 @@ interface ServerResources {
 }
 
 interface ServerData {
-  organizationId: string;
+  organizationId?: string;
   name: string;
   type: import('./server.schema').ServerType;
   status: import('./server.schema').ServerStatus;

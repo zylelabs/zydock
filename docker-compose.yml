@@ -28,8 +28,24 @@ services:
       JWT_SECRET: dev-secret-change-me
       ENCRYPTION_KEY: 8874c9eba1f0ffabac2e7cf6b945c0a6746207f2bc618e01d5faaa4c2c95b905
       CORS_ORIGIN: http://localhost:3000
+      LOCAL_AGENT_TOKEN: dev-local-agent-token-change-me
+      LOCAL_AGENT_HOST: agent
     ports:
       - '8000:8000'
+
+  agent:
+    build: ./agent
+    restart: unless-stopped
+    depends_on:
+      - backend
+    volumes:
+      - /var/run/docker.sock:/var/run/docker.sock
+      - /var/lib/zydock/builds:/var/lib/zydock/builds
+    environment:
+      MODE: dev
+      AGENT_TOKEN: dev-local-agent-token-change-me
+      BACKEND_URL: http://backend:8000
+      WORKSPACE_PATH: /var/lib/zydock/builds
 
   frontend:
     build: ./frontend

@@ -7,6 +7,7 @@ import { authMiddleware } from '../auth/auth.middleware';
 import { OrganizationIdParam, organizationIdParamSchema } from '../organizations/membership.schema';
 import { createOrganizationRoleGuard } from '../organizations/organizations.middleware';
 import { provisionServer, refreshServerResources } from './provisioning.service';
+import { isLocalServer } from './local-server.service';
 import serverModel from './server.model';
 import {
   CreateServerDTO,
@@ -18,13 +19,12 @@ import {
   ValidateConnectionDTO,
   validateConnectionSchema,
 } from './server.schema';
-import { encryptSecret } from '../../utils/crypto';
 import {
   encryptSshCredentials,
   findServer,
   findServerWithSecrets,
-  generateAgentToken,
   probeConnection,
+  scoped,
   serializeServer,
 } from './server.service';
 import { serversDocs } from './servers.docs';
@@ -41,7 +41,7 @@ get(
     const { organizationId } = c.req.valid('param' as never) as OrganizationIdParam;
     const { page, size, sort, order } = paginationQuery(c);
 
-    const result = await serverModel.paginate({ organizationId }, { page, size, sort, order });
+    const result = await serverModel.paginate(scoped(organizationId), { page, size, sort, order });
 
     return c.json({ ...result, items: result.items.map(serializeServer) });
   },
@@ -72,21 +72,7 @@ post(
     const { organizationId } = c.req.valid('param' as never) as OrganizationIdParam;
     const body = c.req.valid('json' as never) as CreateServerDTO;
 
-    if (body.type === 'local') {
-      const token = generateAgentToken();
-
-      const server = await serverModel.create({
-        organizationId,
-        name: body.name,
-        type: 'local',
-        status: 'pending',
-        agent: { host: body.agentHost, port: body.agentPort ?? 9000, token: encryptSecret(token) },
-      });
-
-      return c.json({ server: serializeServer(server), agentToken: token }, 201);
-    }
-
-    const probe = await probeConnection(body.ssh!);
+    const probe = await probeConnection(body.ssh);
 
     if (!probe.reachable) {
       return c.json({ error: probe.error ?? 'The SSH connection failed' }, 400);
@@ -97,7 +83,7 @@ post(
       name: body.name,
       type: 'ssh',
       status: 'pending',
-      ssh: { ...encryptSshCredentials(body.ssh!), fingerprint: probe.fingerprint },
+      ssh: { ...encryptSshCredentials(body.ssh), fingerprint: probe.fingerprint },
       agent: { port: body.agentPort ?? 9000 },
       resources: {
         cpuCount: probe.cpuCount,
@@ -121,7 +107,7 @@ get(
   async (c: Context) => {
     const { organizationId, serverId } = c.req.valid('param' as never) as ServerIdParam;
 
-    const server = await serverModel.findOne({ _id: serverId, organizationId });
+    const server = await findServer(organizationId, serverId);
 
     if (!server) {
       return c.json({ error: 'Server not found' }, 404);
@@ -142,10 +128,14 @@ patch(
     const { organizationId, serverId } = c.req.valid('param' as never) as ServerIdParam;
     const body = c.req.valid('json' as never) as UpdateServerDTO;
 
-    const server = await serverModel.findOne({ _id: serverId, organizationId });
+    const server = await findServer(organizationId, serverId);
 
     if (!server) {
       return c.json({ error: 'Server not found' }, 404);
+    }
+
+    if (body.ssh && isLocalServer(server)) {
+      return c.json({ error: 'The local server has no SSH connection to update' }, 400);
     }
 
     const update: Record<string, unknown> = {};
@@ -230,8 +220,17 @@ del(
   async (c: Context) => {
     const { organizationId, serverId } = c.req.valid('param' as never) as ServerIdParam;
 
-    if (!(await findServer(organizationId, serverId))) {
+    const server = await findServer(organizationId, serverId);
+
+    if (!server) {
       return c.json({ error: 'Server not found' }, 404);
+    }
+
+    if (isLocalServer(server)) {
+      return c.json(
+        { error: 'The local server is part of the installation and cannot be removed' },
+        400,
+      );
     }
 
     const applications = await countApplicationsOfServer(serverId);

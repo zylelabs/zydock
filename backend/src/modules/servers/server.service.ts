@@ -6,9 +6,16 @@ import { generateToken } from '../auth/session.service';
 import { isSuperuser } from '../users/user.service';
 import { findMembership } from '../organizations/membership.service';
 import { registerTopicAuthorizer } from '../websocket/websocket.service';
+import { getLocalServerId, isLocalServer } from './local-server.service';
 import serverModel from './server.model';
 
 const SECRET_FIELDS = ['privateKey', 'password', 'passphrase'] as const;
+
+export const scoped = (organizationId: string) => {
+  const localServerId = getLocalServerId();
+
+  return localServerId ? { $or: [{ organizationId }, { _id: localServerId }] } : { organizationId };
+};
 
 export const AGENT_TOKEN_BYTES = 32;
 
@@ -40,13 +47,13 @@ export const decryptSshCredentials = (ssh: ServerSshCredentials): SshCredentials
 });
 
 export const findServer = (organizationId: string, serverId: string) =>
-  serverModel.findOne({ _id: serverId, organizationId });
+  serverModel.findOne({ _id: serverId, ...scoped(organizationId) });
 
 export const findServerById = (serverId: string) =>
   serverModel.findById(serverId).select('+agent.token');
 
 export const findServerWithAgentToken = (organizationId: string, serverId: string) =>
-  serverModel.findOne({ _id: serverId, organizationId }).select('+agent.token');
+  serverModel.findOne({ _id: serverId, ...scoped(organizationId) }).select('+agent.token');
 
 export const buildAgentConnection = (server: Server) => {
   if (!server.agent.token) {
@@ -64,7 +71,7 @@ export const buildAgentConnection = (server: Server) => {
 
 export const findServerWithSecrets = (organizationId: string, serverId: string) =>
   serverModel
-    .findOne({ _id: serverId, organizationId })
+    .findOne({ _id: serverId, ...scoped(organizationId) })
     .select('+ssh.privateKey +ssh.password +ssh.passphrase +agent.token');
 
 export const openSshSession = async (ssh: ServerSshCredentials, expectedFingerprint?: string) =>
@@ -142,15 +149,16 @@ export const removeServersOfOrganization = (organizationId: string) =>
   serverModel.deleteMany({ organizationId });
 
 export const listServersOfOrganization = (organizationId: string) =>
-  serverModel.find({ organizationId }).sort({ createdAt: 1 });
+  serverModel.find(scoped(organizationId)).sort({ createdAt: 1 });
 
 export const serializeServer = (server: Server) => ({
   id: String(server._id),
-  organizationId: String(server.organizationId),
+  organizationId: server.organizationId ? String(server.organizationId) : null,
   name: server.name,
   type: server.type,
   status: server.status,
   online: isAgentOnline(server),
+  managed: isLocalServer(server),
   ssh: {
     host: server.ssh.host,
     port: server.ssh.port,
@@ -182,7 +190,7 @@ const authorizeServerTopic = async (auth: AuthPayload, serverId: string) => {
     return false;
   }
 
-  if (isSuperuser(auth.email)) {
+  if (isSuperuser(auth.email) || isLocalServer(server)) {
     return true;
   }
 

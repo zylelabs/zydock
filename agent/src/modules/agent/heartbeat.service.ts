@@ -1,15 +1,17 @@
 import config from '../../config';
 import { logDebug, logWarn } from '../../utils/logger';
 import { collectSystemMetrics } from '../metrics/metrics.service';
+import { resolveServerId } from './identity.service';
 
 const AGENT_VERSION = '0.1.0';
 
 let timer: ReturnType<typeof setInterval> | undefined;
 
 const sendHeartbeat = async () => {
+  const serverId = await resolveServerId();
   const metrics = await collectSystemMetrics();
 
-  const response = await fetch(`${config.backendUrl}/api/agent/heartbeat/${config.serverId}`, {
+  const response = await fetch(`${config.backendUrl}/api/agent/heartbeat/${serverId}`, {
     method: 'POST',
     headers: {
       'Content-Type': 'application/json',

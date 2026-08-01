@@ -36,19 +36,11 @@ export const serverIdParamSchema = organizationIdParamSchema.extend({
 
 export type ServerIdParam = z.infer<typeof serverIdParamSchema>;
 
-export const createServerSchema = z
-  .object({
-    type: z.enum(SERVER_TYPES).default('ssh'),
-    name: z.string().trim().min(1).max(120),
-    ssh: sshCredentialsSchema.optional(),
-    agentHost: z.string().trim().min(1).max(255).default('localhost'),
-    agentPort: z.coerce.number().int().min(1).max(65535).optional(),
-  })
-  .superRefine((value, ctx) => {
-    if (value.type === 'ssh' && !value.ssh) {
-      ctx.addIssue({ code: 'custom', path: ['ssh'], message: 'SSH credentials are required' });
-    }
-  });
+export const createServerSchema = z.object({
+  name: z.string().trim().min(1).max(120),
+  ssh: sshCredentialsSchema,
+  agentPort: z.coerce.number().int().min(1).max(65535).optional(),
+});
 
 export type CreateServerDTO = z.infer<typeof createServerSchema>;
 

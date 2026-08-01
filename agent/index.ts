@@ -8,7 +8,7 @@ const app = createApp();
 logInfo('Zydock agent started', {
   port: config.port,
   mode: config.mode,
-  serverId: config.serverId,
+  serverId: config.serverId || 'pending',
 });
 
 export default {

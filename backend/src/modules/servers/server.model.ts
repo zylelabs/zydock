@@ -7,7 +7,6 @@ const serverSchema = new Schema(
     organizationId: {
       type: Schema.Types.ObjectId,
       ref: 'organizations',
-      required: true,
       index: true,
     },
     name: { type: String, required: true, trim: true },

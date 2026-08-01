@@ -16,11 +16,12 @@ export interface SshCredentials {
 
 export interface Server {
   id: string;
-  organizationId: string;
+  organizationId: string | null;
   name: string;
   type: ServerType;
   status: ServerStatus;
   online: boolean;
+  managed: boolean;
   ssh: { host?: string; port?: number; username?: string; fingerprint?: string };
   agent: {
     host?: string;
@@ -51,21 +52,11 @@ export interface ConnectionProbe {
   dockerVersion?: string;
 }
 
-export interface CreateSshServerBody {
-  type?: 'ssh';
+export interface CreateServerBody {
   name: string;
   ssh: SshCredentials;
   agentPort?: number;
 }
-
-export interface CreateLocalServerBody {
-  type: 'local';
-  name: string;
-  agentHost?: string;
-  agentPort?: number;
-}
-
-export type CreateServerBody = CreateSshServerBody | CreateLocalServerBody;
 
 export interface UpdateServerBody {
   name?: string;
@@ -100,8 +91,7 @@ export const useServers = () => {
   const validate = (ssh: SshCredentials) =>
     api.post<ConnectionProbe>(`${base()}/validate`, { body: { ssh } });
 
-  const create = (body: CreateServerBody) =>
-    api.post<{ server: Server; agentToken?: string }>(base(), { body });
+  const create = (body: CreateServerBody) => api.post<{ server: Server }>(base(), { body });
 
   const update = (serverId: string, body: UpdateServerBody) =>
     api.patch<{ server: Server }>(`${base()}/${serverId}`, { body });
