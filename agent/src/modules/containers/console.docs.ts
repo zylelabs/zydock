@@ -6,10 +6,12 @@ export const consoleDocs = {
     tags: ['Containers'],
     summary: 'Interactive console inside a container',
     description:
-      'Upgrades to WebSocket and runs `docker exec -i <shell>` inside the container. The client ' +
-      'sends keystrokes as text or binary frames (written to the process stdin) and receives the ' +
-      'output as text frames. No TTY is allocated, so a shell reading commands works but ' +
-      'full-screen programs do not render. `shell` may be `sh` (default) or `bash`.',
+      'Upgrades to WebSocket and attaches to a `<shell>` exec created through the Docker Engine ' +
+      'API with `Tty: true`, so the shell gets a real pseudo-terminal: prompt, echo, control keys ' +
+      'and full-screen programs all work. Text frames from the client are keystrokes written to ' +
+      'the terminal; binary frames are control messages (`{"type":"resize","columns":N,"rows":N}`) ' +
+      'and never reach the shell. Output is sent back as text frames. `shell` may be `sh` ' +
+      '(default) or `bash`.',
     security: agentAuth,
     parameters: [{ name: 'shell', in: 'query', schema: { type: 'string', enum: ['sh', 'bash'] } }],
     responses: {

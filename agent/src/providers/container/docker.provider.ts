@@ -1,7 +1,10 @@
+import config from '../../config';
 import { logDebug } from '../../utils/logger';
 import type {
   ArchiveStream,
   BuildImageSpec,
+  ConsoleRequest,
+  ConsoleSession,
   ContainerFilter,
   ContainerHealth,
   ContainerInfo,
@@ -104,6 +107,78 @@ const runPiped = async (args: string[], archivePath: string, description: string
   if (code !== 0) {
     throw new Error(`${description}: ${stderr.trim() || `docker exited with ${code}`}`);
   }
+};
+
+const DOCKER_API_ORIGIN = 'http://docker';
+
+const HEADER_SEPARATOR = '\r\n\r\n';
+
+const dockerApi = async <T>(path: string, body?: unknown): Promise<T> => {
+  const response = await fetch(`${DOCKER_API_ORIGIN}${path}`, {
+    method: 'POST',
+    unix: config.dockerSocketPath,
+    headers: { 'Content-Type': 'application/json' },
+    body: body === undefined ? undefined : JSON.stringify(body),
+  });
+
+  if (!response.ok) {
+    throw new Error(
+      `Docker API ${path} failed with ${response.status}: ${(await response.text()).trim()}`,
+    );
+  }
+
+  return (response.status === 204 ? undefined : await response.json()) as T;
+};
+
+const attachExec = async (execId: string, request: ConsoleRequest) => {
+  const payload = JSON.stringify({ Detach: false, Tty: true });
+  const decoder = new TextDecoder();
+
+  let attached = false;
+  let headers = '';
+
+  return Bun.connect({
+    unix: config.dockerSocketPath,
+    socket: {
+      open: connection => {
+        connection.write(
+          `POST /exec/${execId}/start HTTP/1.1\r\n` +
+            'Host: docker\r\n' +
+            'Content-Type: application/json\r\n' +
+            'Connection: Upgrade\r\n' +
+            'Upgrade: tcp\r\n' +
+            `Content-Length: ${Buffer.byteLength(payload)}${HEADER_SEPARATOR}${payload}`,
+        );
+      },
+      data: (_connection, chunk) => {
+        const text = decoder.decode(chunk, { stream: true });
+
+        if (attached) {
+          request.onData(text);
+          return;
+        }
+
+        headers += text;
+
+        const separator = headers.indexOf(HEADER_SEPARATOR);
+
+        if (separator === -1) {
+          return;
+        }
+
+        const output = headers.slice(separator + HEADER_SEPARATOR.length);
+
+        attached = true;
+        headers = '';
+
+        if (output) {
+          request.onData(output);
+        }
+      },
+      close: () => request.onClose(),
+      error: () => request.onClose(),
+    },
+  });
 };
 
 const parseHealth = (raw: unknown): ContainerHealth => {
@@ -415,6 +490,38 @@ export const createDockerProvider = (): ContainerProvider => ({
     const result = await run([...args, id, ...request.command]);
 
     return { exitCode: result.code, stdout: result.stdout, stderr: result.stderr };
+  },
+
+  openConsole: async (id, request: ConsoleRequest): Promise<ConsoleSession> => {
+    const { Id: execId } = await dockerApi<{ Id: string }>(`/containers/${id}/exec`, {
+      AttachStdin: true,
+      AttachStdout: true,
+      AttachStderr: true,
+      Tty: true,
+      Cmd: [request.shell],
+    });
+
+    const socket = await attachExec(execId, request);
+
+    const resize = async (columns: number, rows: number) => {
+      await dockerApi(`/exec/${execId}/resize?h=${rows}&w=${columns}`);
+    };
+
+    if (request.columns && request.rows) {
+      await resize(request.columns, request.rows);
+    }
+
+    logDebug('docker console attached', { container: id, exec: execId });
+
+    return {
+      write: data => {
+        socket.write(data);
+      },
+      resize,
+      close: () => {
+        socket.end();
+      },
+    };
   },
 
   buildImage: async (spec: BuildImageSpec) => {

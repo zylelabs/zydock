@@ -1,16 +1,25 @@
 import type { Context } from 'hono';
 import { createRouter } from 'hono-route-docs';
+import { resolveContainerProvider } from '../../providers/container';
+import type { ConsoleSession } from '../../providers/container';
+import { errorMessage } from '../../utils';
 import { logDebug, logWarn } from '../../utils/logger';
 import { upgradeWebSocket } from '../../utils/ws';
 import { agentAuthMiddleware } from '../agent/agent.middleware';
 import { consoleDocs } from './console.docs';
+import { consoleControlSchema } from './console.schema';
 
 const { router, get } = createRouter();
+
+const containers = resolveContainerProvider();
 
 const ALLOWED_SHELLS = ['sh', 'bash'] as const;
 
 const shellOf = (value: string | undefined) =>
   ALLOWED_SHELLS.includes(value as never) ? (value as string) : 'sh';
+
+const toText = (data: ArrayBuffer | Uint8Array) =>
+  new TextDecoder().decode(data instanceof Uint8Array ? data : new Uint8Array(data));
 
 get(
   '/:id/console',
@@ -20,52 +29,85 @@ get(
     const id = c.req.param('id') ?? '';
     const shell = shellOf(c.req.query('shell'));
 
-    let proc: Bun.Subprocess<'pipe', 'pipe', 'pipe'> | undefined;
+    let session: ConsoleSession | undefined;
+    const pending: (string | Uint8Array)[] = [];
+
+    const handleControl = (raw: ArrayBuffer | Uint8Array) => {
+      let payload: unknown;
+
+      try {
+        payload = JSON.parse(toText(raw));
+      } catch {
+        logWarn('Console control frame is not valid JSON', { container: id });
+        return;
+      }
+
+      const control = consoleControlSchema.safeParse(payload);
+
+      if (!control.success) {
+        logWarn('Console control frame rejected', { container: id });
+        return;
+      }
+
+      void session?.resize(control.data.columns, control.data.rows).catch(error => {
+        logWarn('Console resize failed', { container: id, error: errorMessage(error) });
+      });
+    };
 
     return {
       onOpen: (_event, ws) => {
-        proc = Bun.spawn(['docker', 'exec', '-i', id, shell], {
-          stdin: 'pipe',
-          stdout: 'pipe',
-          stderr: 'pipe',
-        });
+        void (async () => {
+          try {
+            session = await containers.openConsole(id, {
+              shell,
+              onData: chunk => ws.send(chunk),
+              onClose: () => ws.close(),
+            });
 
-        logDebug('Console session opened', { container: id, shell });
+            for (const frame of pending) {
+              session.write(frame);
+            }
 
-        const decoder = new TextDecoder();
+            pending.length = 0;
 
-        const pump = async (stream: ReadableStream<Uint8Array>) => {
-          for await (const chunk of stream) {
-            ws.send(decoder.decode(chunk, { stream: true }));
+            logDebug('Console session opened', { container: id, shell });
+          } catch (error) {
+            logWarn('Console session failed to open', {
+              container: id,
+              error: errorMessage(error),
+            });
+
+            ws.send(`Failed to open the console: ${errorMessage(error)}\r\n`);
+            ws.close();
           }
-        };
-
-        void pump(proc.stdout);
-        void pump(proc.stderr);
-
-        void proc.exited.then(code => {
-          logDebug('Console session ended', { container: id, code });
-          ws.close();
-        });
+        })();
       },
       onMessage: event => {
-        if (!proc) {
+        const data = event.data;
+
+        if (typeof data !== 'string') {
+          handleControl(data as ArrayBuffer | Uint8Array);
           return;
         }
 
-        const data = event.data;
-        const chunk = typeof data === 'string' ? data : new Uint8Array(data as ArrayBuffer);
+        if (!session) {
+          pending.push(data);
+          return;
+        }
 
-        proc.stdin.write(chunk);
-        proc.stdin.flush();
+        session.write(data);
       },
       onClose: () => {
-        proc?.stdin.end();
-        proc?.kill();
+        session?.close();
+        session = undefined;
+
+        logDebug('Console session closed', { container: id });
       },
       onError: () => {
         logWarn('Console session error', { container: id });
-        proc?.kill();
+
+        session?.close();
+        session = undefined;
       },
     };
   }),

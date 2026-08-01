@@ -55,6 +55,7 @@ export default {
   healthCheckIntervalSeconds: readNumber('HEALTH_CHECK_INTERVAL_SECONDS', 30),
   metricsCacheTtlSeconds: readNumber('METRICS_CACHE_TTL_SECONDS', 5),
   workspacePath: readString('WORKSPACE_PATH', '/var/lib/zydock/builds'),
+  dockerSocketPath: readString('DOCKER_SOCKET_PATH', '/var/run/docker.sock'),
   proxy: {
     adminUrl: readString('CADDY_ADMIN_URL', 'http://127.0.0.1:2019'),
     httpsPort: readNumber('PROXY_HTTPS_PORT', 443),
