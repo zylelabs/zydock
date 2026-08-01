@@ -1,7 +1,46 @@
-node_modules
-.nuxt
-.output
-.data
-.env
-.env.*
-tests
+# .dockerignore
+
+# Ignore node_modules directory
+/**/*/node_modules
+
+# Ignore log files
+*.log
+
+# Ignore Docker-related files
+Dockerfile
+docker-compose.yml
+
+# Ignore build directories
+dist
+build
+
+# Ignore OS-specific files
+.DS_Store
+Thumbs.db
+
+# Ignore IDE-specific files
+.vscode
+.idea
+.github
+
+# Ignore other unnecessary files
+*.swp
+*.swo
+
+# Ignore development files
+/**/*/tests
+/**/*/docs
+/**/*/*.spec.*
+/**/*/*.test.*
+/**/*/*.e2e.*
+/**/*/.markdownlint.json
+/**/*/.prettierignore
+/**/*/.prettierrc
+/**/*/.eslintrc
+/**/*/.eslintignore
+/**/*/.editorconfig
+/**/*/.gitignore
+/**/*/.gitattributes
+/**/*/.npmrc
+/**/*/.nvmrc
+/**/*/*.md

@@ -1,13 +1,15 @@
-export interface IFetchNativeError {
-  data?: unknown;
+export interface IFetchNativeResponseError {
+  data: unknown;
   statusCode: number;
-  statusMessage?: string;
-  message?: string;
-  url?: string;
-  stack?: string[];
+  statusMessage: string;
+  error: boolean;
+  message: string; // Contains original API URL leak
+  url: string; // Contains original API URL leak
+  stack: string[]; // Contains original API URL leak
 }
 
-export interface IApiError {
+export interface IFetchResponseError {
   statusCode: number;
-  error: string;
+  message: string;
+  err?: any;
 }

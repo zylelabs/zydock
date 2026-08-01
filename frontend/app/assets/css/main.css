@@ -1,36 +1,84 @@
 @import 'tailwindcss';
 
-/*
- * Cores da marca como custom properties: a personalização por organização (`useTheme`) sobrescreve
- * `--color-primary`, `--color-primary-strong` e `--color-secondary` no `:root` em runtime, sem
- * recompilar nada. Os demais tokens formam a base neutra da interface.
- */
+html {
+  font-family: 'Inter', sans-serif;
+}
+
+.font-montserrat {
+  font-family: 'Montserrat', sans-serif;
+}
+
 @theme {
   --font-display: 'Inter', sans-serif;
 
-  --color-surface: #06040f;
+  --color-brand-1: #4f46e5;
+  --color-brand-2: #3370f3;
+  --color-brand-3: #0093fa;
+  --color-brand-4: #00b3fb;
+  --color-brand-5: #2acffa;
+  --color-brand-6: #67e8f9;
+
+  --color-primary-50: #eef2ff;
+  --color-primary-100: #e0e7ff;
+  --color-primary-200: #c7d2fe;
+  --color-primary-300: #a5b4fc;
+  --color-primary-400: #818cf8;
+  --color-primary-500: #6366f1;
+  --color-primary-600: #4f46e5;
+  --color-primary-700: #4338ca;
+  --color-primary-800: #3730a3;
+  --color-primary-900: #312e81;
+  --color-primary-950: #1e1b4b;
+
+  --color-accent-50: #ecfeff;
+  --color-accent-100: #cffafe;
+  --color-accent-200: #a5f3fc;
+  --color-accent-300: #67e8f9;
+  --color-accent-400: #22d3ee;
+  --color-accent-500: #06b6d4;
+  --color-accent-600: #0891b2;
+  --color-accent-700: #0e7490;
+  --color-accent-800: #155e75;
+  --color-accent-900: #164e63;
+  --color-accent-950: #083344;
+
+  --color-primary: #645df1;
+  --color-primary-strong: #4338ca;
+  --color-secondary: #67e8f9;
+  --color-secondary-strong: #22d3ee;
+
+  --color-surface: #05060f;
   --color-surface-raised: rgba(20, 16, 38, 0.55);
   --color-surface-sunken: rgba(10, 8, 22, 0.55);
   --color-surface-overlay: #131316;
-  --color-surface-hover: #1f1f24;
+  --color-surface-hover: #1c1e33;
   --color-surface-border: rgba(120, 110, 190, 0.18);
   --color-surface-line: #1e1e21;
 
-  --color-content: #cecfd2;
-  --color-content-strong: #f5f5f6;
-  --color-content-muted: #8b8d92;
-  --color-content-dim: #63656b;
+  --color-field-border: #666b91;
+  --color-field-border-dark: #5d6284;
 
-  --color-primary: #7c5cff;
-  --color-primary-strong: #6d4cff;
-
-  --color-secondary: #9be821;
+  --color-content: #cdcfdb;
+  --color-content-strong: #f4f5fa;
+  --color-content-muted: #8b8ea3;
+  --color-content-dim: #63667d;
 
   --color-success: #66c61c;
   --color-warning: #f59e0b;
   --color-danger: #ef4444;
 
+  --color-gray-200: #e2e8f0;
+
+  --breakpoint-2xl: 1336px;
+  --breakpoint-3xl: 1440px;
+  --breakpoint-4xl: 1600px;
+
+  --sidebar-width: 15.5rem;
+
+  --shadow-soft: 0 4px 16px rgba(15, 23, 42, 0.06), 0 16px 36px rgba(15, 23, 42, 0.05);
+
   --animate-drift: drift 40s ease-in-out infinite alternate;
+  --animate-star-fade: star-fade 1.4s ease-out both;
 
   @keyframes drift {
     from {
@@ -40,6 +88,33 @@
       transform: translate3d(-3%, -2%, 0);
     }
   }
+
+  @keyframes star-fade {
+    from {
+      opacity: 0;
+    }
+    to {
+      opacity: 1;
+    }
+  }
+}
+
+.v-popper--theme-clean .v-popper__inner {
+  background: transparent;
+  color: inherit;
+  border: none;
+  border-radius: 0;
+  box-shadow: none;
+  padding: 0;
+}
+
+.v-popper--theme-clean .v-popper__arrow-outer {
+  border-color: #e2e8f0;
+}
+
+.v-popper--theme-clean .v-popper__arrow-inner {
+  visibility: visible;
+  border-color: #fff;
 }
 
 @layer base {
@@ -51,16 +126,16 @@
     border-color: var(--color-surface-border, currentColor);
   }
 
-  html {
-    font-family: var(--font-display);
-    color-scheme: dark;
-  }
-
   body {
     background-color: var(--color-surface);
     background-image: radial-gradient(120% 90% at 80% -10%, #140c28 0%, #0a0718 40%, #020207 100%);
     background-attachment: fixed;
     color: var(--color-content);
+  }
+
+  html {
+    font-family: var(--font-display);
+    color-scheme: dark;
   }
 
   h1 {
@@ -76,34 +151,60 @@
   }
 }
 
+@layer components {
+  .bg-brand-gradient {
+    @apply bg-linear-to-br from-brand-1 via-brand-3 to-brand-6;
+  }
+
+  .text-brand-gradient {
+    @apply bg-linear-to-br from-brand-1 via-brand-3 to-brand-6 bg-clip-text text-transparent;
+  }
+}
+
+.btn-primary {
+  @apply flex w-full cursor-pointer items-center justify-center gap-2 rounded-lg bg-primary px-12 py-3.5 text-xs font-semibold tracking-[0.16em] text-white uppercase ring-0 transition-colors;
+  @apply hover:bg-primary-600 active:bg-primary-700;
+  @apply focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-primary-300;
+  @apply disabled:cursor-not-allowed;
+}
+
 html,
 body {
   scroll-behavior: smooth;
 }
 
-@media (prefers-reduced-motion: reduce) {
-  *,
-  ::before,
-  ::after {
-    animation-duration: 0.001ms !important;
-    animation-iteration-count: 1 !important;
-  }
+.shadow-sm {
+  box-shadow: 0 0px 2px 0 rgb(0 0 0 / 0.05);
+}
+
+.shadow-md {
+  box-shadow:
+    0 0px 6px -1px rgb(0 0 0 / 0.1),
+    0 0px 4px -2px rgb(0 0 0 / 0.1);
+}
+
+.bg-gradient {
+  background-color: var(--color-surface);
+  background-image: radial-gradient(120% 90% at 80% -10%, #140c28 0%, #0a0718 40%, #020207 100%);
+  background-attachment: fixed;
+  color: var(--color-content);
+}
+
+::-webkit-scrollbar-track {
+  background-color: #eeeeee;
 }
 
 ::-webkit-scrollbar {
   width: 10px;
-  height: 10px;
-}
-
-::-webkit-scrollbar-track {
-  background-color: transparent;
 }
 
 ::-webkit-scrollbar-thumb {
+  -webkit-border-radius: 8px;
   border-radius: 8px;
-  background-color: var(--color-surface-hover);
+  background-color: #ccc;
+  scrollbar-width: thin;
 }
 
 ::-webkit-scrollbar-thumb:hover {
-  background-color: var(--color-content-dim);
+  background-color: #c2c2c2;
 }

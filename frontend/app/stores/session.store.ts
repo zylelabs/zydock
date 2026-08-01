@@ -1,4 +1,5 @@
 import { defineStore } from 'pinia';
+import SecureLS from 'secure-ls';
 
 export interface ISessionUser {
   id: string;
@@ -50,5 +51,15 @@ export const useSessionStore = defineStore('session', {
   getters: {
     isAuthenticated: state => Boolean(state.accessToken),
   },
-  persist: true,
+  persist: {
+    key: 'zydock:session',
+    storage: {
+      getItem: key => {
+        return new SecureLS({ isCompression: false }).get(key);
+      },
+      setItem: (key, value) => {
+        new SecureLS({ isCompression: false }).set(key, value);
+      },
+    },
+  },
 });

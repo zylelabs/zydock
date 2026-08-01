@@ -1,1 +1,3 @@
-export default defineEventHandler(() => ({ status: 'ok' }));
+export default defineEventHandler(() => {
+  return { status: 'ok' };
+});

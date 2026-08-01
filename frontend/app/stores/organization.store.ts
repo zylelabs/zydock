@@ -51,5 +51,4 @@ export const useOrganizationStore = defineStore('organization', {
       this.$reset();
     },
   },
-  persist: false,
 });
