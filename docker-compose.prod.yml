@@ -14,7 +14,9 @@ services:
       retries: 10
 
   backend:
-    build: ./backend
+    build:
+      context: .
+      dockerfile: backend/Dockerfile
     restart: unless-stopped
     depends_on:
       mongo:
@@ -23,10 +25,13 @@ services:
     environment:
       MODE: prod
       PORT: '8000'
+      AGENT_BUNDLE_PATH: /agent/dist/agent.js
     volumes:
       - backend-storage:/app/storage
+    # With a domain, Caddy reaches the service over the Compose network and the published port only
+    # needs to answer on the host itself (BIND_HOST=127.0.0.1); without one, it is the dashboard.
     ports:
-      - '8000:8000'
+      - '${BIND_HOST:-0.0.0.0}:8000:8000'
     healthcheck:
       test: ['CMD', 'wget', '-qO-', 'http://localhost:8000/api/health']
       interval: 5s
@@ -43,9 +48,9 @@ services:
     environment:
       PORT: '3000'
       HOST: 0.0.0.0
-      NUXT_URL_API: http://backend:8000
+      URL_API: http://backend:8000
     ports:
-      - '3000:3000'
+      - '${BIND_HOST:-0.0.0.0}:3000:3000'
 
   # Only started when ZYDOCK_DOMAIN is set (`docker compose --profile domain ...`); gives the
   # dashboard a single HTTPS domain instead of the raw frontend/backend ports.

@@ -1,14 +1,27 @@
+FROM oven/bun:alpine AS agent-bundle
+
+WORKDIR /agent
+
+COPY agent/package.json agent/bun.lock ./
+
+RUN bun install --frozen-lockfile
+
+COPY agent/ ./
+
+RUN bun run build
+
 FROM oven/bun:alpine
 
 WORKDIR /app
 
-COPY package.json bun.lock ./
+COPY backend/package.json backend/bun.lock ./
 
 RUN bun install --frozen-lockfile
 
-COPY . .
+COPY backend/ ./
 
-# Bun runs TypeScript directly; no build step needed for the server.
+COPY --from=agent-bundle /agent/dist/agent.js /agent/dist/agent.js
+
 EXPOSE 8000
 
 CMD ["bun", "run", "start"]

@@ -13,7 +13,9 @@ services:
       retries: 10
 
   backend:
-    build: ./backend
+    build:
+      context: .
+      dockerfile: backend/Dockerfile
     restart: unless-stopped
     depends_on:
       mongo:
@@ -21,6 +23,7 @@ services:
     environment:
       MODE: dev
       PORT: '8000'
+      AGENT_BUNDLE_PATH: /agent/dist/agent.js
       MONGO_URI: mongodb://mongo:27017/zydock
       JWT_SECRET: dev-secret-change-me
       ENCRYPTION_KEY: 8874c9eba1f0ffabac2e7cf6b945c0a6746207f2bc618e01d5faaa4c2c95b905
@@ -34,7 +37,7 @@ services:
     depends_on:
       - backend
     environment:
-      NUXT_URL_API: http://backend:8000
+      URL_API: http://backend:8000
       NUXT_PUBLIC_WS_URL: ws://localhost:8000/api/ws
       PORT: '3000'
       HOST: 0.0.0.0

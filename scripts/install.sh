@@ -60,13 +60,12 @@ docker compose version >/dev/null 2>&1 || fail "Docker was installed but the 'do
 
 log "Fetching Zydock into ${ZYDOCK_INSTALL_DIR}"
 
-FIRST_INSTALL=true
-
 if [ -d "${ZYDOCK_INSTALL_DIR}/.git" ]; then
-  FIRST_INSTALL=false
   git -C "${ZYDOCK_INSTALL_DIR}" fetch origin "${ZYDOCK_BRANCH}"
   # This directory is a deployed instance, not a workspace: any local edit is discarded on update.
   git -C "${ZYDOCK_INSTALL_DIR}" reset --hard "origin/${ZYDOCK_BRANCH}"
+elif [ -d "${ZYDOCK_INSTALL_DIR}" ] && [ -n "$(ls -A "${ZYDOCK_INSTALL_DIR}")" ]; then
+  fail "${ZYDOCK_INSTALL_DIR} already exists and is not a Zydock install. Remove it or set ZYDOCK_INSTALL_DIR."
 else
   mkdir -p "$(dirname "${ZYDOCK_INSTALL_DIR}")"
   git clone --branch "${ZYDOCK_BRANCH}" "${ZYDOCK_REPO}" "${ZYDOCK_INSTALL_DIR}"
@@ -74,11 +73,7 @@ fi
 
 cd "${ZYDOCK_INSTALL_DIR}"
 
-if [ -f .env ]; then
-  FIRST_INSTALL=false
-fi
-
-if [ "${FIRST_INSTALL}" = true ]; then
+if [ ! -f .env ]; then
   log "Generating secrets"
 
   ZYDOCK_HOST="${ZYDOCK_HOST:-$(curl -fsS https://api.ipify.org || true)}"
@@ -96,9 +91,11 @@ if [ "${FIRST_INSTALL}" = true ]; then
   if [ -n "${ZYDOCK_DOMAIN}" ]; then
     APP_URL="https://${ZYDOCK_DOMAIN}"
     WS_URL="wss://${ZYDOCK_DOMAIN}/api/ws"
+    BIND_HOST="127.0.0.1"
   else
     APP_URL="http://${ZYDOCK_HOST}:3000"
     WS_URL="ws://${ZYDOCK_HOST}:8000/api/ws"
+    BIND_HOST="0.0.0.0"
   fi
 
   cat >.env <<EOF
@@ -118,7 +115,8 @@ ENCRYPTION_KEY="${ENCRYPTION_KEY}"
 SUPERUSER_EMAILS="${ZYDOCK_SUPERUSER_EMAIL}"
 
 ZYDOCK_DOMAIN="${ZYDOCK_DOMAIN}"
-NUXT_URL_API="http://backend:8000"
+BIND_HOST="${BIND_HOST}"
+URL_API="http://backend:8000"
 NUXT_PUBLIC_WS_URL="${WS_URL}"
 EOF
 

@@ -1,6 +1,0 @@
-node_modules
-server
-dist
-.env
-.env.*
-tests
