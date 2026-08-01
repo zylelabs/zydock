@@ -126,6 +126,20 @@ export type VolumeInfo = {
   mountpoint: string;
 };
 
+export type ConsoleRequest = {
+  shell: string;
+  columns?: number;
+  rows?: number;
+  onData: (chunk: string) => void;
+  onClose: () => void;
+};
+
+export type ConsoleSession = {
+  write: (data: string | Uint8Array) => void;
+  resize: (columns: number, rows: number) => Promise<void>;
+  close: () => void;
+};
+
 export type ArchiveStream = ReadableStream<Uint8Array>;
 
 export type ContainerProvider = {
@@ -139,6 +153,7 @@ export type ContainerProvider = {
   getLogs: (id: string, query?: LogQuery) => Promise<LogEntry[]>;
   streamLogs: (id: string, query?: LogStreamQuery) => AsyncIterable<LogEntry>;
   execCommand: (id: string, request: ExecRequest) => Promise<ExecResult>;
+  openConsole: (id: string, request: ConsoleRequest) => Promise<ConsoleSession>;
   buildImage: (spec: BuildImageSpec) => Promise<ImageInfo>;
   pullImage: (reference: string) => Promise<ImageInfo>;
   removeImage: (reference: string) => Promise<void>;
