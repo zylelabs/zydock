@@ -48,7 +48,7 @@ export default {
   idleTimeoutSeconds: Math.min(readNumber('SERVER_IDLE_TIMEOUT_SECONDS', 120), 255),
   mode: readString('MODE', 'prod'),
   logLevel: readLogLevel(),
-  serverId: readRequired('SERVER_ID'),
+  serverId: readString('SERVER_ID', ''),
   agentToken: readRequired('AGENT_TOKEN'),
   backendUrl: readString('BACKEND_URL', 'http://localhost:8000'),
   heartbeatIntervalSeconds: readNumber('HEARTBEAT_INTERVAL_SECONDS', 30),

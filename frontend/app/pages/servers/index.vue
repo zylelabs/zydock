@@ -6,7 +6,6 @@
     type ConnectionProbe,
     type Server,
     type ServerStatus,
-    type ServerType,
     type SshCredentials,
   } from '~/composables/services/useServers';
 
@@ -51,7 +50,6 @@
 
   const schema = z
     .object({
-      type: z.enum(['ssh', 'local']),
       name: z.string().trim().min(1, 'Enter a name'),
       host: z.string(),
       port: z.string(),
@@ -60,18 +58,9 @@
       password: z.string(),
       privateKey: z.string(),
       passphrase: z.string(),
-      agentHost: z.string(),
       agentPort: z.string().regex(/^\d+$/, 'Invalid port'),
     })
     .superRefine((value, ctx) => {
-      if (value.type === 'local') {
-        if (!value.agentHost.trim()) {
-          ctx.addIssue({ code: 'custom', path: ['agentHost'], message: 'Enter the agent host' });
-        }
-
-        return;
-      }
-
       if (!value.host.trim()) {
         ctx.addIssue({ code: 'custom', path: ['host'], message: 'Enter the host' });
       }
@@ -96,7 +85,6 @@
   const form = useSchemaForm(
     schema,
     {
-      type: 'ssh' as ServerType,
       name: '',
       host: '',
       port: '22',
@@ -105,7 +93,6 @@
       password: '',
       privateKey: '',
       passphrase: '',
-      agentHost: 'localhost',
       agentPort: '9000',
     },
     {
@@ -123,43 +110,21 @@
       : { privateKey: values.privateKey, passphrase: values.passphrase || undefined }),
   });
 
-  const typeOptions = [
-    { value: 'ssh', label: 'Remote server (SSH)' },
-    { value: 'local', label: 'Local machine' },
-  ];
-
   const authOptions = [
     { value: 'password', label: 'Password' },
     { value: 'privateKey', label: 'Private key' },
   ];
-
-  const created = ref<{ server: Server; token: string; port: string } | null>(null);
 
   const handleTest = form.submit(async values => {
     probe.value = await validate(buildSsh(values));
   });
 
   const handleCreate = form.submit(async values => {
-    if (values.type === 'local') {
-      const result = await create({
-        type: 'local',
-        name: values.name,
-        agentHost: values.agentHost,
-        agentPort: Number(values.agentPort),
-      });
-
-      created.value = {
-        server: result.server,
-        token: result.agentToken ?? '',
-        port: values.agentPort,
-      };
-    } else {
-      await create({
-        name: values.name,
-        ssh: buildSsh(values),
-        agentPort: Number(values.agentPort),
-      });
-    }
+    await create({
+      name: values.name,
+      ssh: buildSsh(values),
+      agentPort: Number(values.agentPort),
+    });
 
     await refresh();
     adding.value = false;
@@ -169,36 +134,8 @@
 
   const openAdd = () => {
     probe.value = null;
-    created.value = null;
     form.reset();
     adding.value = true;
-  };
-
-  const envText = computed(() => {
-    if (!created.value) {
-      return '';
-    }
-
-    const { server, token, port } = created.value;
-
-    return [
-      `PORT="${port}"`,
-      'MODE="prod"',
-      'LOG_LEVEL="info"',
-      `SERVER_ID="${server.id}"`,
-      `AGENT_TOKEN="${token}"`,
-      'BACKEND_URL="http://localhost:8000"',
-      'WORKSPACE_PATH="/var/lib/zydock/builds"',
-    ].join('\n');
-  });
-
-  const copied = ref(false);
-
-  const handleCopyEnv = async () => {
-    await navigator.clipboard.writeText(envText.value);
-
-    copied.value = true;
-    setTimeout(() => (copied.value = false), 2000);
   };
 
   const provisioning = ref('');
@@ -268,57 +205,8 @@
     </Card>
 
     <div v-else class="flex flex-col gap-6">
-      <Card
-        v-if="created"
-        title="Connect the agent to your machine"
-        description="Save the token now — it will not be shown again."
-      >
-        <div class="flex flex-col gap-4">
-          <p class="text-sm text-content-muted">
-            Create an <code>agent/agent.env</code> file with the content below and start the agent.
-            Set <code>BACKEND_URL</code> to the address of this backend reachable from the machine
-            where the agent runs.
-          </p>
-
-          <div class="relative">
-            <pre
-              class="overflow-x-auto rounded-xl border border-surface-border bg-surface-sunken p-4 text-xs leading-relaxed"
-            ><code>{{ envText }}</code></pre>
-            <Button
-              theme="secondary"
-              class="absolute top-2 right-2"
-              type="button"
-              @click="handleCopyEnv"
-            >
-              <Icon :name="copied ? 'lucide:check' : 'lucide:copy'" class="size-4" />
-              {{ copied ? 'Copied' : 'Copy' }}
-            </Button>
-          </div>
-
-          <div>
-            <p class="text-sm font-medium text-content-strong">Then, at the repository root:</p>
-            <pre
-              class="mt-2 overflow-x-auto rounded-xl border border-surface-border bg-surface-sunken p-4 text-xs leading-relaxed"
-            ><code>cd agent
-bun install
-bun --env-file=agent.env run start</code></pre>
-          </div>
-
-          <Alert theme="info">
-            Requires Docker installed on this machine. If the backend runs via Docker Compose, use
-            <code>host.docker.internal</code> as the agent host so the backend can reach it.
-          </Alert>
-
-          <div class="flex justify-end">
-            <Button theme="ghost" type="button" @click="created = null">Got it</Button>
-          </div>
-        </div>
-      </Card>
-
-      <Card v-if="adding" title="Add server" description="Connect a machine to Zydock.">
+      <Card v-if="adding" title="Add server" description="Connect a machine via SSH.">
         <form class="flex flex-col gap-4" @submit.prevent="handleCreate">
-          <Select v-model="form.values.type" label="Type" :options="typeOptions" />
-
           <div class="grid gap-4 sm:grid-cols-2">
             <Input
               v-model="form.values.name"
@@ -333,78 +221,62 @@ bun --env-file=agent.env run start</code></pre>
             />
           </div>
 
-          <template v-if="form.values.type === 'local'">
+          <div class="grid gap-4 sm:grid-cols-2">
             <Input
-              v-model="form.values.agentHost"
-              label="Agent host"
-              placeholder="localhost or host.docker.internal"
-              :call-error="form.errors.value.agentHost"
+              v-model="form.values.username"
+              label="SSH user"
+              placeholder="root"
+              :call-error="form.errors.value.username"
             />
-            <Alert theme="info">
-              The backend installs nothing here: it generates the token and shows the command for
-              you to run the agent on this machine (Docker must be installed).
-            </Alert>
-          </template>
+            <Select
+              v-model="form.values.authMethod"
+              label="Authentication"
+              :options="authOptions"
+            />
+            <Input
+              v-model="form.values.host"
+              label="Host"
+              placeholder="203.0.113.10"
+              :call-error="form.errors.value.host"
+            />
+            <Input
+              v-model="form.values.port"
+              label="SSH port"
+              :call-error="form.errors.value.port"
+            />
+          </div>
+
+          <Input
+            v-if="form.values.authMethod === 'password'"
+            v-model="form.values.password"
+            label="Password"
+            password
+            :call-error="form.errors.value.password"
+          />
 
           <template v-else>
-            <div class="grid gap-4 sm:grid-cols-2">
-              <Input
-                v-model="form.values.username"
-                label="SSH user"
-                placeholder="root"
-                :call-error="form.errors.value.username"
-              />
-              <Select
-                v-model="form.values.authMethod"
-                label="Authentication"
-                :options="authOptions"
-              />
-              <Input
-                v-model="form.values.host"
-                label="Host"
-                placeholder="203.0.113.10"
-                :call-error="form.errors.value.host"
-              />
-              <Input
-                v-model="form.values.port"
-                label="SSH port"
-                :call-error="form.errors.value.port"
-              />
-            </div>
-
             <Input
-              v-if="form.values.authMethod === 'password'"
-              v-model="form.values.password"
-              label="Password"
-              password
-              :call-error="form.errors.value.password"
+              v-model="form.values.privateKey"
+              label="Private key"
+              type="textarea"
+              :rows="5"
+              placeholder="-----BEGIN OPENSSH PRIVATE KEY-----"
+              :call-error="form.errors.value.privateKey"
             />
-
-            <template v-else>
-              <Input
-                v-model="form.values.privateKey"
-                label="Private key"
-                type="textarea"
-                :rows="5"
-                placeholder="-----BEGIN OPENSSH PRIVATE KEY-----"
-                :call-error="form.errors.value.privateKey"
-              />
-              <Input v-model="form.values.passphrase" label="Passphrase (optional)" password />
-            </template>
-
-            <Alert v-if="probe && probe.reachable" theme="success">
-              Connection succeeded — {{ probe.osRelease ?? 'host reachable' }},
-              {{ probe.cpuCount ?? '?' }} vCPU, {{ probe.memoryMb ?? '?' }} MB of RAM.
-            </Alert>
-            <Alert v-else-if="probe" theme="error">
-              {{ probe.error ?? 'Could not connect.' }}
-            </Alert>
+            <Input v-model="form.values.passphrase" label="Passphrase (optional)" password />
           </template>
+
+          <Alert v-if="probe && probe.reachable" theme="success">
+            Connection succeeded — {{ probe.osRelease ?? 'host reachable' }},
+            {{ probe.cpuCount ?? '?' }} vCPU, {{ probe.memoryMb ?? '?' }} MB of RAM.
+          </Alert>
+          <Alert v-else-if="probe" theme="error">
+            {{ probe.error ?? 'Could not connect.' }}
+          </Alert>
 
           <div class="flex items-center justify-end gap-2">
             <Button theme="ghost" type="button" @click="adding = false">Cancel</Button>
             <Button
-              v-if="form.values.type === 'ssh'"
               theme="secondary"
               type="button"
               :disabled="form.loading.value"
@@ -433,7 +305,8 @@ bun --env-file=agent.env run start</code></pre>
         <div>
           <h3 class="text-content-strong">No servers yet</h3>
           <p class="mt-1 text-sm text-content-muted">
-            Add a server via SSH or register your local machine to start deploying applications.
+            The local server should already be here — check the agent's logs, or add a remote server
+            via SSH.
           </p>
         </div>
       </div>
@@ -488,7 +361,7 @@ bun --env-file=agent.env run start</code></pre>
               Provision
             </Button>
             <button
-              v-if="canManage"
+              v-if="canManage && !server.managed"
               type="button"
               title="Remove server"
               class="cursor-pointer rounded-lg p-2 text-content-muted transition-colors hover:bg-surface-hover hover:text-danger"

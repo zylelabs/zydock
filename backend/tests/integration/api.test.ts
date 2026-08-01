@@ -3,6 +3,17 @@ import mongoose from 'mongoose';
 import { createApp } from '../../src/app-server';
 import { connectDatabase, disconnectDatabase } from '../../src/config/mongodb';
 import { stopWorker } from '../../src/modules/queue/queue.service';
+import config from '../../src/config';
+import {
+  ensureLocalServer,
+  getLocalServerId,
+} from '../../src/modules/servers/local-server.service';
+import serverModel from '../../src/modules/servers/server.model';
+import membershipModel from '../../src/modules/organizations/membership.model';
+import organizationModel from '../../src/modules/organizations/organization.model';
+import { seedDefaultOrganization } from '../../src/seeds/organization.seed';
+import userModel from '../../src/modules/users/user.model';
+import { hashPassword } from '../../src/modules/users/user.service';
 
 let app: ReturnType<typeof createApp>;
 
@@ -22,6 +33,7 @@ const json = (path: string, method: string, body?: unknown, token?: string) =>
 
 beforeAll(async () => {
   await connectDatabase();
+  await ensureLocalServer();
   app = createApp();
 });
 
@@ -132,37 +144,65 @@ describe('organizations', () => {
 
 describe('servers (local)', () => {
   let organizationId = '';
-  let serverId = '';
-  let agentToken = '';
+  const localServerId = () => getLocalServerId()!;
 
-  test('create a local server returns the agent token once (201)', async () => {
+  test('the local server is bootstrapped and its id is known', () => {
+    expect(getLocalServerId()).toBeString();
+  });
+
+  test('GET /api/agent/identity resolves the local server id with the right token', async () => {
+    const response = await app.request('/api/agent/identity', {
+      headers: { 'X-Agent-Token': 'test-local-agent-token' },
+    });
+    const body = (await response.json()) as { serverId: string };
+
+    expect(response.status).toBe(200);
+    expect(body.serverId).toBe(localServerId());
+  });
+
+  test('GET /api/agent/identity rejects a wrong token (401)', async () => {
+    const response = await app.request('/api/agent/identity', {
+      headers: { 'X-Agent-Token': 'nope' },
+    });
+
+    expect(response.status).toBe(401);
+  });
+
+  test('it appears in the server list of any organization', async () => {
     const org = await json('/organizations', 'POST', { name: 'Local Co' }, accessToken);
     organizationId = ((await org.json()) as { organization: { id: string } }).organization.id;
 
     const response = await json(
       `/organizations/${organizationId}/servers`,
-      'POST',
-      { type: 'local', name: 'minha-máquina', agentHost: 'host.docker.internal' },
+      'GET',
+      undefined,
       accessToken,
     );
     const body = (await response.json()) as {
-      server: { id: string; type: string; status: string; agent: { host: string } };
-      agentToken: string;
+      items: { id: string; type: string; managed: boolean; organizationId: string | null }[];
     };
 
-    expect(response.status).toBe(201);
-    expect(body.server.type).toBe('local');
-    expect(body.server.status).toBe('pending');
-    expect(body.server.agent.host).toBe('host.docker.internal');
-    expect(body.agentToken).toBeString();
+    const server = body.items.find(item => item.id === localServerId());
 
-    serverId = body.server.id;
-    agentToken = body.agentToken;
+    expect(server?.type).toBe('local');
+    expect(server?.managed).toBeTrue();
+    expect(server?.organizationId).toBeNull();
   });
 
-  test('provisioning a local server is rejected (400)', async () => {
+  test('POST /servers no longer accepts type: "local" — ssh is required (400)', async () => {
     const response = await json(
-      `/organizations/${organizationId}/servers/${serverId}/provision`,
+      `/organizations/${organizationId}/servers`,
+      'POST',
+      { type: 'local', name: 'minha-máquina' },
+      accessToken,
+    );
+
+    expect(response.status).toBe(400);
+  });
+
+  test('provisioning the local server is rejected (400)', async () => {
+    const response = await json(
+      `/organizations/${organizationId}/servers/${localServerId()}/provision`,
       'POST',
       undefined,
       accessToken,
@@ -171,10 +211,21 @@ describe('servers (local)', () => {
     expect(response.status).toBe(400);
   });
 
-  test('a heartbeat with the returned token brings the server online', async () => {
-    const response = await app.request(`/api/agent/heartbeat/${serverId}`, {
+  test('deleting the local server is rejected (400)', async () => {
+    const response = await json(
+      `/organizations/${organizationId}/servers/${localServerId()}`,
+      'DELETE',
+      undefined,
+      accessToken,
+    );
+
+    expect(response.status).toBe(400);
+  });
+
+  test('a heartbeat with its token brings it online', async () => {
+    const response = await app.request(`/api/agent/heartbeat/${localServerId()}`, {
       method: 'POST',
-      headers: { 'Content-Type': 'application/json', 'X-Agent-Token': agentToken },
+      headers: { 'Content-Type': 'application/json', 'X-Agent-Token': 'test-local-agent-token' },
       body: JSON.stringify({ version: '1.0.0' }),
     });
 
@@ -188,11 +239,11 @@ describe('servers (local)', () => {
     );
     const body = (await list.json()) as { items: { id: string; status: string }[] };
 
-    expect(body.items.find(item => item.id === serverId)?.status).toBe('online');
+    expect(body.items.find(item => item.id === localServerId())?.status).toBe('online');
   });
 
   test('a heartbeat with a wrong token is rejected (401)', async () => {
-    const response = await app.request(`/api/agent/heartbeat/${serverId}`, {
+    const response = await app.request(`/api/agent/heartbeat/${localServerId()}`, {
       method: 'POST',
       headers: { 'Content-Type': 'application/json', 'X-Agent-Token': 'nope' },
       body: JSON.stringify({ version: '1.0.0' }),
@@ -212,13 +263,7 @@ describe('applications (private repo token)', () => {
     const org = await json('/organizations', 'POST', { name: 'Apps Co' }, accessToken);
     organizationId = ((await org.json()) as { organization: { id: string } }).organization.id;
 
-    const server = await json(
-      `/organizations/${organizationId}/servers`,
-      'POST',
-      { type: 'local', name: 'local-1' },
-      accessToken,
-    );
-    serverId = ((await server.json()) as { server: { id: string } }).server.id;
+    serverId = getLocalServerId()!;
 
     const project = await json(
       `/organizations/${organizationId}/projects`,
@@ -366,5 +411,74 @@ describe('applications (private repo token)', () => {
     );
 
     expect(response.status).toBe(400);
+  });
+});
+
+describe('ensureLocalServer (adoption)', () => {
+  test('adopts a pre-existing local server instead of creating a new one', async () => {
+    await serverModel.deleteMany({ type: 'local' });
+
+    const preexisting = await serverModel.create({
+      organizationId: new mongoose.Types.ObjectId(),
+      name: 'Old local box',
+      type: 'local',
+      status: 'pending',
+      agent: { host: 'old-host', port: 9001 },
+    });
+
+    await ensureLocalServer();
+
+    expect(getLocalServerId()).toBe(String(preexisting._id));
+    expect(await serverModel.countDocuments({ type: 'local' })).toBe(1);
+
+    const adopted = await serverModel.findById(preexisting._id);
+
+    expect(adopted?.organizationId).toBeUndefined();
+  });
+
+  test('running it again does not create a duplicate', async () => {
+    const idBefore = getLocalServerId();
+
+    await ensureLocalServer();
+
+    expect(getLocalServerId()).toBe(idBefore);
+    expect(await serverModel.countDocuments({ type: 'local' })).toBe(1);
+  });
+});
+
+describe('seedDefaultOrganization', () => {
+  test('creates "My organization" owned by the superuser', async () => {
+    const superuserEmail = config.auth.superusers[0]!;
+
+    expect(superuserEmail).toBeString();
+
+    await userModel.create({
+      email: superuserEmail,
+      name: 'seed-admin',
+      status: 'active',
+      password: await hashPassword('irrelevant-password'),
+    });
+
+    await seedDefaultOrganization();
+
+    const organization = await organizationModel.findOne({ slug: 'my-organization' });
+
+    expect(organization?.name).toBe(config.defaultOrganization.name);
+
+    const owner = await userModel.findOne({ email: superuserEmail });
+    const membership = await membershipModel.findOne({
+      organizationId: organization!._id,
+      userId: owner!._id,
+    });
+
+    expect(membership?.role).toBe('owner');
+  });
+
+  test('running it again does not create a duplicate', async () => {
+    const before = await organizationModel.countDocuments({ slug: 'my-organization' });
+
+    await seedDefaultOrganization();
+
+    expect(await organizationModel.countDocuments({ slug: 'my-organization' })).toBe(before);
   });
 });

@@ -1,28 +1,4 @@
 #!/usr/bin/env bash
-#
-# Zydock — self-hosted installer.
-#
-# Installs the whole control plane (MongoDB + backend + frontend, and Caddy when a domain is
-# given) on a clean Ubuntu/Debian server, via Docker Compose. Running it again on an existing
-# install updates it in place (git pull + rebuild) without touching the secrets already generated.
-#
-# Usage:
-#   curl -fsSL https://raw.githubusercontent.com/zylelabs/zydock/main/scripts/install.sh | sudo bash
-#
-# Environment variables (all optional):
-#   ZYDOCK_INSTALL_DIR      Where to clone the repo.                  Default: /data/zydock
-#   ZYDOCK_REPO             Git URL to clone.                         Default: https://github.com/zylelabs/zydock.git
-#   ZYDOCK_BRANCH           Branch to check out.                      Default: main
-#   ZYDOCK_DOMAIN           Public domain for the dashboard. When set, Caddy is started in front
-#                            of the stack and issues an HTTPS certificate for it automatically.
-#   ZYDOCK_HOST             Public host/IP used to reach the dashboard when ZYDOCK_DOMAIN is not
-#                            set (the frontend and the WebSocket are reachable there on :3000 and
-#                            :8000).                                  Default: autodetected public IP
-#   ZYDOCK_SUPERUSER_EMAIL  Email of the first superadmin account.    Default: admin@<domain, or
-#                            zydock.local when there is none — a bare IP is not a valid email>
-#
-# On the first run this generates JWT_SECRET, ENCRYPTION_KEY and the MongoDB credentials into
-# <install-dir>/.env. That file is the only place they are stored — back it up.
 
 set -euo pipefail
 
@@ -37,6 +13,12 @@ log() { printf '\n\033[1;36m▸ %s\033[0m\n' "$1"; }
 fail() {
   printf '\n\033[1;31m✖ %s\033[0m\n' "$1" >&2
   exit 1
+}
+
+ensure_env() {
+  local key="$1" value="$2"
+
+  grep -q "^${key}=" .env 2>/dev/null || printf '%s="%s"\n' "${key}" "${value}" >>.env
 }
 
 [ "$(id -u)" -eq 0 ] || fail "Run as root (or with sudo)."
@@ -79,14 +61,13 @@ if [ ! -f .env ]; then
   ZYDOCK_HOST="${ZYDOCK_HOST:-$(curl -fsS https://api.ipify.org || true)}"
   [ -n "${ZYDOCK_HOST}" ] || [ -n "${ZYDOCK_DOMAIN}" ] || fail "Could not autodetect the public IP — set ZYDOCK_HOST or ZYDOCK_DOMAIN explicitly."
 
-  # The backend's email validation rejects a bare IP as the domain part, so a host-only install
-  # (no ZYDOCK_DOMAIN) falls back to a placeholder domain instead of "admin@<ip>".
   ZYDOCK_SUPERUSER_EMAIL="${ZYDOCK_SUPERUSER_EMAIL:-admin@${ZYDOCK_DOMAIN:-zydock.local}}"
 
   MONGO_USERNAME="zydock"
   MONGO_PASSWORD="$(openssl rand -hex 24)"
   JWT_SECRET="$(openssl rand -hex 32)"
   ENCRYPTION_KEY="$(openssl rand -hex 32)"
+  LOCAL_AGENT_TOKEN="$(openssl rand -hex 32)"
 
   if [ -n "${ZYDOCK_DOMAIN}" ]; then
     APP_URL="https://${ZYDOCK_DOMAIN}"
@@ -111,6 +92,7 @@ MONGO_URI="mongodb://${MONGO_USERNAME}:${MONGO_PASSWORD}@mongo:27017/zydock?auth
 
 JWT_SECRET="${JWT_SECRET}"
 ENCRYPTION_KEY="${ENCRYPTION_KEY}"
+LOCAL_AGENT_TOKEN="${LOCAL_AGENT_TOKEN}"
 
 SUPERUSER_EMAILS="${ZYDOCK_SUPERUSER_EMAIL}"
 
@@ -123,9 +105,9 @@ EOF
   chmod 600 .env
 else
   log "Existing install found — reusing .env, updating in place"
+  ensure_env LOCAL_AGENT_TOKEN "$(openssl rand -hex 32)"
 fi
 
-# shellcheck disable=SC1091
 . ./.env
 
 COMPOSE_ARGS=(-f docker-compose.prod.yml --env-file .env)
@@ -142,7 +124,7 @@ until [ "$(docker compose "${COMPOSE_ARGS[@]}" ps --format '{{.Health}}' backend
   sleep 2
 done
 
-log "Provisioning the superadmin account"
+log "Provisioning the superadmin account and the default organization"
 SEED_OUTPUT="$(docker compose "${COMPOSE_ARGS[@]}" exec -T backend bun run seed 2>&1)" || true
 echo "${SEED_OUTPUT}"
 TEMP_PASSWORD="$(echo "${SEED_OUTPUT}" | grep -o 'temporary password: [^"]*' | head -n1 | sed 's/temporary password: //')"

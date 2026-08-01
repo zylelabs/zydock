@@ -98,6 +98,15 @@ export default {
     offlineAfterSeconds: readNumber('AGENT_OFFLINE_AFTER_SECONDS', 90),
     bundlePath: readString('AGENT_BUNDLE_PATH', '../agent/dist/agent.js'),
   },
+  localServer: {
+    token: readString('LOCAL_AGENT_TOKEN', ''),
+    name: readString('LOCAL_SERVER_NAME', 'Local'),
+    agentHost: readString('LOCAL_AGENT_HOST', 'agent'),
+    agentPort: readNumber('LOCAL_AGENT_PORT', 9000),
+  },
+  defaultOrganization: {
+    name: readString('DEFAULT_ORGANIZATION_NAME', 'My organization'),
+  },
   queue: {
     enabled: readBoolean('QUEUE_ENABLED', true),
     pollIntervalMs: readNumber('QUEUE_POLL_INTERVAL_MS', 1000),

@@ -11,7 +11,7 @@ export const serverSchema = {
   type: 'object',
   properties: {
     id: { type: 'string' },
-    organizationId: { type: 'string' },
+    organizationId: { type: 'string', nullable: true },
     name: { type: 'string' },
     type: { type: 'string', enum: ['ssh', 'local'] },
     status: {
@@ -19,6 +19,10 @@ export const serverSchema = {
       enum: ['pending', 'validating', 'provisioning', 'online', 'offline', 'failed'],
     },
     online: { type: 'boolean' },
+    managed: {
+      type: 'boolean',
+      description: 'True for the local server that comes installed with the system.',
+    },
     ssh: {
       type: 'object',
       properties: {
@@ -54,14 +58,6 @@ export const serverSchema = {
 };
 
 const serverWrapped = { type: 'object', properties: { server: serverSchema } };
-
-const serverCreatedSchema = {
-  type: 'object',
-  properties: {
-    server: serverSchema,
-    agentToken: { type: 'string', nullable: true },
-  },
-};
 
 const probeSchema = {
   type: 'object',
@@ -123,16 +119,15 @@ export const serversDocs = {
   },
   create: {
     tags: ['Servers'],
-    summary: 'Register a server',
+    summary: 'Register a remote server',
     description:
-      'Registers a server. For `type: "ssh"` (default), validates the SSH connection, stores the ' +
-      'credentials encrypted with AES-256-GCM and pins the host fingerprint — call the provision ' +
-      'endpoint next. For `type: "local"`, no SSH is used: the backend mints the agent token, ' +
-      'stores it encrypted and returns it once as `agentToken` so the operator can start the ' +
-      'agent by hand. The server starts as `pending`. Admin or owner.',
+      'Registers a server reachable over SSH: validates the connection, stores the credentials ' +
+      'encrypted with AES-256-GCM and pins the host fingerprint — call the provision endpoint ' +
+      'next. The server starts as `pending`. Admin or owner. The local server is not created ' +
+      'through this endpoint: it comes installed with the system.',
     security: bearerOrApiKeyAuth,
     responses: {
-      201: jsonRes('Server registered.', serverCreatedSchema),
+      201: jsonRes('Server registered.', serverWrapped),
       400: errorRes('The SSH connection failed.'),
       403: errorRes('Permission denied.'),
     },
@@ -153,7 +148,7 @@ export const serversDocs = {
     security: bearerOrApiKeyAuth,
     responses: {
       200: jsonRes('Updated server.', serverWrapped),
-      400: errorRes('The SSH connection failed.'),
+      400: errorRes('The SSH connection failed, or the target is the local server.'),
       403: errorRes('Permission denied.'),
       404: errorRes('Server not found.'),
     },
@@ -161,10 +156,13 @@ export const serversDocs = {
   remove: {
     tags: ['Servers'],
     summary: 'Remove a server',
-    description: 'Removes the server from the organization. Admin or owner.',
+    description:
+      'Removes the server from the organization. Admin or owner. The local server cannot be ' +
+      'removed.',
     security: bearerOrApiKeyAuth,
     responses: {
       200: messageRes('Server removed.'),
+      400: errorRes('The local server is part of the installation and cannot be removed.'),
       403: errorRes('Permission denied.'),
       404: errorRes('Server not found.'),
     },
@@ -206,6 +204,22 @@ export const serversDocs = {
       200: messageRes('Heartbeat accepted.'),
       401: errorRes('Invalid agent token.'),
       404: errorRes('Server not found.'),
+    },
+  },
+  identity: {
+    tags: ['Servers'],
+    summary: 'Resolve the local server id',
+    description:
+      'Called by the agent installed alongside the system when it boots without a `SERVER_ID`, ' +
+      'authenticated with the local server token via `X-Agent-Token`. Lets it discover its own id ' +
+      'without the token/id pair being fixed at build time.',
+    responses: {
+      200: jsonRes('Local server id.', {
+        type: 'object',
+        properties: { serverId: { type: 'string' } },
+      }),
+      401: errorRes('Invalid agent token.'),
+      503: errorRes('The local server has not been bootstrapped yet.'),
     },
   },
   applicationStatus: {

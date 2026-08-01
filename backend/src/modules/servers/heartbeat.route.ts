@@ -1,14 +1,28 @@
 import type { Context } from 'hono';
+import { timingSafeEqual } from 'node:crypto';
 import { createRouter, validator } from 'hono-route-docs';
+import config from '../../config';
 import applicationModel from '../applications/application.model';
 import { decryptSecret } from '../../utils/crypto';
 import { recordServerMetrics } from '../metrics/metric.service';
 import { publish } from '../websocket/websocket.service';
 import { HeartbeatDTO, heartbeatSchema } from './heartbeat.schema';
+import { getLocalServerId } from './local-server.service';
 import serverModel from './server.model';
 import { serversDocs } from './servers.docs';
 
 const { router, get, post } = createRouter();
+
+const matchesLocalToken = (candidate: string) => {
+  const expected = Buffer.from(config.localServer.token, 'utf8');
+  const provided = Buffer.from(candidate, 'utf8');
+
+  if (!expected.length || provided.length !== expected.length) {
+    return false;
+  }
+
+  return timingSafeEqual(provided, expected);
+};
 
 post(
   '/heartbeat/:serverId',
@@ -55,6 +69,22 @@ post(
     return c.json({ message: 'Heartbeat accepted' });
   },
 );
+
+get('/identity', serversDocs.identity, async (c: Context) => {
+  const token = c.req.header('X-Agent-Token');
+
+  if (!token || !matchesLocalToken(token)) {
+    return c.json({ error: 'Invalid agent token' }, 401);
+  }
+
+  const serverId = getLocalServerId();
+
+  if (!serverId) {
+    return c.json({ error: 'The local server has not been bootstrapped yet' }, 503);
+  }
+
+  return c.json({ serverId });
+});
 
 get('/applications/:applicationId/status', serversDocs.applicationStatus, async (c: Context) => {
   const applicationId = c.req.param('applicationId');
