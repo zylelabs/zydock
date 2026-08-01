@@ -1,12 +1,16 @@
 <script setup lang="ts">
+  import { useApplications } from '~/composables/services/useApplications';
+  import { useDeployments } from '~/composables/services/useDeployments';
+
   useHead({ title: 'Console' });
 
   const route = useRoute();
   const session = useSessionStore();
-  const applicationId = computed(() => String(route.params.applicationId));
 
   const applications = useApplications();
   const deployments = useDeployments();
+
+  const applicationId = computed(() => String(route.params.applicationId));
 
   const { data } = await useAsyncData(
     () => `console-${applicationId.value}`,
@@ -29,29 +33,29 @@
 </script>
 
 <template>
-  <section class="mx-auto flex max-w-5xl flex-col gap-4">
+  <Content>
     <NuxtLink
       :to="`/applications/${applicationId}`"
-      class="flex items-center gap-1 text-sm text-content-muted hover:text-content"
+      class="mb-4 inline-flex items-center gap-1 text-sm text-content-muted transition-colors hover:text-content-strong"
     >
       <Icon name="lucide:chevron-left" class="size-4" />
       Application
     </NuxtLink>
 
-    <h1>Console</h1>
+    <Header title="Console" />
 
-    <TerminalConsole
+    <Terminal
       v-if="data?.containerId"
       :server-id="data.serverId"
       :container-id="data.containerId"
     />
 
-    <UiCard v-else-if="data" title="No running container">
+    <Card v-else-if="data" title="No running container">
       <p class="text-sm text-content-muted">
         Run a successful deployment to open a console on the application's container.
       </p>
-    </UiCard>
+    </Card>
 
     <p v-else class="text-sm text-content-muted">Loading…</p>
-  </section>
+  </Content>
 </template>

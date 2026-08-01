@@ -1,37 +1,12 @@
 import { twMerge, type ClassNameValue } from 'tailwind-merge';
 import type { H3Event } from 'h3';
-import type { IApiError, IFetchNativeError } from '~~/server/types';
+import type { IFetchNativeResponseError, IFetchResponseError } from '~~/server/types';
 
 export const sleep = (ms: number) => new Promise(resolve => setTimeout(resolve, ms));
 
-export const mergeClasses = (...classes: ClassNameValue[]) => twMerge(classes);
-
-const DAY_MS = 86_400_000;
-
-const windowStart = (days: number) => {
-  const today = new Date();
-
-  today.setHours(0, 0, 0, 0);
-
-  return today.getTime() - (days - 1) * DAY_MS;
-};
-
-export const dailyCounts = (dates: string[], days: number) => {
-  const from = windowStart(days);
-  const buckets = dates.map(date => Math.floor((new Date(date).getTime() - from) / DAY_MS));
-
-  return Array.from({ length: days }, (_, day) => buckets.filter(bucket => bucket === day).length);
-};
-
-export const dailyCumulative = (dates: string[], days: number) => {
-  const from = windowStart(days);
-  const before = dates.filter(date => new Date(date).getTime() < from).length;
-
-  return dailyCounts(dates, days).reduce<number[]>(
-    (series, count) => [...series, (series.at(-1) ?? before) + count],
-    [],
-  );
-};
+export function mergeClasses(...classString: ClassNameValue[]) {
+  return twMerge(classString);
+}
 
 export const formatBytes = (bytes?: number) => {
   if (!bytes) {
@@ -59,24 +34,127 @@ export const formatDuration = (milliseconds?: number) => {
   return `${Math.floor(seconds / 60)}m ${String(seconds % 60).padStart(2, '0')}s`;
 };
 
-const messageOf = (error: IFetchNativeError) => {
-  if (error.data && typeof error.data === 'object' && 'error' in error.data) {
-    return String((error.data as { error: unknown }).error);
+export const normalizeFetchErrorServer = (
+  event: H3Event,
+  err: unknown,
+  returnUndefined?: boolean,
+) => {
+  if (typeof err === 'object' && err !== null && 'statusCode' in err) {
+    const error = err as IFetchNativeResponseError;
+
+    setResponseStatus(event, error.statusCode);
+
+    if (!error.data || typeof error.data === 'string') {
+      const filteredError: IFetchResponseError = {
+        statusCode: error.statusCode,
+        message: error.statusMessage,
+      };
+
+      return filteredError;
+    }
+
+    return error.data;
   }
 
-  return error.statusMessage || 'Request failed';
+  if (err instanceof Error) {
+    setResponseStatus(event, 500);
+
+    const apiUrl = process.env.URL_API;
+    const message = apiUrl ? err.message?.replaceAll(apiUrl, '**') : err.message;
+
+    return {
+      statusCode: 500,
+      message: message || 'Internal error',
+    };
+  }
+
+  console.error('Internal error [...path.ts]', err);
+
+  return returnUndefined
+    ? undefined
+    : {
+        statusCode: 500,
+        message: 'Internal error',
+      };
 };
 
-export const normalizeFetchError = (event: H3Event, error: unknown): IApiError => {
-  if (typeof error === 'object' && error !== null && 'statusCode' in error) {
-    const failure = error as IFetchNativeError;
-
-    setResponseStatus(event, failure.statusCode);
-
-    return { statusCode: failure.statusCode, error: messageOf(failure) };
+export const removeUndefinedKeys = <T>(obj: T): T => {
+  if (Array.isArray(obj)) {
+    return obj.map(item => removeUndefinedKeys(item)).filter(item => item !== undefined) as T;
   }
 
-  setResponseStatus(event, 502);
+  if (obj !== null && typeof obj === 'object') {
+    const result: Record<string, unknown> = {};
 
-  return { statusCode: 502, error: 'The API could not be reached' };
+    Object.entries(obj).forEach(([key, value]) => {
+      const cleanedValue = removeUndefinedKeys(value);
+
+      const isEmptyObject =
+        cleanedValue &&
+        typeof cleanedValue === 'object' &&
+        !Array.isArray(cleanedValue) &&
+        Object.keys(cleanedValue).length === 0;
+
+      if (cleanedValue !== undefined && !isEmptyObject) {
+        result[key] = cleanedValue;
+      }
+    });
+
+    return result as T;
+  }
+
+  return obj;
+};
+
+export const hasValue = (value: any) => {
+  if (value === undefined || value === null) {
+    return false;
+  }
+
+  return true;
+};
+
+export const orDash = (value: any) =>
+  value === null || value === undefined || value === '' ? '-' : value;
+
+const hashName = (name: string) => {
+  let hash = 0;
+  for (let i = 0; i < name.length; i++) {
+    hash = (Math.imul(hash, 31) + name.charCodeAt(i)) | 0;
+  }
+  hash ^= hash >>> 16;
+  hash = Math.imul(hash, 0x7feb352d);
+  hash ^= hash >>> 15;
+  hash = Math.imul(hash, 0x846ca68b);
+  hash ^= hash >>> 16;
+  return hash >>> 0;
+};
+
+export const getHueFromName = (name: string) => {
+  if (!name?.trim()) {
+    return {
+      '--generated-hue': '0deg',
+      '--generated-sat': '0%',
+    };
+  }
+
+  const hash = hashName(name);
+  const hue = hash % 360;
+  const saturation = 55 + ((hash >>> 9) % 20);
+
+  return {
+    '--generated-hue': `${hue}deg`,
+    '--generated-sat': `${saturation}%`,
+  };
+};
+
+export const getColorFromName = (name: string) => {
+  if (!name?.trim()) return `hsl(0 0% 55%)`;
+
+  const hash = hashName(name);
+  const hue = hash % 360;
+  const saturation = 55 + ((hash >>> 9) % 20);
+  const lightness = 45 + ((hash >>> 17) % 18);
+
+  return `hsl(${hue} ${saturation}% ${lightness}%)`;
 };

@@ -1,29 +1,28 @@
 <script setup lang="ts">
-  import type { LogEntry, LogLevel } from '~/composables/use-logs';
-  import type {
-    DeploymentStatus,
-    DeploymentStep,
-    DeploymentStepName,
-  } from '~/composables/use-deployments';
+  import {
+    useDeployments,
+    type DeploymentStatus,
+    type DeploymentStep,
+    type DeploymentStepName,
+  } from '~/composables/services/useDeployments';
+  import type { LogEntry, LogLevel } from '~/composables/services/useLogs';
+
+  useHead({ title: 'Deploy' });
 
   const route = useRoute();
   const session = useSessionStore();
-  const applicationId = computed(() => String(route.params.applicationId));
-  const deploymentId = computed(() => String(route.params.deploymentId));
 
   const deployments = useDeployments();
   const { subscribe, status: socketStatus } = useWebSocket();
 
-  useHead({ title: 'Deploy' });
+  const applicationId = computed(() => String(route.params.applicationId));
+  const deploymentId = computed(() => String(route.params.deploymentId));
 
-  const DEPLOY_STATUS: Record<
-    DeploymentStatus,
-    { label: string; variant: 'neutral' | 'success' | 'warning' | 'danger' | 'info' }
-  > = {
-    queued: { label: 'Queued', variant: 'neutral' },
-    running: { label: 'Running', variant: 'info' },
-    succeeded: { label: 'Succeeded', variant: 'success' },
-    failed: { label: 'Failed', variant: 'danger' },
+  const DEPLOY_STATUS: Record<DeploymentStatus, { label: string; color: string }> = {
+    queued: { label: 'Queued', color: 'default' },
+    running: { label: 'Running', color: 'blue' },
+    succeeded: { label: 'Succeeded', color: 'green' },
+    failed: { label: 'Failed', color: 'red' },
   };
 
   const STEP_LABEL: Record<DeploymentStepName, string> = {
@@ -110,14 +109,15 @@
 
     if (index === -1) {
       steps.value.push(incoming);
-    } else {
-      steps.value[index] = incoming;
+      return;
     }
+
+    steps.value[index] = incoming;
   };
 
   const downloading = ref(false);
 
-  const onDownload = async () => {
+  const handleDownload = async () => {
     downloading.value = true;
 
     try {
@@ -138,92 +138,101 @@
     await load();
 
     subscribe(deployments.topic(deploymentId.value), message => {
-      const data = message.data as {
+      const payload = message.data as {
         status?: DeploymentStatus;
         lines?: string[];
         step?: DeploymentStepName;
       };
 
-      if (message.event === 'log' && data.lines) {
-        onLog(data.lines);
-      } else if (message.event === 'step' && data.step) {
-        onStep(data as unknown as DeploymentStep);
-      } else if (message.event === 'status' && data.status) {
-        status.value = data.status;
+      if (message.event === 'log' && payload.lines) {
+        onLog(payload.lines);
+        return;
+      }
+
+      if (message.event === 'step' && payload.step) {
+        onStep(payload as unknown as DeploymentStep);
+        return;
+      }
+
+      if (message.event === 'status' && payload.status) {
+        status.value = payload.status;
       }
     });
   });
 </script>
 
 <template>
-  <section class="mx-auto flex h-full max-w-5xl flex-col gap-4">
+  <Content>
     <NuxtLink
       :to="`/applications/${applicationId}`"
-      class="flex items-center gap-1 text-sm text-content-muted hover:text-content"
+      class="mb-4 inline-flex items-center gap-1 text-sm text-content-muted transition-colors hover:text-content-strong"
     >
       <Icon name="lucide:chevron-left" class="size-4" />
       Application
     </NuxtLink>
 
-    <header class="flex flex-wrap items-center justify-between gap-3">
-      <div class="flex items-center gap-3">
-        <h1>Deploy</h1>
-        <UiBadge :variant="DEPLOY_STATUS[status].variant">{{
-          DEPLOY_STATUS[status].label
-        }}</UiBadge>
-        <span v-if="!finished" class="inline-flex items-center gap-1.5 text-xs text-content-muted">
-          <Icon name="lucide:radio" class="size-3.5" />
-          {{ socketStatus === 'open' ? 'live' : socketStatus }}
+    <Header title="Deploy">
+      <template #right>
+        <div class="flex flex-wrap items-center gap-3">
+          <Tag :color="DEPLOY_STATUS[status].color">{{ DEPLOY_STATUS[status].label }}</Tag>
+          <span
+            v-if="!finished"
+            class="inline-flex items-center gap-1.5 text-xs text-content-muted"
+          >
+            <Icon name="lucide:radio" class="size-3.5" />
+            {{ socketStatus === 'open' ? 'live' : socketStatus }}
+          </span>
+          <Button theme="ghost" :disabled="downloading" @click="handleDownload">
+            <Icon :name="downloading ? 'svg-spinners:tadpole' : 'lucide:download'" class="size-4" />
+            Download
+          </Button>
+        </div>
+      </template>
+    </Header>
+
+    <div class="flex flex-col gap-4">
+      <p v-if="commit" class="text-sm text-content-muted">
+        <span class="font-mono">{{ commit.sha.slice(0, 7) }}</span>
+        <span v-if="commit.message"> — {{ commit.message }}</span>
+        <span v-if="durationMs"> · {{ Math.round(durationMs / 1000) }}s</span>
+      </p>
+
+      <Alert v-if="errorMessage" theme="error">{{ errorMessage }}</Alert>
+
+      <div v-if="steps.length" class="flex flex-wrap gap-1.5">
+        <span
+          v-for="step in steps"
+          :key="step.step"
+          :title="step.detail"
+          class="rounded px-2 py-0.5 text-xs font-medium"
+          :class="{
+            'bg-success/15 text-success': step.status === 'ok',
+            'bg-danger/15 text-danger': step.status === 'failed',
+            'bg-surface-sunken text-content-muted': step.status === 'skipped',
+          }"
+        >
+          {{ STEP_LABEL[step.step] }}
+          <span v-if="step.durationMs" class="opacity-70">
+            · {{ Math.round(step.durationMs / 1000) }}s
+          </span>
         </span>
       </div>
 
-      <UiButton variant="ghost" :loading="downloading" @click="onDownload">
-        <Icon name="lucide:download" class="size-4" />
-        Download
-      </UiButton>
-    </header>
-
-    <p v-if="commit" class="text-sm text-content-muted">
-      <span class="font-mono">{{ commit.sha.slice(0, 7) }}</span>
-      <span v-if="commit.message"> — {{ commit.message }}</span>
-      <span v-if="durationMs"> · {{ Math.round(durationMs / 1000) }}s</span>
-    </p>
-
-    <UiAlert v-if="errorMessage" variant="error">{{ errorMessage }}</UiAlert>
-
-    <div v-if="steps.length" class="flex flex-wrap gap-1.5">
-      <span
-        v-for="step in steps"
-        :key="step.step"
-        :title="step.detail"
-        class="rounded px-2 py-0.5 text-xs font-medium"
-        :class="{
-          'bg-success/15 text-success': step.status === 'ok',
-          'bg-danger/15 text-danger': step.status === 'failed',
-          'bg-surface text-content-muted': step.status === 'skipped',
-        }"
+      <div
+        ref="logBox"
+        class="h-[65vh] overflow-auto rounded-xl border border-surface-border bg-surface-raised p-4 font-mono text-xs leading-relaxed"
       >
-        {{ STEP_LABEL[step.step] }}
-        <span v-if="step.durationMs" class="opacity-70">
-          · {{ Math.round(step.durationMs / 1000) }}s</span
-        >
-      </span>
-    </div>
-
-    <div
-      ref="logBox"
-      class="flex-1 overflow-auto rounded-xl border border-surface-border bg-surface-raised p-4 font-mono text-xs leading-relaxed"
-    >
-      <p v-if="loading" class="text-content-muted">Loading…</p>
-      <p v-else-if="!entries.length" class="text-content-muted">
-        No build output yet{{ finished ? '.' : ' — waiting for the deployment…' }}
-      </p>
-      <div v-for="(entry, index) in entries" :key="index" class="flex gap-2 whitespace-pre-wrap">
-        <span v-if="entry.timestamp" class="shrink-0 text-content-muted">{{
-          entry.timestamp
-        }}</span>
-        <span :class="LEVEL_CLASS[entry.level]">{{ entry.message }}</span>
+        <p v-if="loading" class="text-content-muted">Loading…</p>
+        <p v-else-if="!entries.length" class="text-content-muted">
+          No build output yet{{ finished ? '.' : ' — waiting for the deployment…' }}
+        </p>
+        <div v-for="(entry, index) in entries" :key="index" class="flex gap-2 whitespace-pre-wrap">
+          <span v-if="entry.timestamp" class="shrink-0 text-content-muted">
+            {{ entry.timestamp }}
+          </span>
+          <span :class="LEVEL_CLASS[entry.level]">{{ entry.message }}</span>
+        </div>
       </div>
     </div>
-  </section>
+  </Content>
 </template>
