@@ -1,0 +1,18 @@
+{
+  "compilerOptions": {
+    "types": ["bun-types"],
+    "target": "ESNext",
+    "module": "preserve",
+    "moduleResolution": "Bundler",
+    "resolveJsonModule": true,
+    "esModuleInterop": true,
+    "skipLibCheck": true,
+    "strict": true,
+    "noEmit": true,
+    "paths": {
+      "~/*": ["../app/*"],
+      "~~/*": ["../*"]
+    }
+  },
+  "include": ["**/*.ts", "../.nuxt/nuxt.d.ts"]
+}
