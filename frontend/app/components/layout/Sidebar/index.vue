@@ -18,10 +18,6 @@
     session.clear();
     await navigateTo('/auth/login');
   };
-
-  onMounted(() => {
-    console.log('session', session.user);
-  });
 </script>
 
 <template>
