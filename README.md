@@ -97,3 +97,7 @@ The short version:
 3. Make sure `bun run lint` and `bun test` pass in every package you touched.
 4. Use [Conventional Commits](https://www.conventionalcommits.org/) and open the pull request against
    `dev`.
+
+## License
+
+Zydock is licensed under the [Apache License 2.0](LICENSE).
