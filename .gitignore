@@ -9,12 +9,12 @@ dist
 # Node dependencies
 node_modules
 
-# Logs
-# Diretório de saída de log na raiz de cada aplicação — sem barra, a regra também esconderia
-# `backend/src/modules/logs/`, que é código.
 /logs
 /*/logs
 *.log
+
+/storage
+/*/storage
 
 # Misc
 .DS_Store
