@@ -65,24 +65,44 @@
         <Icon name="lucide:server" size="18" />
         <span class="text-body-md">Servers</span>
       </NuxtLink>
+      <NuxtLink
+        class="hover:bg-primary-400/8 p-2 flex text-sm font-medium rounded-md items-center gap-3 transition-colors"
+        active-class="bg-primary-400/15 hover:bg-primary-400/15 text-primary-400 font-medium p-2 flex items-center gap-3 transition-colors border-l-3 border-primary-400"
+        to="/backups"
+        @click="close"
+      >
+        <Icon name="lucide:archive" size="18" />
+        <span class="text-body-md">Backups</span>
+      </NuxtLink>
     </nav>
 
     <div
       v-if="session.user"
       class="mt-3 flex items-center gap-3 rounded-xl border border-surface-border bg-surface-raised p-3"
     >
-      <span
-        class="flex size-10 shrink-0 items-center justify-center rounded-full bg-linear-to-br from-primary to-primary-strong text-sm font-semibold text-white"
-      >
-        {{ userInitial }}
-      </span>
+      <NuxtLink to="/account" class="flex min-w-0 flex-1 items-center gap-3" @click="close">
+        <span
+          class="flex size-10 shrink-0 items-center justify-center rounded-full bg-linear-to-br from-primary to-primary-strong text-sm font-semibold text-white"
+        >
+          {{ userInitial }}
+        </span>
 
-      <div class="min-w-0 flex-1">
-        <p class="truncate text-sm font-semibold text-content-strong">
-          {{ session.user.name }}
-        </p>
-        <p class="truncate text-[13px] text-content-muted">{{ session.user.email }}</p>
-      </div>
+        <div class="min-w-0 flex-1">
+          <p class="truncate text-sm font-semibold text-content-strong">
+            {{ session.user.name }}
+          </p>
+          <p class="truncate text-[13px] text-content-muted">{{ session.user.email }}</p>
+        </div>
+      </NuxtLink>
+
+      <NuxtLink
+        to="/settings"
+        title="Settings"
+        class="rounded-md p-2 text-content-muted transition-colors hover:bg-surface-hover hover:text-content-strong"
+        @click="close"
+      >
+        <Icon name="lucide:settings" class="size-4" />
+      </NuxtLink>
 
       <button
         type="button"

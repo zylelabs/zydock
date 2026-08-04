@@ -50,6 +50,12 @@ export default defineEventHandler(async event => {
 
     logger.success(`[${method}] - ${targetUrl}`, infoStr ? '-' : '', infoStr);
 
+    if (response instanceof Blob) {
+      setResponseHeader(event, 'content-type', response.type || 'application/octet-stream');
+
+      return Buffer.from(await response.arrayBuffer());
+    }
+
     return response;
   } catch (err) {
     const contentType = headers.get('Content-Type') || '';
