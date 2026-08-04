@@ -2,6 +2,15 @@
   "name": "zydock",
   "version": "0.1.0",
   "private": true,
+  "license": "Apache-2.0",
+  "repository": {
+    "type": "git",
+    "url": "https://github.com/zylelabs/zydock.git"
+  },
+  "homepage": "https://github.com/zylelabs/zydock",
+  "bugs": {
+    "url": "https://github.com/zylelabs/zydock/issues"
+  },
   "scripts": {
     "install:all": "cd backend && bun install && cd ../frontend && bun install && cd ../agent && bun install",
     "dev": "concurrently -n backend,frontend,agent -c blue,green,yellow \"cd backend && bun run dev\" \"cd frontend && bun run dev\" \"cd agent && bun run dev\"",
