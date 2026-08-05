@@ -5,17 +5,15 @@ import { decryptSecret, encryptSecret } from '../../utils/crypto';
 import { logInfo, logWarn } from '../../utils/logger';
 import { enqueueDeployment } from '../deployments/pipeline.service';
 import applicationModel from './application.model';
+import { resolveGitCredentials } from './application.service';
 
 const SECRET_BYTES = 32;
 
 export type WebhookOutcome =
   { accepted: true; deploymentId: string; commit: string } | { accepted: false; reason: string };
 
-const gitProviderOf = (application: Application) =>
-  resolveGitProvider({
-    host: application.git.host,
-    token: application.git.token ? decryptSecret(application.git.token) : '',
-  });
+const gitProviderOf = async (application: Application) =>
+  resolveGitProvider(await resolveGitCredentials(application));
 
 export const callbackUrlOf = (applicationId: string) =>
   `${config.backendUrl}/api/webhooks/git/${applicationId}`;
@@ -23,14 +21,15 @@ export const callbackUrlOf = (applicationId: string) =>
 export const configureWebhook = async (application: Application) => {
   const secret = randomBytes(SECRET_BYTES).toString('hex');
   const applicationId = String(application._id);
+  const git = await gitProviderOf(application);
 
   if (application.git.webhookId) {
-    await gitProviderOf(application)
+    await git
       .deleteWebhook(application.git.repository, application.git.webhookId)
       .catch(error => logWarn('Could not remove the previous webhook', { error: String(error) }));
   }
 
-  const webhook = await gitProviderOf(application).createWebhook(
+  const webhook = await git.createWebhook(
     application.git.repository,
     callbackUrlOf(applicationId),
     secret,
@@ -51,10 +50,9 @@ export const removeWebhook = async (application: Application) => {
     return false;
   }
 
-  await gitProviderOf(application).deleteWebhook(
-    application.git.repository,
-    application.git.webhookId,
-  );
+  await (
+    await gitProviderOf(application)
+  ).deleteWebhook(application.git.repository, application.git.webhookId);
 
   await applicationModel.updateOne(
     { _id: application._id },
@@ -72,7 +70,7 @@ export const handleGitWebhook = async (
     return { accepted: false, reason: 'This application has no webhook configured' };
   }
 
-  const git = gitProviderOf(application);
+  const git = await gitProviderOf(application);
   const secret = decryptSecret(application.git.webhookSecret);
 
   if (!(await git.verifyWebhook(request, secret))) {

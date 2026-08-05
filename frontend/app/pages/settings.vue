@@ -1,5 +1,10 @@
 <script setup lang="ts">
   import { z } from 'zod';
+  import {
+    useGitSources,
+    type GitInstallation,
+    type GitSource,
+  } from '~/composables/services/useGitSources';
   import { useOrganizations } from '~/composables/services/useOrganizations';
   import { useTeam, type Member } from '~/composables/services/useTeam';
   import type { OrganizationRole } from '~/stores/organization.store';
@@ -8,6 +13,7 @@
 
   const toast = useToast();
   const session = useSessionStore();
+  const route = useRoute();
   const { current, update, remove } = useOrganizations();
   const {
     listMembers,
@@ -18,19 +24,28 @@
     createInvite,
     revokeInvite,
   } = useTeam();
+  const {
+    list: listGitSources,
+    startManifest,
+    listInstallations,
+    remove: removeGitSource,
+  } = useGitSources();
 
   const canManage = computed(() => ['owner', 'admin'].includes(current.value?.role ?? ''));
   const isOwner = computed(() => current.value?.role === 'owner');
 
-  type Tab = 'general' | 'team' | 'danger';
+  type Tab = 'general' | 'team' | 'git' | 'danger';
 
   const TABS: { key: Tab; label: string }[] = [
     { key: 'general', label: 'General' },
     { key: 'team', label: 'Team' },
+    { key: 'git', label: 'Git sources' },
     { key: 'danger', label: 'Danger zone' },
   ];
 
-  const activeTab = ref<Tab>('general');
+  const isTab = (value: unknown): value is Tab => TABS.some(tab => tab.key === value);
+
+  const activeTab = ref<Tab>(isTab(route.query.tab) ? route.query.tab : 'general');
 
   const brandingForm = useSchemaForm(
     z.object({
@@ -163,6 +178,133 @@
   };
 
   const formatDate = (value: string) => new Date(value).toLocaleDateString('en-US');
+
+  const emptyGitSources = { items: [], total: 0, page: 1, size: 0, pages: 0 };
+
+  const {
+    data: gitSourcesData,
+    refresh: refreshGitSources,
+    status: gitSourcesStatus,
+    error: gitSourcesLoadError,
+  } = await useAsyncData(
+    'settings-git-sources',
+    () => (session.organizationId ? listGitSources() : Promise.resolve(emptyGitSources)),
+    { server: false, watch: [() => session.organizationId], default: () => emptyGitSources },
+  );
+
+  const gitSources = computed(() => gitSourcesData.value?.items ?? []);
+  const gitSourcesError = computed(
+    () =>
+      (gitSourcesLoadError.value as { message?: string } | null)?.message ||
+      (gitSourcesLoadError.value ? 'Could not load the git sources.' : ''),
+  );
+
+  type InstallationState = { loading: boolean; items: GitInstallation[]; error: string };
+
+  const installationsBySource = reactive<Record<string, InstallationState>>({});
+
+  const loadInstallations = async (gitSourceId: string) => {
+    installationsBySource[gitSourceId] = { loading: true, items: [], error: '' };
+
+    try {
+      const { items } = await listInstallations(gitSourceId);
+      installationsBySource[gitSourceId] = { loading: false, items, error: '' };
+    } catch (error) {
+      installationsBySource[gitSourceId] = {
+        loading: false,
+        items: [],
+        error: (error as { message?: string }).message || 'Could not load installations.',
+      };
+    }
+  };
+
+  watch(
+    gitSources,
+    sources => {
+      for (const source of sources) {
+        if (source.status === 'active' && !installationsBySource[source.id]) {
+          loadInstallations(source.id);
+        }
+      }
+    },
+    { immediate: true },
+  );
+
+  const connectOpen = ref(false);
+
+  const connectForm = useSchemaForm(
+    z.object({
+      name: z.string().trim().min(1, 'Enter a name'),
+      organization: z.string().trim().optional(),
+    }),
+    { name: '', organization: '' },
+    {
+      onError: message => toast.error({ title: 'Error', message }),
+      onInvalid: (_errors, lastError) => toast.error({ title: 'Error', message: lastError }),
+    },
+  );
+
+  const openConnect = () => {
+    connectForm.reset();
+    connectOpen.value = true;
+  };
+
+  const submitManifestForm = (postUrl: string, manifest: Record<string, unknown>) => {
+    const form = document.createElement('form');
+    form.method = 'POST';
+    form.action = postUrl;
+    form.style.display = 'none';
+
+    const input = document.createElement('input');
+    input.type = 'hidden';
+    input.name = 'manifest';
+    input.value = JSON.stringify(manifest);
+
+    form.appendChild(input);
+    document.body.appendChild(form);
+    form.submit();
+  };
+
+  const handleConnect = connectForm.submit(async values => {
+    const result = await startManifest({
+      name: values.name,
+      organization: values.organization || undefined,
+    });
+
+    connectOpen.value = false;
+    submitManifestForm(result.postUrl, result.manifest);
+  });
+
+  const toRemoveSource = ref<GitSource | null>(null);
+  const confirmRemoveSourceOpen = ref(false);
+  const removingSource = ref(false);
+
+  const askRemoveSource = (source: GitSource) => {
+    toRemoveSource.value = source;
+    confirmRemoveSourceOpen.value = true;
+  };
+
+  const runRemoveSource = async () => {
+    if (!toRemoveSource.value) {
+      return;
+    }
+
+    removingSource.value = true;
+
+    try {
+      await removeGitSource(toRemoveSource.value.id);
+      await refreshGitSources();
+      confirmRemoveSourceOpen.value = false;
+      toRemoveSource.value = null;
+    } catch (error) {
+      toast.error({
+        title: 'Error',
+        message: (error as { message?: string }).message || 'Failed to remove the git source.',
+      });
+    } finally {
+      removingSource.value = false;
+    }
+  };
 
   const removingMember = ref<{ member: Member } | { leaving: true } | null>(null);
   const confirmMemberOpen = ref(false);
@@ -431,7 +573,113 @@
         </Card>
       </template>
 
-      <template v-else>
+      <template v-else-if="activeTab === 'git'">
+        <Card title="Git sources" description="Connect a GitHub App once, per organization.">
+          <template v-if="canManage" #right>
+            <Button theme="primary" @click="openConnect">
+              <Icon name="proicons:add" size="18" />
+              Connect GitHub
+            </Button>
+          </template>
+
+          <div v-if="gitSourcesStatus === 'pending'" class="flex flex-col gap-3">
+            <Skeleton class="h-20 w-full" />
+            <Skeleton class="h-20 w-full" />
+          </div>
+
+          <Alert v-else-if="gitSourcesError" theme="error">{{ gitSourcesError }}</Alert>
+
+          <div
+            v-else-if="!gitSources.length"
+            class="flex flex-col items-center gap-3 rounded-xl border border-dashed border-field-border bg-surface-sunken px-6 py-12 text-center"
+          >
+            <Icon name="mdi:github" class="size-8 text-content-dim" />
+            <div>
+              <h3 class="text-content-strong">No git source connected</h3>
+              <p class="mt-1 text-sm text-content-muted">
+                Connect a GitHub App to create applications by picking a repository, without pasting
+                a token.
+              </p>
+            </div>
+          </div>
+
+          <ul v-else class="flex flex-col divide-y divide-surface-line">
+            <li v-for="source in gitSources" :key="source.id" class="flex flex-col gap-3 py-4">
+              <div class="flex flex-wrap items-center gap-2">
+                <h3 class="truncate text-content-strong">{{ source.name }}</h3>
+                <Tag :color="source.status === 'active' ? 'green' : 'default'" class="capitalize">
+                  {{ source.status }}
+                </Tag>
+              </div>
+
+              <p v-if="source.status === 'pending'" class="text-sm text-content-muted">
+                Waiting for the confirmation on GitHub.
+              </p>
+
+              <template v-else>
+                <div v-if="installationsBySource[source.id]?.loading" class="flex flex-col gap-2">
+                  <Skeleton class="h-10 w-full" />
+                </div>
+
+                <Alert v-else-if="installationsBySource[source.id]?.error" theme="error">
+                  {{ installationsBySource[source.id]?.error }}
+                </Alert>
+
+                <p
+                  v-else-if="!installationsBySource[source.id]?.items.length"
+                  class="text-sm text-content-muted"
+                >
+                  No installation yet.
+                </p>
+
+                <ul v-else class="flex flex-col gap-2">
+                  <li
+                    v-for="installation in installationsBySource[source.id]?.items"
+                    :key="installation.id"
+                    class="flex items-center gap-2 rounded-lg bg-surface-sunken px-3 py-2 text-sm"
+                  >
+                    <Icon
+                      :name="
+                        installation.accountType === 'Organization'
+                          ? 'lucide:building-2'
+                          : 'lucide:user'
+                      "
+                      class="size-4 shrink-0 text-content-muted"
+                    />
+                    <span class="truncate">{{ installation.account }}</span>
+                    <Tag class="ml-auto shrink-0">
+                      {{
+                        installation.repositorySelection === 'all'
+                          ? 'all repositories'
+                          : 'selected repositories'
+                      }}
+                    </Tag>
+                  </li>
+                </ul>
+              </template>
+
+              <div v-if="canManage" class="flex items-center gap-2">
+                <Button
+                  v-if="source.htmlUrl"
+                  theme="secondary"
+                  :to="source.htmlUrl"
+                  target="_blank"
+                  rel="noopener"
+                >
+                  <Icon name="lucide:external-link" class="size-4" />
+                  Install / manage on GitHub
+                </Button>
+                <Button theme="ghost" @click="askRemoveSource(source)">
+                  <Icon name="lucide:trash-2" class="size-4" />
+                  Remove
+                </Button>
+              </div>
+            </li>
+          </ul>
+        </Card>
+      </template>
+
+      <template v-else-if="activeTab === 'danger'">
         <Card v-if="!isOwner" title="Danger zone">
           <p class="text-sm text-content-muted">Only the owner can delete the organization.</p>
         </Card>
@@ -470,5 +718,53 @@
       :loading="deleting"
       @confirm="onDeleteOrganization"
     />
+
+    <Confirm
+      v-if="toRemoveSource"
+      v-model:open="confirmRemoveSourceOpen"
+      title="Remove git source"
+      :message="`Remove “${toRemoveSource.name}”? Applications using it must be removed first.`"
+      confirm-label="Remove"
+      danger
+      :loading="removingSource"
+      @confirm="runRemoveSource"
+    />
+
+    <Modal :open="connectOpen" @on-close-modal="connectOpen = false">
+      <Card
+        title="Connect GitHub"
+        class="w-md max-w-full"
+        close-button
+        @on-close="connectOpen = false"
+      >
+        <form class="flex flex-col gap-4" @submit.prevent="handleConnect">
+          <Input
+            v-model="connectForm.values.name"
+            label="App name"
+            placeholder="zydock-acme"
+            :call-error="connectForm.errors.value.name"
+          />
+          <Input
+            v-model="connectForm.values.organization"
+            label="GitHub organization (optional)"
+            placeholder="acme-corp"
+            :call-error="connectForm.errors.value.organization"
+          />
+
+          <p class="text-xs text-content-muted">
+            You'll be taken to GitHub to confirm the app. Leave the organization empty to create it
+            under your personal account.
+          </p>
+
+          <div class="flex items-center justify-end gap-2">
+            <Button theme="ghost" type="button" @click="connectOpen = false">Cancel</Button>
+            <Button theme="primary" type="submit" :disabled="connectForm.loading.value">
+              <Icon v-if="connectForm.loading.value" name="svg-spinners:tadpole" size="16" />
+              Continue on GitHub
+            </Button>
+          </div>
+        </form>
+      </Card>
+    </Modal>
   </Content>
 </template>

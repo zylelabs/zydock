@@ -1,5 +1,6 @@
 <script setup lang="ts">
   import { z } from 'zod';
+  import type { GitSourceSelection } from '~/components/git/GitSourcePicker.vue';
   import { useApplications, type ApplicationStatus } from '~/composables/services/useApplications';
   import { useOrganizations } from '~/composables/services/useOrganizations';
   import { useProjects } from '~/composables/services/useProjects';
@@ -176,25 +177,49 @@
   const addingApp = ref(false);
 
   const appForm = useSchemaForm(
-    z.object({
-      name: z.string().trim().min(1, 'Enter a name'),
-      environmentId: z.string().min(1, 'Choose an environment'),
-      serverId: z.string().min(1, 'Choose a server'),
-      repository: z
-        .string()
-        .trim()
-        .regex(/^[^/\s]+\/[^/\s]+$/, 'Use the owner/repository format'),
-      branch: z.string().trim().min(1),
-      dockerfilePath: z.string().trim().min(1),
-      port: z.string().regex(/^\d+$/, 'Invalid port'),
-      autoDeploy: z.boolean(),
-      token: z.string().trim(),
-    }),
+    z
+      .object({
+        name: z.string().trim().min(1, 'Enter a name'),
+        environmentId: z.string().min(1, 'Choose an environment'),
+        serverId: z.string().min(1, 'Choose a server'),
+        sourceMode: z.enum(['github-app', 'token']),
+        repository: z.string().trim(),
+        gitSourceId: z.string().trim(),
+        installationId: z.string().trim(),
+        branch: z.string().trim().min(1),
+        dockerfilePath: z.string().trim().min(1),
+        port: z.string().regex(/^\d+$/, 'Invalid port'),
+        autoDeploy: z.boolean(),
+        token: z.string().trim(),
+      })
+      .superRefine((value, ctx) => {
+        if (value.sourceMode === 'token') {
+          if (!/^[^/\s]+\/[^/\s]+$/.test(value.repository)) {
+            ctx.addIssue({
+              code: 'custom',
+              path: ['repository'],
+              message: 'Use the owner/repository format',
+            });
+          }
+          return;
+        }
+
+        if (!value.gitSourceId || !value.installationId || !value.repository) {
+          ctx.addIssue({
+            code: 'custom',
+            path: ['repository'],
+            message: 'Choose a repository',
+          });
+        }
+      }),
     {
       name: '',
       environmentId: '',
       serverId: '',
+      sourceMode: 'github-app' as 'github-app' | 'token',
       repository: '',
+      gitSourceId: '',
+      installationId: '',
       branch: 'main',
       dockerfilePath: 'Dockerfile',
       port: '3000',
@@ -214,11 +239,24 @@
     serverList.value.map(server => ({ value: server.id, label: server.name })),
   );
 
+  const gitSourcePicker = ref<{ reset: () => void } | null>(null);
+
   const openAddApp = () => {
     appForm.reset();
     appForm.values.environmentId = environments.value[0]?.id ?? '';
     appForm.values.serverId = serverList.value[0]?.id ?? '';
+    gitSourcePicker.value?.reset();
     addingApp.value = true;
+  };
+
+  const handlePickGitSource = (selection: GitSourceSelection | null) => {
+    appForm.values.gitSourceId = selection?.gitSourceId ?? '';
+    appForm.values.installationId = selection?.installationId ?? '';
+    appForm.values.repository = selection?.repository ?? '';
+
+    if (selection?.defaultBranch) {
+      appForm.values.branch = selection.defaultBranch;
+    }
   };
 
   const handleCreateApp = appForm.submit(async values => {
@@ -227,15 +265,29 @@
       environmentId: values.environmentId,
       serverId: values.serverId,
       port: Number(values.port),
-      git: {
-        host: 'github',
-        repository: values.repository,
-        branch: values.branch,
-        dockerfilePath: values.dockerfilePath,
-        buildContext: '.',
-        autoDeploy: values.autoDeploy,
-        token: values.token || undefined,
-      },
+      git:
+        values.sourceMode === 'github-app'
+          ? {
+              host: 'github',
+              source: 'github-app',
+              repository: values.repository,
+              gitSourceId: values.gitSourceId,
+              installationId: values.installationId,
+              branch: values.branch,
+              dockerfilePath: values.dockerfilePath,
+              buildContext: '.',
+              autoDeploy: values.autoDeploy,
+            }
+          : {
+              host: 'github',
+              source: 'pat',
+              repository: values.repository,
+              branch: values.branch,
+              dockerfilePath: values.dockerfilePath,
+              buildContext: '.',
+              autoDeploy: values.autoDeploy,
+              token: values.token || undefined,
+            },
     });
 
     addingApp.value = false;
@@ -366,18 +418,42 @@
           class="mb-5 flex flex-col gap-4 rounded-lg border border-surface-border p-4"
           @submit.prevent="handleCreateApp"
         >
+          <div class="flex flex-col gap-2">
+            <span class="text-xs font-semibold tracking-widest text-content-muted uppercase">
+              Source
+            </span>
+            <div class="flex flex-wrap gap-4">
+              <label class="flex cursor-pointer items-center gap-2 text-sm">
+                <Checkbox v-model="appForm.values.sourceMode" type="radio" value="github-app" />
+                GitHub App
+              </label>
+              <label class="flex cursor-pointer items-center gap-2 text-sm">
+                <Checkbox v-model="appForm.values.sourceMode" type="radio" value="token" />
+                Public repository or token
+              </label>
+            </div>
+          </div>
+
+          <div v-if="appForm.values.sourceMode === 'github-app'" class="flex flex-col gap-1">
+            <GitSourcePicker ref="gitSourcePicker" @select="handlePickGitSource" />
+            <span v-if="appForm.errors.value.repository" class="text-xs text-danger">
+              {{ appForm.errors.value.repository }}
+            </span>
+          </div>
+          <Input
+            v-else
+            v-model="appForm.values.repository"
+            label="Repository (GitHub)"
+            placeholder="owner/repository"
+            :call-error="appForm.errors.value.repository"
+          />
+
           <div class="grid gap-4 sm:grid-cols-2">
             <Input
               v-model="appForm.values.name"
               label="Name"
               placeholder="api"
               :call-error="appForm.errors.value.name"
-            />
-            <Input
-              v-model="appForm.values.repository"
-              label="Repository (GitHub)"
-              placeholder="owner/repository"
-              :call-error="appForm.errors.value.repository"
             />
 
             <div class="flex flex-col gap-1">
@@ -413,15 +489,17 @@
             />
           </div>
 
-          <Input
-            v-model="appForm.values.token"
-            label="Access token (private repository)"
-            password
-            placeholder="Leave blank if the repository is public"
-          />
-          <p class="text-xs text-content-muted">
-            GitHub Personal Access Token with repository read access. Stored encrypted.
-          </p>
+          <template v-if="appForm.values.sourceMode === 'token'">
+            <Input
+              v-model="appForm.values.token"
+              label="Access token (private repository)"
+              password
+              placeholder="Leave blank if the repository is public"
+            />
+            <p class="text-xs text-content-muted">
+              GitHub Personal Access Token with repository read access. Stored encrypted.
+            </p>
+          </template>
 
           <Switch v-model="appForm.values.autoDeploy" label="Auto-deploy on every push" />
 

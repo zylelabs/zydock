@@ -9,6 +9,9 @@ interface ApplicationGit {
   hasToken: boolean;
   webhookId?: string;
   webhookSecret?: string;
+  source: import('./application.schema').ApplicationGitSource;
+  gitSourceId?: string;
+  installationId?: string;
 }
 
 interface ApplicationVariable {

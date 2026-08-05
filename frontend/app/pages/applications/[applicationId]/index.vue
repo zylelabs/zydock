@@ -1362,7 +1362,16 @@
         </div>
       </Card>
 
-      <Card v-if="canManage" title="Git webhook">
+      <Card v-if="canManage && application.git.source === 'github-app'" title="Git webhook">
+        <Alert theme="info">
+          Auto-deploy for this application arrives through the GitHub App, not a per-repository
+          webhook. Manage installations and repositories on the
+          <NuxtLink to="/settings?tab=git" class="underline">git source</NuxtLink>
+          .
+        </Alert>
+      </Card>
+
+      <Card v-else-if="canManage" title="Git webhook">
         <template #right>
           <Button
             v-if="!application.git.hasWebhook"
@@ -1418,7 +1427,7 @@
         </div>
       </Card>
 
-      <Card v-if="canManage" title="Access token">
+      <Card v-if="canManage && application.git.source !== 'github-app'" title="Access token">
         <template #right>
           <Button v-if="!editingToken" theme="secondary" @click="startEditToken">
             {{ application.git.hasToken ? 'Replace' : 'Set' }}

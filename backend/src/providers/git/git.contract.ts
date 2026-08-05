@@ -66,3 +66,34 @@ export type GitProvider = {
 };
 
 export type GitProviderFactory = (credentials: GitCredentials) => GitProvider;
+
+export type GitAppCredentials = { appId: string; privateKey: string; baseUrl?: string };
+
+export type GitInstallation = {
+  id: string;
+  account: string;
+  accountType: string;
+  repositorySelection: string;
+  htmlUrl: string;
+};
+
+export type GitAppRegistration = {
+  appId: string;
+  slug: string;
+  name: string;
+  htmlUrl: string;
+  clientId: string;
+  clientSecret: string;
+  webhookSecret: string;
+  privateKey: string;
+};
+
+export type GitAppProvider = {
+  listInstallations: () => Promise<GitInstallation[]>;
+  listRepositories: (installationId: string) => Promise<GitRepository[]>;
+  createInstallationToken: (
+    installationId: string,
+  ) => Promise<{ token: string; expiresAt: string }>;
+};
+
+export type GitAppProviderFactory = (credentials: GitAppCredentials) => GitAppProvider;

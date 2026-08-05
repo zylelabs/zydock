@@ -4,10 +4,13 @@ import { resolveGitProvider } from '../../providers/git';
 import { createAgentClient, type AgentConnection } from '../../utils/agent';
 import { logError, logInfo } from '../../utils/logger';
 import applicationModel from '../applications/application.model';
-import { decryptVariables, findApplicationWithSecrets } from '../applications/application.service';
+import {
+  decryptVariables,
+  findApplicationWithSecrets,
+  resolveGitCredentials,
+} from '../applications/application.service';
 import { enqueueJob, registerJobHandler } from '../queue/queue.service';
 import { buildAgentConnection, findServerById } from '../servers/server.service';
-import { decryptSecret } from '../../utils/crypto';
 import { applyApplicationDomains } from '../domains/domain.service';
 import deploymentModel from './deployment.model';
 import type { DeploymentStep } from './deployment.schema';
@@ -88,10 +91,7 @@ const cloneStep = async (
   branch: string,
   commit?: string,
 ) => {
-  const git = resolveGitProvider({
-    host: application.git.host,
-    token: application.git.token ? decryptSecret(application.git.token) : '',
-  });
+  const git = resolveGitProvider(await resolveGitCredentials(application));
 
   const url = await git.getCloneUrl(application.git.repository);
 

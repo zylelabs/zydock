@@ -1,8 +1,10 @@
 import { generateUniqueSlug } from '../../utils';
 import { decryptSecret, encryptSecret } from '../../utils/crypto';
+import type { GitCredentials } from '../../providers/git';
 import type { AuthPayload } from '../auth/auth.middleware';
 import { removeDeploymentsOfApplications } from '../deployments/deployment.service';
 import { removeDomainsOfApplications } from '../domains/domain.service';
+import { issueInstallationToken } from '../git-sources/git-source.service';
 import { findMembership } from '../organizations/membership.service';
 import { isSuperuser } from '../users/user.service';
 import { registerTopicAuthorizer } from '../websocket/websocket.service';
@@ -161,6 +163,26 @@ export const removeApplicationsOfProject = (projectId: string) =>
 export const countApplicationsOfServer = (serverId: string) =>
   applicationModel.countDocuments({ serverId });
 
+export const countApplicationsOfGitSource = (gitSourceId: string) =>
+  applicationModel.countDocuments({ 'git.gitSourceId': gitSourceId });
+
+export const resolveGitCredentials = async (application: Application): Promise<GitCredentials> => {
+  if (application.git.source === 'github-app') {
+    return {
+      host: application.git.host,
+      token: await issueInstallationToken(
+        String(application.git.gitSourceId),
+        String(application.git.installationId),
+      ),
+    };
+  }
+
+  return {
+    host: application.git.host,
+    token: application.git.token ? decryptSecret(application.git.token) : '',
+  };
+};
+
 const authorizeApplicationTopic = async (auth: AuthPayload, applicationId: string) => {
   const application = await applicationModel.findById(applicationId);
 
@@ -199,6 +221,9 @@ export const serializeApplication = (application: Application) => ({
     hasToken: application.git.hasToken,
     hasWebhook: Boolean(application.git.webhookId),
     webhookUrl: application.git.webhookId ? callbackUrlOf(String(application._id)) : undefined,
+    source: application.git.source,
+    gitSourceId: application.git.gitSourceId ? String(application.git.gitSourceId) : undefined,
+    installationId: application.git.installationId,
   },
   port: application.port,
   portMappings: application.portMappings,
