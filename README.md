@@ -36,6 +36,15 @@ On a clean Ubuntu/Debian server (Docker is installed automatically when missing)
 curl -fsSL https://raw.githubusercontent.com/zylelabs/zydock/main/scripts/install.sh | sudo bash
 ```
 
+Piping a remote script straight into `sudo bash` runs it with root privileges before you've read a
+line of it. Inspect it first:
+
+```bash
+curl -fsSL https://raw.githubusercontent.com/zylelabs/zydock/main/scripts/install.sh -o install.sh
+less install.sh
+sudo bash install.sh
+```
+
 The installer clones the repository into `/data/zydock`, generates the secrets (`JWT_SECRET`,
 `ENCRYPTION_KEY`, MongoDB credentials), brings the stack up with `docker-compose.prod.yml` and
 creates the first superadmin user. The generated temporary password is printed **once**, at the end
