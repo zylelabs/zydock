@@ -21,6 +21,10 @@ export const APPLICATION_RESTART_POLICIES = [
 
 export type ApplicationRestartPolicy = (typeof APPLICATION_RESTART_POLICIES)[number];
 
+export const APPLICATION_GIT_SOURCES = ['pat', 'github-app'] as const;
+
+export type ApplicationGitSource = (typeof APPLICATION_GIT_SOURCES)[number];
+
 export const applicationIdParamSchema = organizationIdParamSchema.extend({
   applicationId: z.string().length(24),
 });
@@ -40,19 +44,53 @@ const gitBaseSchema = z.object({
   buildContext: z.string().trim().min(1).max(512),
   autoDeploy: z.boolean(),
   token: z.string().min(1).max(512).optional(),
+  source: z.enum(APPLICATION_GIT_SOURCES),
+  gitSourceId: z.string().length(24).optional(),
+  installationId: z.string().trim().min(1).optional(),
 });
 
-const gitSchema = gitBaseSchema.extend({
-  host: gitBaseSchema.shape.host.default('github'),
-  branch: gitBaseSchema.shape.branch.default('main'),
-  dockerfilePath: gitBaseSchema.shape.dockerfilePath.default('Dockerfile'),
-  buildContext: gitBaseSchema.shape.buildContext.default('.'),
-  autoDeploy: gitBaseSchema.shape.autoDeploy.default(true),
-});
+const refineGithubApp = <T extends z.ZodTypeAny>(schema: T) =>
+  schema
+    .refine(
+      value => {
+        const git = value as {
+          source?: ApplicationGitSource;
+          gitSourceId?: string;
+          installationId?: string;
+        };
 
-const gitUpdateSchema = gitBaseSchema.partial().extend({
-  token: z.string().min(1).max(512).nullable().optional(),
-});
+        return git.source !== 'github-app' || Boolean(git.gitSourceId && git.installationId);
+      },
+      {
+        message: 'gitSourceId and installationId are required when source is "github-app"',
+        path: ['gitSourceId'],
+      },
+    )
+    .refine(
+      value => {
+        const git = value as { source?: ApplicationGitSource; token?: string | null };
+
+        return git.source !== 'github-app' || !git.token;
+      },
+      { message: 'token cannot be set when source is "github-app"', path: ['token'] },
+    );
+
+const gitSchema = refineGithubApp(
+  gitBaseSchema.extend({
+    host: gitBaseSchema.shape.host.default('github'),
+    branch: gitBaseSchema.shape.branch.default('main'),
+    dockerfilePath: gitBaseSchema.shape.dockerfilePath.default('Dockerfile'),
+    buildContext: gitBaseSchema.shape.buildContext.default('.'),
+    autoDeploy: gitBaseSchema.shape.autoDeploy.default(true),
+    source: gitBaseSchema.shape.source.default('pat'),
+  }),
+);
+
+const gitUpdateSchema = refineGithubApp(
+  gitBaseSchema.partial().extend({
+    token: z.string().min(1).max(512).nullable().optional(),
+  }),
+);
 
 const volumeSchema = z.object({
   source: z.string().trim().min(1).max(512),

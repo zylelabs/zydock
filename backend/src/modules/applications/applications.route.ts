@@ -10,6 +10,7 @@ import {
   triggerDeploymentSchema,
 } from '../deployments/deployment.schema';
 import { enqueueDeployment, enqueueRollback } from '../deployments/pipeline.service';
+import { findGitSource } from '../git-sources/git-source.service';
 import { OrganizationIdParam, organizationIdParamSchema } from '../organizations/membership.schema';
 import { createOrganizationRoleGuard } from '../organizations/organizations.middleware';
 import { findEnvironmentOfOrganization } from '../projects/environment.service';
@@ -42,6 +43,12 @@ import { webhookDocs } from './webhook.docs';
 import { configureWebhook, removeWebhook } from './webhook.service';
 
 const { router, get, post, patch, put, delete: del } = createRouter();
+
+const isGitSourceUsable = async (organizationId: string, gitSourceId: string) => {
+  const gitSource = await findGitSource(organizationId, gitSourceId);
+
+  return Boolean(gitSource && gitSource.status === 'active');
+};
 
 const lifecycleHandler = (action: LifecycleAction) => async (c: Context) => {
   const { organizationId, applicationId } = c.req.valid('param' as never) as ApplicationIdParam;
@@ -113,6 +120,13 @@ post(
       return c.json({ error: 'Server not found in this organization' }, 400);
     }
 
+    if (
+      body.git.source === 'github-app' &&
+      !(await isGitSourceUsable(organizationId, body.git.gitSourceId!))
+    ) {
+      return c.json({ error: 'Git source not found or not active in this organization' }, 400);
+    }
+
     const application = await createApplication(
       organizationId,
       String(environment.projectId),
@@ -161,6 +175,13 @@ patch(
 
     if (body.serverId && !(await findServer(organizationId, body.serverId))) {
       return c.json({ error: 'Server not found in this organization' }, 400);
+    }
+
+    if (
+      body.git?.source === 'github-app' &&
+      !(await isGitSourceUsable(organizationId, body.git.gitSourceId!))
+    ) {
+      return c.json({ error: 'Git source not found or not active in this organization' }, 400);
     }
 
     const updated = await updateApplication(application, body);
@@ -318,6 +339,13 @@ post(
       return c.json({ error: 'Application not found' }, 404);
     }
 
+    if (application.git.source === 'github-app') {
+      return c.json(
+        { error: 'This application receives pushes through the GitHub App, no webhook to create' },
+        400,
+      );
+    }
+
     try {
       return c.json({ webhook: await configureWebhook(application) }, 201);
     } catch (error) {
@@ -339,6 +367,13 @@ del(
 
     if (!application) {
       return c.json({ error: 'Application not found' }, 404);
+    }
+
+    if (application.git.source === 'github-app') {
+      return c.json(
+        { error: 'This application receives pushes through the GitHub App, no webhook to remove' },
+        400,
+      );
     }
 
     try {

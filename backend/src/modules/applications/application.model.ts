@@ -1,7 +1,11 @@
 import { Document, model, Schema } from 'mongoose';
 import { GIT_HOSTS } from '../../providers/git/git.contract';
 import { paginateStatics } from '../../utils/pagination';
-import { APPLICATION_RESTART_POLICIES, APPLICATION_STATUSES } from './application.schema';
+import {
+  APPLICATION_GIT_SOURCES,
+  APPLICATION_RESTART_POLICIES,
+  APPLICATION_STATUSES,
+} from './application.schema';
 
 const variableSchema = new Schema(
   {
@@ -60,6 +64,9 @@ const applicationSchema = new Schema(
       hasToken: { type: Boolean, required: true, default: false },
       webhookId: { type: String },
       webhookSecret: { type: String, select: false },
+      source: { type: String, required: true, enum: APPLICATION_GIT_SOURCES, default: 'pat' },
+      gitSourceId: { type: Schema.Types.ObjectId, ref: 'git_sources' },
+      installationId: { type: String },
     },
     port: { type: Number, required: true },
     portMappings: { type: [portMappingSchema], default: [] },

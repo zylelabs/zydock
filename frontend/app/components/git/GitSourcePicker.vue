@@ -1,0 +1,205 @@
+<script setup lang="ts">
+  import {
+    useGitSources,
+    type GitInstallation,
+    type GitRepository,
+    type GitSource,
+  } from '~/composables/services/useGitSources';
+
+  export type GitSourceSelection = {
+    gitSourceId: string;
+    installationId: string;
+    repository: string;
+    defaultBranch: string;
+  };
+
+  const emit = defineEmits<{ select: [GitSourceSelection | null] }>();
+
+  const session = useSessionStore();
+  const { list: listGitSources, listInstallations, listRepositories } = useGitSources();
+
+  const gitSources = ref<GitSource[]>([]);
+  const gitSourcesLoading = ref(false);
+
+  const loadGitSources = async () => {
+    if (!session.organizationId) {
+      gitSources.value = [];
+      return;
+    }
+
+    gitSourcesLoading.value = true;
+
+    try {
+      const { items } = await listGitSources();
+      gitSources.value = items.filter(source => source.status === 'active');
+    } finally {
+      gitSourcesLoading.value = false;
+    }
+  };
+
+  onMounted(loadGitSources);
+  watch(() => session.organizationId, loadGitSources);
+
+  const gitSourceOptions = computed(() =>
+    gitSources.value.map(source => ({ value: source.id, label: source.name })),
+  );
+
+  const selectedGitSourceId = ref('');
+  const installations = ref<GitInstallation[]>([]);
+  const installationsLoading = ref(false);
+  const installationsError = ref('');
+
+  const selectedInstallationId = ref('');
+  const repositories = ref<GitRepository[]>([]);
+  const repositoriesLoading = ref(false);
+  const repositoriesError = ref('');
+
+  const selectedRepository = ref('');
+
+  const installationOptions = computed(() =>
+    installations.value.map(installation => ({
+      value: installation.id,
+      label: `${installation.account} (${installation.accountType})`,
+    })),
+  );
+
+  const repositoryOptions = computed(() =>
+    repositories.value.map(repository => ({
+      value: repository.fullName,
+      label: repository.fullName,
+      description: repository.private ? 'private' : 'public',
+    })),
+  );
+
+  const loadInstallations = async (gitSourceId: string) => {
+    installations.value = [];
+    installationsError.value = '';
+    installationsLoading.value = true;
+
+    try {
+      const { items } = await listInstallations(gitSourceId);
+      installations.value = items;
+    } catch (error) {
+      installationsError.value =
+        (error as { message?: string }).message || 'Could not load installations.';
+    } finally {
+      installationsLoading.value = false;
+    }
+  };
+
+  const loadRepositories = async (gitSourceId: string, installationId: string) => {
+    repositories.value = [];
+    repositoriesError.value = '';
+    repositoriesLoading.value = true;
+
+    try {
+      const { items } = await listRepositories(gitSourceId, installationId);
+      repositories.value = items;
+    } catch (error) {
+      repositoriesError.value =
+        (error as { message?: string }).message || 'Could not load repositories.';
+    } finally {
+      repositoriesLoading.value = false;
+    }
+  };
+
+  watch(selectedGitSourceId, gitSourceId => {
+    selectedInstallationId.value = '';
+    selectedRepository.value = '';
+    installations.value = [];
+    repositories.value = [];
+    installationsError.value = '';
+
+    if (gitSourceId) {
+      loadInstallations(gitSourceId);
+    }
+  });
+
+  watch(selectedInstallationId, installationId => {
+    selectedRepository.value = '';
+    repositories.value = [];
+    repositoriesError.value = '';
+
+    if (installationId && selectedGitSourceId.value) {
+      loadRepositories(selectedGitSourceId.value, installationId);
+    }
+  });
+
+  watch(selectedRepository, repository => {
+    const found = repositories.value.find(candidate => candidate.fullName === repository);
+
+    if (!repository || !found) {
+      emit('select', null);
+      return;
+    }
+
+    emit('select', {
+      gitSourceId: selectedGitSourceId.value,
+      installationId: selectedInstallationId.value,
+      repository: found.fullName,
+      defaultBranch: found.defaultBranch,
+    });
+  });
+
+  defineExpose({
+    reset: () => {
+      selectedGitSourceId.value = '';
+      selectedInstallationId.value = '';
+      selectedRepository.value = '';
+    },
+  });
+</script>
+
+<template>
+  <div class="flex flex-col gap-4">
+    <div
+      v-if="!gitSourcesLoading && !gitSources.length"
+      class="flex flex-col gap-2 rounded-lg border border-dashed border-field-border bg-surface-sunken px-4 py-6 text-center text-sm text-content-muted"
+    >
+      <p>No git source connected for this organization.</p>
+      <NuxtLink to="/settings?tab=git" class="text-primary hover:underline">
+        Connect a GitHub App in Settings
+      </NuxtLink>
+    </div>
+
+    <template v-else>
+      <Select
+        v-model="selectedGitSourceId"
+        label="Git source"
+        :options="gitSourceOptions"
+        :disabled="gitSourcesLoading"
+        placeholder="Choose a git source"
+      />
+
+      <div v-if="selectedGitSourceId" class="flex flex-col gap-1">
+        <p v-if="installationsLoading" class="text-xs text-content-muted">Loading installations…</p>
+        <Alert v-else-if="installationsError" theme="error">{{ installationsError }}</Alert>
+        <p v-else-if="!installations.length" class="text-xs text-warning">
+          This source has no installation yet — install the App on GitHub first.
+        </p>
+        <Select
+          v-else
+          v-model="selectedInstallationId"
+          label="Installation"
+          :options="installationOptions"
+          placeholder="Choose an installation"
+        />
+      </div>
+
+      <div v-if="selectedInstallationId" class="flex flex-col gap-1">
+        <p v-if="repositoriesLoading" class="text-xs text-content-muted">Loading repositories…</p>
+        <Alert v-else-if="repositoriesError" theme="error">{{ repositoriesError }}</Alert>
+        <p v-else-if="!repositories.length" class="text-xs text-warning">
+          This installation has no accessible repository.
+        </p>
+        <SearchSelect
+          v-else
+          v-model="selectedRepository"
+          label="Repository"
+          :options="repositoryOptions"
+          placeholder="Search a repository"
+        />
+      </div>
+    </template>
+  </div>
+</template>

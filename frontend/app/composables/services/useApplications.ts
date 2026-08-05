@@ -3,6 +3,7 @@ import type { Paginated } from '../useApi';
 export type ApplicationStatus = 'created' | 'deploying' | 'running' | 'stopped' | 'failed';
 
 export type GitHost = 'github';
+export type ApplicationGitSource = 'pat' | 'github-app';
 
 export interface ApplicationGit {
   host: GitHost;
@@ -15,6 +16,9 @@ export interface ApplicationGit {
   token?: string;
   hasWebhook?: boolean;
   webhookUrl?: string;
+  source: ApplicationGitSource;
+  gitSourceId?: string;
+  installationId?: string;
 }
 
 export interface GitWebhook {

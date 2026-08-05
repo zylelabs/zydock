@@ -1,9 +1,13 @@
+import { createHmac } from 'node:crypto';
 import { afterAll, beforeAll, describe, expect, test } from 'bun:test';
 import mongoose from 'mongoose';
 import { createApp } from '../../src/app-server';
 import { connectDatabase, disconnectDatabase } from '../../src/config/mongodb';
+import applicationModel from '../../src/modules/applications/application.model';
+import gitSourceModel from '../../src/modules/git-sources/git-source.model';
 import { stopWorker } from '../../src/modules/queue/queue.service';
 import config from '../../src/config';
+import { encryptSecret } from '../../src/utils/crypto';
 import {
   ensureLocalServer,
   getLocalServerId,
@@ -301,7 +305,7 @@ describe('applications (private repo token)', () => {
     const body = (await response.json()) as {
       application: {
         id: string;
-        git: { hasToken: boolean; token?: string };
+        git: { hasToken: boolean; token?: string; source: string };
         portMappings: { hostPort: number; containerPort: number; protocol: string }[];
       };
     };
@@ -309,6 +313,7 @@ describe('applications (private repo token)', () => {
     expect(response.status).toBe(201);
     expect(body.application.git.hasToken).toBeTrue();
     expect(body.application.git.token).toBeUndefined();
+    expect(body.application.git.source).toBe('pat');
     expect(body.application.portMappings).toEqual([
       { hostPort: 8080, containerPort: 3000, protocol: 'tcp' },
     ]);
@@ -411,6 +416,445 @@ describe('applications (private repo token)', () => {
     );
 
     expect(response.status).toBe(400);
+  });
+});
+
+describe('applications (github-app source)', () => {
+  let organizationId = '';
+  let serverId = '';
+  let environmentId = '';
+  let activeGitSourceId = '';
+
+  test('setup: org, local server, project, environment and an active git source', async () => {
+    const org = await json('/organizations', 'POST', { name: 'GitHub App Apps Co' }, accessToken);
+    organizationId = ((await org.json()) as { organization: { id: string } }).organization.id;
+
+    serverId = getLocalServerId()!;
+
+    const project = await json(
+      `/organizations/${organizationId}/projects`,
+      'POST',
+      { name: 'GitHub App Project' },
+      accessToken,
+    );
+    const projectId = ((await project.json()) as { project: { id: string } }).project.id;
+
+    const envs = await json(
+      `/organizations/${organizationId}/projects/${projectId}/environments`,
+      'GET',
+      undefined,
+      accessToken,
+    );
+    environmentId = ((await envs.json()) as { items: { id: string }[] }).items[0]!.id;
+
+    const owner = await userModel.findOne({ email });
+
+    const gitSource = await gitSourceModel.create({
+      organizationId,
+      name: 'zydock-apps-test',
+      status: 'active',
+      appId: '123456',
+      privateKey: encryptSecret('irrelevant-for-this-test'),
+      createdBy: owner!._id,
+    });
+
+    activeGitSourceId = String(gitSource._id);
+  });
+
+  test('creating an application without a git source keeps defaulting to "pat"', async () => {
+    const response = await json(
+      `/organizations/${organizationId}/applications`,
+      'POST',
+      {
+        name: 'default-pat',
+        environmentId,
+        serverId,
+        port: 3001,
+        git: { host: 'github', repository: 'acme/default-pat' },
+      },
+      accessToken,
+    );
+    const body = (await response.json()) as { application: { git: { source: string } } };
+
+    expect(response.status).toBe(201);
+    expect(body.application.git.source).toBe('pat');
+  });
+
+  test('source "github-app" with an unknown gitSourceId is 400', async () => {
+    const response = await json(
+      `/organizations/${organizationId}/applications`,
+      'POST',
+      {
+        name: 'unknown-source',
+        environmentId,
+        serverId,
+        port: 3002,
+        git: {
+          host: 'github',
+          repository: 'acme/unknown-source',
+          source: 'github-app',
+          gitSourceId: '0'.repeat(24),
+          installationId: '1',
+        },
+      },
+      accessToken,
+    );
+
+    expect(response.status).toBe(400);
+  });
+
+  test('source "github-app" without installationId is 400', async () => {
+    const response = await json(
+      `/organizations/${organizationId}/applications`,
+      'POST',
+      {
+        name: 'missing-installation',
+        environmentId,
+        serverId,
+        port: 3003,
+        git: {
+          host: 'github',
+          repository: 'acme/missing-installation',
+          source: 'github-app',
+          gitSourceId: activeGitSourceId,
+        },
+      },
+      accessToken,
+    );
+
+    expect(response.status).toBe(400);
+  });
+
+  test('source "github-app" with a token set is 400', async () => {
+    const response = await json(
+      `/organizations/${organizationId}/applications`,
+      'POST',
+      {
+        name: 'token-and-app',
+        environmentId,
+        serverId,
+        port: 3004,
+        git: {
+          host: 'github',
+          repository: 'acme/token-and-app',
+          source: 'github-app',
+          gitSourceId: activeGitSourceId,
+          installationId: '1',
+          token: 'should-not-be-allowed',
+        },
+      },
+      accessToken,
+    );
+
+    expect(response.status).toBe(400);
+  });
+
+  test('POST /applications/:id/webhook on a github-app application is 400', async () => {
+    const created = await json(
+      `/organizations/${organizationId}/applications`,
+      'POST',
+      {
+        name: 'github-app-consumer',
+        environmentId,
+        serverId,
+        port: 3005,
+        git: {
+          host: 'github',
+          repository: 'acme/github-app-consumer',
+          source: 'github-app',
+          gitSourceId: activeGitSourceId,
+          installationId: '1',
+        },
+      },
+      accessToken,
+    );
+    const applicationId = ((await created.json()) as { application: { id: string } }).application
+      .id;
+
+    expect(created.status).toBe(201);
+
+    const response = await json(
+      `/organizations/${organizationId}/applications/${applicationId}/webhook`,
+      'POST',
+      undefined,
+      accessToken,
+    );
+
+    expect(response.status).toBe(400);
+  });
+});
+
+describe('git.source backward compatibility', () => {
+  test('a document written before this task (no git.source) still reads as "pat"', async () => {
+    const inserted = await applicationModel.collection.insertOne({
+      organizationId: new mongoose.Types.ObjectId(),
+      projectId: new mongoose.Types.ObjectId(),
+      environmentId: new mongoose.Types.ObjectId(),
+      serverId: new mongoose.Types.ObjectId(),
+      name: 'legacy-app',
+      slug: 'legacy-app',
+      status: 'created',
+      git: {
+        host: 'github',
+        repository: 'acme/legacy',
+        branch: 'main',
+        dockerfilePath: 'Dockerfile',
+        buildContext: '.',
+        autoDeploy: true,
+        hasToken: false,
+      },
+      port: 3000,
+      portMappings: [],
+      variables: [],
+      volumes: [],
+      networks: [],
+      restartPolicy: 'unless-stopped',
+      createdAt: new Date(),
+      updatedAt: new Date(),
+    });
+
+    const found = await applicationModel.findById(inserted.insertedId);
+
+    expect(found?.git.source).toBe('pat');
+  });
+});
+
+describe('git sources (manifest registration)', () => {
+  let organizationId = '';
+  let serverId = '';
+  let environmentId = '';
+  let gitSourceId = '';
+  let state = '';
+
+  test('setup: org, local server, project and environment', async () => {
+    const org = await json('/organizations', 'POST', { name: 'Git Sources Co' }, accessToken);
+    organizationId = ((await org.json()) as { organization: { id: string } }).organization.id;
+
+    serverId = getLocalServerId()!;
+
+    const project = await json(
+      `/organizations/${organizationId}/projects`,
+      'POST',
+      { name: 'Git Sources Project' },
+      accessToken,
+    );
+    const projectId = ((await project.json()) as { project: { id: string } }).project.id;
+
+    const envs = await json(
+      `/organizations/${organizationId}/projects/${projectId}/environments`,
+      'GET',
+      undefined,
+      accessToken,
+    );
+    environmentId = ((await envs.json()) as { items: { id: string }[] }).items[0]!.id;
+
+    expect(environmentId).toBeString();
+  });
+
+  test('POST /manifest creates a pending source and points the hook at that id', async () => {
+    const response = await json(
+      `/organizations/${organizationId}/git-sources/manifest`,
+      'POST',
+      { name: 'zydock-acme' },
+      accessToken,
+    );
+    const body = (await response.json()) as {
+      gitSource: { id: string; status: string };
+      manifest: { hook_attributes: { url: string } };
+      state: string;
+      postUrl: string;
+    };
+
+    expect(response.status).toBe(201);
+    expect(body.gitSource.status).toBe('pending');
+    expect(body.manifest.hook_attributes.url).toBe(
+      `${config.backendUrl}/api/webhooks/github-app/${body.gitSource.id}`,
+    );
+
+    gitSourceId = body.gitSource.id;
+    state = body.state;
+  });
+
+  test('POST /callback with an unknown state is 404, without calling GitHub', async () => {
+    const originalFetch = globalThis.fetch;
+
+    globalThis.fetch = (() => {
+      throw new Error('must not call GitHub');
+    }) as unknown as typeof fetch;
+
+    try {
+      const response = await json(
+        `/organizations/${organizationId}/git-sources/callback`,
+        'POST',
+        { code: 'irrelevant', state: 'does-not-exist' },
+        accessToken,
+      );
+
+      expect(response.status).toBe(404);
+    } finally {
+      globalThis.fetch = originalFetch;
+    }
+  });
+
+  test('POST /callback with an expired state is 404, without calling GitHub', async () => {
+    await gitSourceModel.updateOne(
+      { _id: gitSourceId },
+      { $set: { stateExpiresAt: new Date(Date.now() - 1000) } },
+    );
+
+    const originalFetch = globalThis.fetch;
+
+    globalThis.fetch = (() => {
+      throw new Error('must not call GitHub');
+    }) as unknown as typeof fetch;
+
+    try {
+      const response = await json(
+        `/organizations/${organizationId}/git-sources/callback`,
+        'POST',
+        { code: 'irrelevant', state },
+        accessToken,
+      );
+
+      expect(response.status).toBe(404);
+    } finally {
+      globalThis.fetch = originalFetch;
+    }
+  });
+
+  test('GET / never returns privateKey, webhookSecret, clientSecret or state', async () => {
+    const response = await json(
+      `/organizations/${organizationId}/git-sources`,
+      'GET',
+      undefined,
+      accessToken,
+    );
+    const body = (await response.json()) as { items: Record<string, unknown>[] };
+
+    expect(response.status).toBe(200);
+
+    for (const item of body.items) {
+      expect(item.privateKey).toBeUndefined();
+      expect(item.webhookSecret).toBeUndefined();
+      expect(item.clientSecret).toBeUndefined();
+      expect(item.state).toBeUndefined();
+    }
+  });
+
+  test('DELETE of a source used by an application is 400', async () => {
+    const appResponse = await json(
+      `/organizations/${organizationId}/applications`,
+      'POST',
+      {
+        name: 'git-source-consumer',
+        environmentId,
+        serverId,
+        port: 3000,
+        git: { host: 'github', repository: 'acme/consumer' },
+      },
+      accessToken,
+    );
+    const applicationId = ((await appResponse.json()) as { application: { id: string } })
+      .application.id;
+
+    await applicationModel.updateOne(
+      { _id: applicationId },
+      { $set: { 'git.gitSourceId': gitSourceId } },
+    );
+
+    const response = await json(
+      `/organizations/${organizationId}/git-sources/${gitSourceId}`,
+      'DELETE',
+      undefined,
+      accessToken,
+    );
+
+    expect(response.status).toBe(400);
+  });
+
+  test('installations of an unknown git source is 404', async () => {
+    const response = await json(
+      `/organizations/${organizationId}/git-sources/${'0'.repeat(24)}/installations`,
+      'GET',
+      undefined,
+      accessToken,
+    );
+
+    expect(response.status).toBe(404);
+  });
+
+  test('installations of a git source from another organization is also 404', async () => {
+    const other = await json(
+      '/organizations',
+      'POST',
+      { name: 'Other Git Sources Co' },
+      accessToken,
+    );
+    const otherOrganizationId = ((await other.json()) as { organization: { id: string } })
+      .organization.id;
+
+    const response = await json(
+      `/organizations/${otherOrganizationId}/git-sources/${gitSourceId}/installations`,
+      'GET',
+      undefined,
+      accessToken,
+    );
+
+    expect(response.status).toBe(404);
+  });
+});
+
+describe('git sources webhook', () => {
+  let organizationId = '';
+  let gitSourceId = '';
+  const webhookSecret = 'test-git-source-webhook-secret';
+
+  test('setup: an active git source with a known webhook secret', async () => {
+    const org = await json('/organizations', 'POST', { name: 'Webhook Co' }, accessToken);
+    organizationId = ((await org.json()) as { organization: { id: string } }).organization.id;
+
+    const owner = await userModel.findOne({ email });
+
+    const gitSource = await gitSourceModel.create({
+      organizationId,
+      name: 'zydock-webhook-test',
+      status: 'active',
+      webhookSecret: encryptSecret(webhookSecret),
+      createdBy: owner!._id,
+    });
+
+    gitSourceId = String(gitSource._id);
+  });
+
+  test('a push with an invalid signature is 401', async () => {
+    const response = await app.request(`/api/webhooks/github-app/${gitSourceId}`, {
+      method: 'POST',
+      headers: {
+        'Content-Type': 'application/json',
+        'X-GitHub-Event': 'push',
+        'X-Hub-Signature-256': 'sha256=deadbeef',
+      },
+      body: JSON.stringify({ ref: 'refs/heads/main' }),
+    });
+
+    expect(response.status).toBe(401);
+  });
+
+  test('a non-push event is accepted but ignored (200)', async () => {
+    const body = JSON.stringify({ action: 'created' });
+    const signature = `sha256=${createHmac('sha256', webhookSecret).update(body, 'utf8').digest('hex')}`;
+
+    const response = await app.request(`/api/webhooks/github-app/${gitSourceId}`, {
+      method: 'POST',
+      headers: {
+        'Content-Type': 'application/json',
+        'X-GitHub-Event': 'installation',
+        'X-Hub-Signature-256': signature,
+      },
+      body,
+    });
+
+    expect(response.status).toBe(200);
   });
 });
 
