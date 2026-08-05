@@ -180,7 +180,7 @@
         v-if="password && type !== 'textarea'"
         type="button"
         :disabled="disabled"
-        :aria-label="viewPassword ? 'Mostrar senha' : 'Ocultar senha'"
+        :aria-label="viewPassword ? 'Show password' : 'Hide password'"
         class="text-2xl absolute right-2 bottom-1 z-50 text-content-muted transition hover:text-content-strong disabled:cursor-not-allowed disabled:text-content-dim"
         @click="viewPassword = !viewPassword"
       >

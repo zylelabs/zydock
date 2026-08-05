@@ -34,7 +34,6 @@
   const handleSubmit = form.submit(async data => {
     const response = await api.post<AuthResponse>('/auth/signin', { body: data, anonymous: true });
 
-    console.log('response', response);
     session.start(
       { accessToken: response.accessToken, refreshToken: response.refreshToken },
       response.user,
