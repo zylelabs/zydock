@@ -16,6 +16,7 @@ import { createOrganizationRoleGuard } from '../organizations/organizations.midd
 import { findEnvironmentOfOrganization } from '../projects/environment.service';
 import { findServer } from '../servers/server.service';
 import applicationModel from './application.model';
+import { findHostPortConflict } from './port-guard.service';
 import {
   ApplicationIdParam,
   applicationIdParamSchema,
@@ -127,6 +128,18 @@ post(
       return c.json({ error: 'Git source not found or not active in this organization' }, 400);
     }
 
+    const conflict = await findHostPortConflict(
+      body.serverId,
+      body.portMappings.map(mapping => mapping.hostPort),
+    );
+
+    if (conflict) {
+      return c.json(
+        { error: `Host port ${conflict.port} is already in use by ${conflict.owner}` },
+        400,
+      );
+    }
+
     const application = await createApplication(
       organizationId,
       String(environment.projectId),
@@ -182,6 +195,19 @@ patch(
       !(await isGitSourceUsable(organizationId, body.git.gitSourceId!))
     ) {
       return c.json({ error: 'Git source not found or not active in this organization' }, 400);
+    }
+
+    const conflict = await findHostPortConflict(
+      body.serverId ?? String(application.serverId),
+      (body.portMappings ?? application.portMappings).map(mapping => mapping.hostPort),
+      applicationId,
+    );
+
+    if (conflict) {
+      return c.json(
+        { error: `Host port ${conflict.port} is already in use by ${conflict.owner}` },
+        400,
+      );
     }
 
     const updated = await updateApplication(application, body);

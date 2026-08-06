@@ -28,10 +28,6 @@ services:
       AGENT_BUNDLE_PATH: /agent/dist/agent.js
     volumes:
       - backend-storage:/app/storage
-    # With a domain, Caddy reaches the service over the Compose network and the published port only
-    # needs to answer on the host itself (BIND_HOST=127.0.0.1); without one, it is the dashboard.
-    ports:
-      - '${BIND_HOST:-0.0.0.0}:8000:8000'
     healthcheck:
       test: ['CMD', 'wget', '-qO-', 'http://localhost:8000/api/health']
       interval: 5s
@@ -67,16 +63,10 @@ services:
       PORT: '3000'
       HOST: 0.0.0.0
       URL_API: http://backend:8000
-    ports:
-      - '${BIND_HOST:-0.0.0.0}:3000:3000'
 
-  # The reverse proxy of this server: it serves the domains of the deployed applications and, when
-  # ZYDOCK_DOMAIN is set, the dashboard itself. Both are routes pushed by the agent over the admin
-  # API, so it also runs without a domain — `--resume` keeps those routes across restarts.
   caddy:
     image: caddy:2
     restart: unless-stopped
-    # A socket left behind by an unclean stop would keep the admin API from binding again.
     command: sh -c 'rm -f /var/run/caddy/admin.sock && exec caddy run --config /etc/caddy/Caddyfile --adapter caddyfile --resume'
     depends_on:
       - frontend
@@ -90,7 +80,6 @@ services:
       - caddy-config:/config
       - caddy-admin:/var/run/caddy
     networks:
-      # `default` reaches the dashboard, `zydock` the containers deployed on this server.
       - default
       - zydock
 
@@ -102,7 +91,5 @@ volumes:
   caddy-admin:
 
 networks:
-  # Created by scripts/install.sh (and by the SSH provisioning on remote servers), never owned by
-  # Compose: the deployed applications join it too.
   zydock:
     external: true

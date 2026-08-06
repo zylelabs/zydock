@@ -16,7 +16,8 @@ export type RouteUpstream = {
 
 export type RouteSpec = {
   id: string;
-  domain: string;
+  domain?: string;
+  isDefault?: boolean;
   upstreams: RouteUpstream[];
   pathPrefix?: string;
   tls?: boolean;

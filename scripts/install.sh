@@ -22,6 +22,46 @@ ensure_env() {
   grep -q "^${key}=" .env 2>/dev/null || printf '%s="%s"\n' "${key}" "${value}" >>.env
 }
 
+set_env() {
+  local key="$1" value="$2"
+
+  if grep -q "^${key}=" .env 2>/dev/null; then
+    sed -i "s|^${key}=.*|${key}=\"${value}\"|" .env
+  else
+    printf '%s="%s"\n' "${key}" "${value}" >>.env
+  fi
+}
+
+migrate_port_urls() {
+  [ -f .env ] || return 0
+
+  . ./.env
+  local changed=false
+
+  case "${APP_URL:-}" in
+  *:3000)
+    set_env APP_URL "${APP_URL%:3000}"
+    changed=true
+    ;;
+  esac
+
+  case "${CORS_ORIGIN:-}" in
+  *:3000)
+    set_env CORS_ORIGIN "${CORS_ORIGIN%:3000}"
+    changed=true
+    ;;
+  esac
+
+  case "${NUXT_PUBLIC_WS_URL:-}" in
+  *:8000/api/ws)
+    set_env NUXT_PUBLIC_WS_URL "${NUXT_PUBLIC_WS_URL%:8000/api/ws}/api/ws"
+    changed=true
+    ;;
+  esac
+
+  [ "${changed}" = true ] && log "Migrated .env off the published :3000/:8000 URLs"
+}
+
 [ "$(id -u)" -eq 0 ] || fail "Run as root (or with sudo)."
 command -v apt-get >/dev/null 2>&1 || fail "This installer only supports Debian/Ubuntu (needs apt-get)."
 
@@ -73,11 +113,9 @@ if [ ! -f .env ]; then
   if [ -n "${ZYDOCK_DOMAIN}" ]; then
     APP_URL="https://${ZYDOCK_DOMAIN}"
     WS_URL="wss://${ZYDOCK_DOMAIN}/api/ws"
-    BIND_HOST="127.0.0.1"
   else
-    APP_URL="http://${ZYDOCK_HOST}:3000"
-    WS_URL="ws://${ZYDOCK_HOST}:8000/api/ws"
-    BIND_HOST="0.0.0.0"
+    APP_URL="http://${ZYDOCK_HOST}"
+    WS_URL="ws://${ZYDOCK_HOST}/api/ws"
   fi
 
   cat >.env <<EOF
@@ -98,7 +136,6 @@ LOCAL_AGENT_TOKEN="${LOCAL_AGENT_TOKEN}"
 SUPERUSER_EMAILS="${ZYDOCK_SUPERUSER_EMAIL}"
 
 ZYDOCK_DOMAIN="${ZYDOCK_DOMAIN}"
-BIND_HOST="${BIND_HOST}"
 URL_API="http://backend:8000"
 NUXT_PUBLIC_WS_URL="${WS_URL}"
 EOF
@@ -107,6 +144,7 @@ EOF
 else
   log "Existing install found — reusing .env, updating in place"
   ensure_env LOCAL_AGENT_TOKEN "$(openssl rand -hex 32)"
+  migrate_port_urls
 fi
 
 . ./.env
@@ -126,8 +164,6 @@ until [ "$(docker compose "${COMPOSE_ARGS[@]}" ps --format '{{.Health}}' backend
   sleep 2
 done
 
-# A container that cannot reach GitHub installs fine and only fails at the first deploy, where the
-# cause is far from obvious — so it is worth naming here, while the operator is still watching.
 log "Checking that the containers can reach GitHub"
 GITHUB_CHECK="$(docker compose "${COMPOSE_ARGS[@]}" exec -T backend bun -e 'try { const r = await fetch("https://api.github.com/", { signal: AbortSignal.timeout(10000) }); console.log(r.ok ? "ok" : "http"); } catch { const dns = await import("node:dns/promises"); try { await dns.lookup("api.github.com"); console.log("egress"); } catch { console.log("dns"); } }' 2>/dev/null | tr -d '\r' | tail -n1)"
 

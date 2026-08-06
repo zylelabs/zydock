@@ -6,6 +6,7 @@ const routeSchema = {
   properties: {
     id: { type: 'string' },
     domain: { type: 'string' },
+    isDefault: { type: 'boolean' },
     pathPrefix: { type: 'string' },
     tls: { type: 'boolean' },
     upstreams: {
@@ -51,7 +52,9 @@ export const proxyDocs = {
     summary: 'Create or replace a route',
     description:
       'Idempotent: the route id is stable, so applying the same specification twice leaves a ' +
-      'single route. Creates the Zydock server inside the proxy configuration on first use.',
+      'single route. Creates the Zydock server inside the proxy configuration on first use. A ' +
+      'new route with a domain is inserted first, ahead of any existing route; a new default ' +
+      'route (isDefault, no domain) is appended last, so it never shadows a domain route.',
     security: agentAuth,
     responses: {
       200: messageRes('Route applied.'),
