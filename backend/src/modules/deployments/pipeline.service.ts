@@ -117,8 +117,17 @@ const replaceContainer = async (
     labels: { [APPLICATION_LABEL]: String(application._id) },
   });
 
+  const removed = new Set<string>();
+
   for (const container of previous) {
     await containers.removeContainer(container.id, false);
+    removed.add(container.id);
+  }
+
+  const conflicting = await containers.inspectContainer(containerNameOf(application.slug));
+
+  if (conflicting && !removed.has(conflicting.id)) {
+    await containers.removeContainer(conflicting.id, false);
   }
 
   const created = await containers.createContainer(specOf(application, deploymentId, image));
