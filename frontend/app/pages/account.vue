@@ -188,8 +188,10 @@
 
   const formatWhen = (value?: string) => (value ? new Date(value).toLocaleString('en-US') : '—');
 
+  const { set: setNavbar } = useNavbar();
+
   watchEffect(() => {
-    useNavbar().set({ title: 'Account' });
+    setNavbar({ title: 'Account' });
   });
 </script>
 

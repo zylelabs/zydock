@@ -359,8 +359,10 @@
     { label: 'Auto-deploy', value: form.values.autoDeploy ? 'on' : 'off' },
   ]);
 
+  const { set: setNavbar } = useNavbar();
+
   watchEffect(() => {
-    useNavbar().set({
+    setNavbar({
       title: 'New application',
       context: `Projects · ${projectName.value}`,
     });

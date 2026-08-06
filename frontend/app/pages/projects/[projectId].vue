@@ -178,8 +178,10 @@
     }
   };
 
+  const { set: setNavbar } = useNavbar();
+
   watchEffect(() => {
-    useNavbar().set({
+    setNavbar({
       title: data.value?.project.name ?? 'Project',
       context: 'Projects',
       action: {

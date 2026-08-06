@@ -14,8 +14,10 @@
 
   useHead(() => ({ title: `Logs · ${applicationName.value || 'Application'}` }));
 
+  const { set: setNavbar } = useNavbar();
+
   watchEffect(() => {
-    useNavbar().set({ title: 'Logs', context: applicationName.value });
+    setNavbar({ title: 'Logs', context: applicationName.value });
   });
 
   const filters = reactive({ search: '', stream: '', level: '' });

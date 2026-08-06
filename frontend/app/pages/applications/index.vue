@@ -92,8 +92,10 @@
     return value ? new Date(value).toLocaleDateString('en-US') : 'Never deployed';
   };
 
+  const { set: setNavbar } = useNavbar();
+
   watchEffect(() => {
-    useNavbar().set({
+    setNavbar({
       title: 'Applications',
       context: current.value?.name,
       action: {

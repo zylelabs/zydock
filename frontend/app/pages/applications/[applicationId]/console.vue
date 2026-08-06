@@ -39,8 +39,10 @@
 
   useHead(() => ({ title: `Console · ${data.value?.name ?? 'Application'}` }));
 
+  const { set: setNavbar } = useNavbar();
+
   watchEffect(() => {
-    useNavbar().set({ title: 'Console', context: data.value?.name });
+    setNavbar({ title: 'Console', context: data.value?.name });
   });
 </script>
 

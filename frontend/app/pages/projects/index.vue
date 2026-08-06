@@ -82,8 +82,10 @@
     await navigateTo(`/projects/${project.id}`);
   });
 
+  const { set: setNavbar } = useNavbar();
+
   watchEffect(() => {
-    useNavbar().set({
+    setNavbar({
       title: 'Projects',
       context: current.value?.name,
       action:

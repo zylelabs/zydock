@@ -180,8 +180,10 @@
     }
   });
 
+  const { set: setNavbar } = useNavbar();
+
   watchEffect(() => {
-    useNavbar().set({
+    setNavbar({
       title: application.value?.name ?? 'Application',
       context: navbarContext.value,
     });
