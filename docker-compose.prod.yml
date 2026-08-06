@@ -47,11 +47,14 @@ services:
     volumes:
       - /var/run/docker.sock:/var/run/docker.sock
       - /var/lib/zydock/builds:/var/lib/zydock/builds
+      - caddy-admin:/var/run/caddy
     environment:
       MODE: prod
       AGENT_TOKEN: ${LOCAL_AGENT_TOKEN}
       BACKEND_URL: http://backend:8000
       WORKSPACE_PATH: /var/lib/zydock/builds
+      CADDY_ADMIN_URL: unix:/var/run/caddy/admin.sock
+      PROXY_HTTPS_HOST: caddy
 
   frontend:
     build: ./frontend
@@ -67,12 +70,14 @@ services:
     ports:
       - '${BIND_HOST:-0.0.0.0}:3000:3000'
 
-  # Only started when ZYDOCK_DOMAIN is set (`docker compose --profile domain ...`); gives the
-  # dashboard a single HTTPS domain instead of the raw frontend/backend ports.
+  # The reverse proxy of this server: it serves the domains of the deployed applications and, when
+  # ZYDOCK_DOMAIN is set, the dashboard itself. Both are routes pushed by the agent over the admin
+  # API, so it also runs without a domain — `--resume` keeps those routes across restarts.
   caddy:
     image: caddy:2
     restart: unless-stopped
-    profiles: ['domain']
+    # A socket left behind by an unclean stop would keep the admin API from binding again.
+    command: sh -c 'rm -f /var/run/caddy/admin.sock && exec caddy run --config /etc/caddy/Caddyfile --adapter caddyfile --resume'
     depends_on:
       - frontend
       - backend
@@ -83,11 +88,21 @@ services:
       - ./scripts/Caddyfile:/etc/caddy/Caddyfile:ro
       - caddy-data:/data
       - caddy-config:/config
-    environment:
-      ZYDOCK_DOMAIN: ${ZYDOCK_DOMAIN}
+      - caddy-admin:/var/run/caddy
+    networks:
+      # `default` reaches the dashboard, `zydock` the containers deployed on this server.
+      - default
+      - zydock
 
 volumes:
   mongo-data:
   backend-storage:
   caddy-data:
   caddy-config:
+  caddy-admin:
+
+networks:
+  # Created by scripts/install.sh (and by the SSH provisioning on remote servers), never owned by
+  # Compose: the deployed applications join it too.
+  zydock:
+    external: true

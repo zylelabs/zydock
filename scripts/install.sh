@@ -111,7 +111,8 @@ fi
 . ./.env
 
 COMPOSE_ARGS=(-f docker-compose.prod.yml --env-file .env)
-[ -n "${ZYDOCK_DOMAIN:-}" ] && COMPOSE_ARGS+=(--profile domain)
+
+docker network inspect zydock >/dev/null 2>&1 || docker network create zydock
 
 log "Building and starting the stack"
 docker compose "${COMPOSE_ARGS[@]}" up -d --build

@@ -124,7 +124,7 @@ if [ -z "$(docker ps -q -f name=^/${PROXY_CONTAINER}$)" ]; then
     -p 80:80 -p 443:443 -p 127.0.0.1:2019:2019 \\
     -v zydock-caddy-data:/data -v zydock-caddy-config:/config \\
     -v ${PROXY_CADDYFILE}:/etc/caddy/Caddyfile:ro \\
-    caddy:2
+    caddy:2 caddy run --config /etc/caddy/Caddyfile --adapter caddyfile --resume
 fi
 docker inspect -f '{{.State.Status}}' ${PROXY_CONTAINER}
 `;

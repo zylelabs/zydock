@@ -11,6 +11,7 @@ import routes from './modules/routes';
 import { stopLogStreams } from './modules/logs/log.service';
 import { stopMetricStreams } from './modules/metrics/metric.service';
 import { startWorker, stopWorker } from './modules/queue/queue.service';
+import { ensureDashboardRoutes } from './modules/servers/dashboard-route.service';
 import { ensureLocalServer } from './modules/servers/local-server.service';
 import { logError, logInfo } from './utils/logger';
 
@@ -22,6 +23,7 @@ const connect = () => {
   connectDatabase()
     .then(ensureLocalServer)
     .then(startWorker)
+    .then(() => void ensureDashboardRoutes())
     .catch(error => {
       logError('Failed to connect to MongoDB', error);
     });

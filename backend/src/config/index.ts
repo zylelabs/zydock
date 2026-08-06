@@ -77,6 +77,10 @@ export default {
   corsOrigin: readString('CORS_ORIGIN', 'http://localhost:3000'),
   appUrl: readString('APP_URL', 'http://localhost:3000'),
   backendUrl: readString('BACKEND_URL', 'http://localhost:8000'),
+  frontendUrl: readString('FRONTEND_URL', 'http://frontend:3000'),
+  dashboard: {
+    domain: readString('ZYDOCK_DOMAIN', ''),
+  },
   mongodb: {
     uri: readRequired('MONGO_URI'),
   },

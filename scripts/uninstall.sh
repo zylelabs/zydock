@@ -32,11 +32,12 @@ if command -v docker >/dev/null 2>&1 && docker compose version >/dev/null 2>&1; 
   if [ -f .env ]; then
     COMPOSE_ARGS+=(--env-file .env)
     . ./.env
-    [ -n "${ZYDOCK_DOMAIN:-}" ] && COMPOSE_ARGS+=(--profile domain)
   fi
 
   log "Stopping and removing containers, networks and volumes"
   docker compose "${COMPOSE_ARGS[@]}" down -v --remove-orphans || warn "docker compose down reported an error — continuing"
+
+  docker network rm zydock >/dev/null 2>&1 || warn "The 'zydock' network was kept — containers of deployed applications are still attached to it"
 
   log "Removing built images"
   IMAGES="$(docker compose "${COMPOSE_ARGS[@]}" config --images 2>/dev/null | grep -v -E '^(mongo|caddy):' || true)"

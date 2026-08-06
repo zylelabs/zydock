@@ -41,11 +41,14 @@ services:
     volumes:
       - /var/run/docker.sock:/var/run/docker.sock
       - /var/lib/zydock/builds:/var/lib/zydock/builds
+      - caddy-admin:/var/run/caddy
     environment:
       MODE: dev
       AGENT_TOKEN: dev-local-agent-token-change-me
       BACKEND_URL: http://backend:8000
       WORKSPACE_PATH: /var/lib/zydock/builds
+      CADDY_ADMIN_URL: unix:/var/run/caddy/admin.sock
+      PROXY_HTTPS_HOST: caddy
 
   frontend:
     build: ./frontend
@@ -60,5 +63,31 @@ services:
     ports:
       - '3000:3000'
 
+  caddy:
+    image: caddy:2
+    restart: unless-stopped
+    command: sh -c 'rm -f /var/run/caddy/admin.sock && exec caddy run --config /etc/caddy/Caddyfile --adapter caddyfile --resume'
+    depends_on:
+      - frontend
+      - backend
+    ports:
+      - '80:80'
+      - '443:443'
+    volumes:
+      - ./scripts/Caddyfile:/etc/caddy/Caddyfile:ro
+      - caddy-data:/data
+      - caddy-config:/config
+      - caddy-admin:/var/run/caddy
+    networks:
+      - default
+      - zydock
+
 volumes:
   mongo-data:
+  caddy-data:
+  caddy-config:
+  caddy-admin:
+
+networks:
+  zydock:
+    name: zydock
