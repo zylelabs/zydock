@@ -142,9 +142,7 @@
     :class="isOpen && 'translate-x-0'"
   >
     <div class="flex items-center gap-2.5 px-1.5 py-1">
-      <div class="flex size-6.5 shrink-0 items-center justify-center rounded-control bg-ink">
-        <div class="size-2.25 rotate-45 rounded-[2px] bg-page" />
-      </div>
+      <Logo class="size-6.5 shrink-0" />
       <div class="flex-1 text-[15px] font-semibold tracking-[-0.01em] text-ink">Zydock</div>
       <div class="font-mono text-[11px] text-ink-3">v{{ version }}</div>
     </div>

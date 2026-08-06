@@ -23,9 +23,7 @@
   </div>
 
   <div v-else-if="centered" class="mx-auto my-15 max-w-130 text-center">
-    <div class="mx-auto mb-5 flex size-11.5 items-center justify-center rounded-[13px] bg-ink">
-      <div class="size-3.75 rotate-45 rounded-[3px] bg-page"></div>
-    </div>
+    <Logo class="mx-auto mb-5 size-11.5" />
     <h1 class="mb-2 text-[26px] font-semibold tracking-tight text-ink">{{ title }}</h1>
     <p v-if="description" class="mb-6 text-[15px] leading-[1.55] text-ink-2 text-pretty">
       {{ description }}
