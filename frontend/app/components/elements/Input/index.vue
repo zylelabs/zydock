@@ -56,8 +56,10 @@
 
   const viewPassword = ref(true);
 
+  const fallbackId = useId();
+
   const inputId = ref(
-    props.id || formatter.slugify(`${props.mask || ''}-${props.label || crypto.randomUUID()}`),
+    props.id || formatter.slugify(`${props.mask || ''}-${props.label || fallbackId}`),
   );
 
   const errorMessage = ref('');
