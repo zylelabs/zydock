@@ -178,23 +178,35 @@
         </button>
       </div>
 
-      <div v-else class="flex flex-col gap-3 p-4.25">
-        <Alert v-if="tokenError" theme="error">{{ tokenError }}</Alert>
-        <Input v-model="tokenDraft" password placeholder="Personal access token" />
-        <p class="text-caption text-ink-3">
-          Repository read scope. Stored encrypted; never shown again.
-        </p>
-        <div class="flex justify-end gap-2">
-          <Button theme="quiet" size="sm" @click="editingToken = false">Cancel</Button>
-          <Button
-            theme="primary"
-            size="sm"
-            :disabled="savingToken || !tokenDraft"
-            @click="saveToken(tokenDraft)"
-          >
-            <Icon v-if="savingToken" name="svg-spinners:tadpole" size="16" />
-            Save
-          </Button>
+      <div v-else class="flex flex-col">
+        <Alert v-if="tokenError" theme="error" class="mx-4.25 mt-3">{{ tokenError }}</Alert>
+        <div data-rows class="flex flex-col">
+          <Input
+            v-model="tokenDraft"
+            label="Token"
+            password
+            placeholder="Personal access token"
+            mono
+            boxed
+          />
+        </div>
+        <div class="flex flex-wrap items-center gap-2 px-4.25 py-3.25">
+          <p class="text-caption text-ink-3">
+            Repository read scope. Stored encrypted; never shown again.
+          </p>
+
+          <div class="ml-auto flex items-center gap-2">
+            <Button theme="quiet" size="sm" @click="editingToken = false">Cancel</Button>
+            <Button
+              theme="primary"
+              size="sm"
+              :disabled="savingToken || !tokenDraft"
+              @click="saveToken(tokenDraft)"
+            >
+              <Icon v-if="savingToken" name="svg-spinners:tadpole" size="16" />
+              Save
+            </Button>
+          </div>
         </div>
       </div>
     </Card>

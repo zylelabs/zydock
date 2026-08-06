@@ -93,16 +93,21 @@
       </Row>
     </template>
 
-    <div v-else class="flex flex-col gap-3 p-4.25">
-      <Alert v-if="portError" theme="error">{{ portError }}</Alert>
+    <div v-else class="flex flex-col">
+      <Alert v-if="portError" theme="error" class="mx-4.25 mt-3">{{ portError }}</Alert>
 
-      <div v-for="(mapping, index) in portDraft" :key="index" class="flex items-center gap-2">
+      <div
+        v-for="(mapping, index) in portDraft"
+        :key="index"
+        class="flex items-center gap-2 border-b border-hairline px-4.25"
+      >
         <Input
           v-model="mapping.hostPort"
           class="flex-1"
           placeholder="Host, e.g. 8080"
           mono
-          compact
+          boxed
+          bare
         />
         <span class="text-ink-3">→</span>
         <Input
@@ -110,10 +115,11 @@
           class="flex-1"
           placeholder="Container, e.g. 3000"
           mono
-          compact
+          boxed
+          bare
         />
         <div class="w-24">
-          <Select v-model="mapping.protocol" :options="protocolOptions" />
+          <Select v-model="mapping.protocol" :options="protocolOptions" boxed bare />
         </div>
         <button
           type="button"
@@ -124,12 +130,12 @@
         </button>
       </div>
 
-      <div class="flex items-center justify-between">
+      <div class="flex flex-wrap items-center gap-2 px-4.25 py-3.25">
         <Button theme="quiet" size="sm" @click="addPort">
           <Icon name="proicons:add" size="16" />
           Add mapping
         </Button>
-        <div class="flex gap-2">
+        <div class="ml-auto flex items-center gap-2">
           <Button theme="quiet" size="sm" @click="editingPorts = false">Cancel</Button>
           <Button theme="primary" size="sm" :disabled="savingPorts" @click="savePorts">
             <Icon v-if="savingPorts" name="svg-spinners:tadpole" size="16" />
@@ -138,7 +144,7 @@
         </div>
       </div>
 
-      <p class="text-caption text-ink-3">Changes take effect on the next deploy.</p>
+      <p class="px-4.25 pb-3.25 text-caption text-ink-3">Changes take effect on the next deploy.</p>
     </div>
   </Card>
 </template>

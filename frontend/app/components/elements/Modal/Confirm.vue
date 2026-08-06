@@ -44,6 +44,8 @@
         v-model="typedText"
         class="mt-4"
         :label="`Type “${confirmText}” to confirm`"
+        boxed
+        bare
       />
 
       <template #footer>

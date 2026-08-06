@@ -265,32 +265,39 @@
     <Modal :open="connectOpen" @on-close-modal="connectOpen = false">
       <Card
         title="Connect GitHub"
+        rows
         class="w-md max-w-full"
         close-button
         @on-close="connectOpen = false"
       >
-        <form class="flex flex-col gap-1.5" @submit.prevent="handleConnect">
+        <form class="flex flex-col" @submit.prevent="handleConnect">
           <Input
             v-model="connectForm.values.name"
             label="App name"
             placeholder="zydock-acme"
+            mono
+            boxed
             :call-error="connectForm.errors.value.name"
           />
           <Input
             v-model="connectForm.values.organization"
             label="GitHub org (optional)"
             placeholder="acme-corp"
+            mono
+            boxed
             :call-error="connectForm.errors.value.organization"
           />
 
-          <p class="py-3 text-caption text-ink-3">
+          <p class="px-4.25 pt-3.25 text-caption text-ink-3">
             You'll be taken to GitHub to confirm the app. Leave the organization empty to create it
             under your personal account.
           </p>
 
-          <div class="flex items-center justify-end gap-2">
-            <Button theme="quiet" type="button" @click="connectOpen = false">Cancel</Button>
-            <Button theme="primary" type="submit" :disabled="connectForm.loading.value">
+          <div class="flex items-center justify-end gap-2 px-4.25 py-3.25">
+            <Button theme="quiet" size="sm" type="button" @click="connectOpen = false">
+              Cancel
+            </Button>
+            <Button theme="primary" size="sm" type="submit" :disabled="connectForm.loading.value">
               <Icon v-if="connectForm.loading.value" name="svg-spinners:tadpole" size="16" />
               Continue on GitHub
             </Button>

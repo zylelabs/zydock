@@ -419,6 +419,8 @@
               label="Repository"
               placeholder="owner/repository"
               mono
+              boxed
+              bare
               :call-error="form.errors.value.repository"
             />
             <Input
@@ -426,17 +428,20 @@
               label="Access token"
               password
               mono
+              boxed
+              bare
               placeholder="Leave blank if the repository is public"
             />
           </div>
         </template>
 
         <template v-else-if="currentStep === 1">
-          <Card content-class="p-0">
+          <Card rows>
             <Input
               v-model="form.values.name"
               label="Name"
               placeholder="api"
+              boxed
               :call-error="form.errors.value.name"
             />
             <Select
@@ -444,25 +449,29 @@
               label="Project"
               :options="projectOptions"
               placeholder="Choose a project"
+              boxed
             />
             <Select
               v-model="form.values.environmentId"
               label="Environment"
               :options="environmentOptions"
               placeholder="Choose an environment"
+              boxed
             />
             <Select
               v-model="form.values.serverId"
               label="Server"
               :options="serverOptions"
               placeholder="Choose a server"
+              boxed
             />
-            <Input v-model="form.values.branch" label="Branch" mono />
-            <Input v-model="form.values.dockerfilePath" label="Dockerfile" mono />
+            <Input v-model="form.values.branch" label="Branch" mono boxed />
+            <Input v-model="form.values.dockerfilePath" label="Dockerfile" mono boxed />
             <Input
               v-model="form.values.port"
               label="Port"
               mono
+              boxed
               :call-error="form.errors.value.port"
             />
 

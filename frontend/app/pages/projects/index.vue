@@ -111,7 +111,7 @@
     />
 
     <div v-else class="flex flex-col gap-4">
-      <Card v-if="showCreate" title="New project" class="max-w-155">
+      <Card v-if="showCreate" title="New project" rows class="max-w-155">
         <template #footer>
           <div class="flex w-full items-center justify-between gap-3">
             <p class="text-caption text-ink-2">
@@ -124,14 +124,20 @@
           </div>
         </template>
 
-        <div class="flex flex-col gap-1.5">
+        <div class="flex flex-col">
           <Input
             v-model="form.values.name"
             label="Name"
             placeholder="Payments"
+            boxed
             :call-error="form.errors.value.name"
           />
-          <Input v-model="form.values.description" label="Description" placeholder="Optional" />
+          <Input
+            v-model="form.values.description"
+            label="Description"
+            placeholder="Optional"
+            boxed
+          />
         </div>
       </Card>
 

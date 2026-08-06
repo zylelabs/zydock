@@ -196,7 +196,7 @@
 <template>
   <Content>
     <div class="mx-auto flex max-w-205 flex-col gap-4.5">
-      <Card title="Profile" content-class="p-0">
+      <Card title="Profile" rows>
         <template #right>
           <Button v-if="!editingProfile" theme="secondary" size="xs" @click="startEditProfile">
             Edit
@@ -218,20 +218,26 @@
           </Row>
         </template>
 
-        <form v-else class="flex flex-col gap-1.5 p-4.25" @submit.prevent="onSaveProfile">
+        <form v-else class="flex flex-col" @submit.prevent="onSaveProfile">
+          <Input :model-value="user?.email" label="Email" boxed disabled />
           <Input
             v-model="profileForm.values.name"
             label="Name"
+            boxed
             :call-error="profileForm.errors.value.name"
           />
           <Input
             v-model="profileForm.values.avatar"
             label="Avatar URL"
             placeholder="https://…/avatar.png"
+            mono
+            boxed
           />
 
-          <div class="mt-1 flex justify-end gap-2">
-            <Button theme="quiet" type="button" @click="editingProfile = false">Cancel</Button>
+          <div class="flex justify-end gap-2 px-4.25 py-3.25">
+            <Button theme="quiet" size="sm" type="button" @click="editingProfile = false">
+              Cancel
+            </Button>
             <Button theme="primary" size="sm" type="submit" :disabled="profileForm.loading.value">
               <Icon v-if="profileForm.loading.value" name="svg-spinners:tadpole" size="16" />
               Save
@@ -240,28 +246,31 @@
         </form>
       </Card>
 
-      <Card title="Password">
-        <form class="flex flex-col gap-1.5" @submit.prevent="onChangePassword">
+      <Card title="Password" rows>
+        <form class="flex flex-col" @submit.prevent="onChangePassword">
           <Input
             v-model="passwordForm.values.currentPassword"
             label="Current"
             password
+            boxed
             :call-error="passwordForm.errors.value.currentPassword"
           />
           <Input
             v-model="passwordForm.values.newPassword"
             label="New"
             password
+            boxed
             :call-error="passwordForm.errors.value.newPassword"
           />
           <Input
             v-model="passwordForm.values.confirmPassword"
             label="Confirm"
             password
+            boxed
             :call-error="passwordForm.errors.value.confirmPassword"
           />
 
-          <div class="mt-1 flex justify-end">
+          <div class="flex justify-end px-4.25 py-3.25">
             <Button theme="primary" size="sm" type="submit" :disabled="passwordForm.loading.value">
               <Icon v-if="passwordForm.loading.value" name="svg-spinners:tadpole" size="16" />
               Change password
@@ -270,7 +279,7 @@
         </form>
       </Card>
 
-      <Card title="API keys" content-class="p-0">
+      <Card title="API keys" rows>
         <template #right>
           <Button v-if="!creatingKey" theme="secondary" size="xs" @click="creatingKey = true">
             New key
@@ -286,24 +295,30 @@
 
         <form
           v-if="creatingKey"
-          class="flex flex-col gap-1.5 border-t border-hairline p-4.25"
+          class="flex flex-col border-t border-hairline"
           @submit.prevent="onCreateKey"
         >
           <Input
             v-model="keyForm.values.name"
             label="Name"
             placeholder="ci-deploy"
+            mono
+            boxed
             :call-error="keyForm.errors.value.name"
           />
           <Input
             v-model="keyForm.values.expiresInDays"
             label="Expires in days"
             placeholder="90"
+            mono
+            boxed
             :call-error="keyForm.errors.value.expiresInDays"
           />
 
-          <div class="mt-1 flex justify-end gap-2">
-            <Button theme="quiet" type="button" @click="creatingKey = false">Cancel</Button>
+          <div class="flex justify-end gap-2 px-4.25 py-3.25">
+            <Button theme="quiet" size="sm" type="button" @click="creatingKey = false"
+              >Cancel</Button
+            >
             <Button theme="primary" size="sm" type="submit" :disabled="keyForm.loading.value">
               <Icon v-if="keyForm.loading.value" name="svg-spinners:tadpole" size="16" />
               Create

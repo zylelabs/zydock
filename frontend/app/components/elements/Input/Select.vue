@@ -14,6 +14,10 @@
     placeholder?: string;
     inputMask?: string | MasksPatternKeys;
     labelWidth?: string;
+    /** Drops the field's own divider, like `Input`'s `bare`. */
+    bare?: boolean;
+    /** Draws the field as a filled box to the right of the label, like `Input`'s `boxed`. */
+    boxed?: boolean;
   }>();
 
   const emit = defineEmits<{ search: [query: string] }>();
@@ -143,12 +147,14 @@
     ref="dropdownRef"
     alignment-x="right"
     alignment-y="bottom"
-    content-class="min-w-full w-max max-h-60 overflow-y-auto"
+    match-width
+    content-class="max-h-60 overflow-y-auto"
     class="w-full"
   >
     <template #button>
       <div
-        class="flex cursor-default items-center gap-3.5 border-b border-hairline py-3 in-data-rows:px-4.25 select-none"
+        class="flex cursor-default items-center in-data-rows:px-4.25 select-none"
+        :class="[boxed ? 'gap-1.75 py-1.5' : 'gap-3.5 py-3', !bare && 'border-b border-hairline']"
       >
         <label
           v-if="label"
@@ -161,7 +167,10 @@
         <div
           v-if="searchable || creatable"
           class="flex min-w-0 flex-1 items-center"
-          :class="{ 'cursor-not-allowed opacity-50': disabled }"
+          :class="[
+            { 'cursor-not-allowed opacity-50': disabled },
+            boxed && 'rounded-control border border-edge bg-inset px-2.5',
+          ]"
           :aria-disabled="disabled"
           @click.stop
         >
@@ -173,6 +182,8 @@
             :placeholder="searchPlaceholder"
             :disabled="disabled"
             :mask="inputMask"
+            :bare="boxed"
+            :compact="boxed"
             @focus="openDropdown"
             @keydown.enter.prevent="handleCreate"
           />
@@ -186,8 +197,13 @@
 
         <div
           v-else
-          class="flex min-w-0 flex-1 items-center font-mono text-sm text-ink"
-          :class="{ 'cursor-not-allowed text-ink-3 opacity-50': disabled }"
+          class="flex min-w-0 flex-1 items-center font-mono text-ink"
+          :class="[
+            { 'cursor-not-allowed text-ink-3 opacity-50': disabled },
+            boxed
+              ? 'rounded-control border border-edge bg-inset px-2.5 py-1.5 text-[13px]'
+              : 'text-sm',
+          ]"
           :aria-disabled="disabled"
         >
           {{ searchPlaceholder }}
@@ -203,8 +219,8 @@
         @click.stop="handleCreate"
       >
         <div class="flex items-center gap-2 text-accent">
-          <Icon name="mdi:plus-circle-outline" size="18" />
-          <span>Add "{{ searchQuery }}"</span>
+          <Icon name="mdi:plus-circle-outline" size="18" class="shrink-0" />
+          <span class="truncate">Add "{{ searchQuery }}"</span>
         </div>
       </li>
       <li
@@ -219,8 +235,9 @@
             v-if="isMultiple"
             :name="isSelected(option.value) ? 'mdi:checkbox-marked' : 'mdi:checkbox-blank-outline'"
             size="18"
+            class="shrink-0"
           />
-          <span>{{ option.label }}</span>
+          <span class="truncate" :title="option.label">{{ option.label }}</span>
         </div>
       </li>
     </ul>

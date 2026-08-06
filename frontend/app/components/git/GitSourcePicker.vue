@@ -176,6 +176,8 @@
         :options="gitSourceOptions"
         :disabled="gitSourcesLoading"
         placeholder="Choose a git source"
+        boxed
+        bare
       />
 
       <div v-if="selectedGitSourceId" class="flex flex-col gap-1">
@@ -190,6 +192,8 @@
           label="Installation"
           :options="installationOptions"
           placeholder="Choose an installation"
+          boxed
+          bare
         />
       </div>
 

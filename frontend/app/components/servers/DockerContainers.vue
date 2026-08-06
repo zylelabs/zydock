@@ -95,7 +95,7 @@
 
 <template>
   <div class="flex flex-col gap-3">
-    <Select v-model="stateFilter" :options="stateOptions" class="w-44" />
+    <Select v-model="stateFilter" :options="stateOptions" class="w-44" boxed bare />
 
     <Table
       :columns="columns"

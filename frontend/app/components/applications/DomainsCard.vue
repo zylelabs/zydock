@@ -189,12 +189,8 @@
 
     <Alert v-if="actionError" theme="error" class="m-4.25 mb-0">{{ actionError }}</Alert>
 
-    <form
-      v-if="addingDomain"
-      class="flex flex-col gap-1.5 p-4.25"
-      @submit.prevent="handleCreateDomain"
-    >
-      <Alert v-if="domainForm.formError.value" theme="error">{{
+    <form v-if="addingDomain" data-rows class="flex flex-col" @submit.prevent="handleCreateDomain">
+      <Alert v-if="domainForm.formError.value" theme="error" class="mx-4.25 mt-3">{{
         domainForm.formError.value
       }}</Alert>
 
@@ -202,20 +198,24 @@
         v-model="domainForm.values.hostname"
         label="Domain"
         placeholder="app.example.com"
+        mono
+        boxed
         :call-error="domainForm.errors.value.hostname"
       />
       <Input
         v-model="domainForm.values.pathPrefix"
         label="Path prefix"
         placeholder="Optional, e.g. /api"
+        mono
+        boxed
       />
 
-      <div class="flex items-center gap-3 py-3.5">
+      <div class="flex items-center gap-3 border-b border-hairline px-4.25 py-3.25">
         <Switch v-model="domainForm.values.tls" label="Automatic HTTPS (Let's Encrypt)" />
       </div>
 
-      <div class="flex justify-end gap-2">
-        <Button theme="quiet" type="button" @click="addingDomain = false">Cancel</Button>
+      <div class="flex justify-end gap-2 px-4.25 py-3.25">
+        <Button theme="quiet" size="sm" type="button" @click="addingDomain = false">Cancel</Button>
         <Button theme="primary" size="sm" type="submit" :disabled="domainForm.loading.value">
           <Icon v-if="domainForm.loading.value" name="svg-spinners:tadpole" size="16" />
           Add
@@ -224,7 +224,7 @@
     </form>
 
     <EmptyState
-      v-if="!domainList.length"
+      v-if="!domainList.length && !addingDomain"
       variant="prompt"
       description="No domains yet. Add one to publish this application on its own address."
       class="m-2.5"
@@ -289,12 +289,15 @@
             label="Path prefix"
             placeholder="/api"
             class="flex-1"
+            mono
+            boxed
+            bare
           />
           <Switch v-model="editDomainTls" label="Automatic HTTPS" />
         </div>
 
         <div class="flex justify-end gap-2">
-          <Button theme="quiet" type="button" @click="editingDomain = ''">Cancel</Button>
+          <Button theme="quiet" size="sm" type="button" @click="editingDomain = ''">Cancel</Button>
           <Button theme="primary" size="sm" type="submit" :disabled="editDomainBusy">
             <Icon v-if="editDomainBusy" name="svg-spinners:tadpole" size="16" />
             Save

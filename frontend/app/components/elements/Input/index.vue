@@ -29,10 +29,20 @@
     labelWidth?: string;
     mono?: boolean;
     /**
+     * Drops the field's own divider, for inputs placed side by side inside a row that already
+     * carries the divider (variable pairs, volume mappings).
+     */
+    bare?: boolean;
+    /**
      * Label above the field instead of to its left, the way the auth screens stack them.
      * The row keeps the divider on top (like `Row`), so the first field sits flush with the card.
      */
     stacked?: boolean;
+    /**
+     * Draws the field as a filled box to the right of the label, for rows that turn editable in
+     * place and need the input to read as an input. Ignored when `stacked`.
+     */
+    boxed?: boolean;
   }>();
   const emit = defineEmits(['input', 'focus']);
 
@@ -135,10 +145,18 @@
         stacked
           ? 'flex flex-col items-start gap-0.75 px-3.75 pt-2.25 pb-2.75'
           : [
-              'flex gap-3.5 border-b py-3 transition-shadow in-data-rows:px-4.25 focus-within:shadow-[inset_2px_0_0_0_var(--color-accent)]',
+              'flex in-data-rows:px-4.25',
+              boxed
+                ? 'gap-1.75 py-1.5'
+                : [
+                    'gap-3.5 transition-shadow focus-within:shadow-[inset_2px_0_0_0_var(--color-accent)]',
+                    compact ? 'py-2' : 'py-3',
+                  ],
               type === 'textarea' ? 'items-start' : 'items-center',
-              errorMessage || callError ? 'border-failed/40' : 'border-hairline',
-              compact && 'py-2',
+              !bare && [
+                'border-b',
+                errorMessage || callError ? 'border-failed/40' : 'border-hairline',
+              ],
             ],
       ]"
     >
@@ -155,7 +173,17 @@
         <span v-if="required" class="text-failed">*</span>
       </label>
 
-      <div class="relative flex min-w-0" :class="stacked ? 'w-full' : 'flex-1'">
+      <div
+        class="relative flex min-w-0"
+        :class="[
+          stacked ? 'w-full' : 'flex-1',
+          !stacked &&
+            boxed && [
+              'items-center rounded-control border bg-inset px-2.5 py-1.5 transition-colors focus-within:border-accent',
+              errorMessage || callError ? 'border-failed/50' : 'border-edge',
+            ],
+        ]"
+      >
         <textarea
           v-if="type === 'textarea'"
           :id="inputId"
@@ -170,6 +198,7 @@
             mergeClasses(
               'w-full resize-none bg-transparent text-sm text-ink outline-none placeholder:text-ink-3 disabled:cursor-not-allowed disabled:text-ink-3',
               mono && 'font-mono',
+              boxed && !stacked && 'text-[13px]',
               inputClass,
             )
           "
@@ -196,6 +225,7 @@
             mergeClasses(
               'w-full min-w-0 bg-transparent text-sm text-ink outline-none placeholder:text-ink-3 disabled:cursor-not-allowed disabled:text-ink-3',
               mono && 'font-mono',
+              boxed && !stacked && 'text-[13px]',
               inputClass,
             )
           "

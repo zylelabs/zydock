@@ -107,7 +107,13 @@
 <template>
   <Card v-if="open" title="Edit server">
     <form class="flex flex-col gap-4" @submit.prevent="handleSave">
-      <Input v-model="form.values.name" label="Name" :call-error="form.errors.value.name" />
+      <Input
+        v-model="form.values.name"
+        label="Name"
+        boxed
+        bare
+        :call-error="form.errors.value.name"
+      />
 
       <template v-if="server.type === 'ssh'">
         <Switch v-model="form.values.changeSsh" label="Change SSH credentials" />
@@ -117,17 +123,32 @@
             <Input
               v-model="form.values.username"
               label="SSH user"
+              mono
+              boxed
+              bare
               :call-error="form.errors.value.username"
             />
             <Select
               v-model="form.values.authMethod"
               label="Authentication"
               :options="authOptions"
+              boxed
+              bare
             />
-            <Input v-model="form.values.host" label="Host" :call-error="form.errors.value.host" />
+            <Input
+              v-model="form.values.host"
+              label="Host"
+              mono
+              boxed
+              bare
+              :call-error="form.errors.value.host"
+            />
             <Input
               v-model="form.values.port"
               label="SSH port"
+              mono
+              boxed
+              bare
               :call-error="form.errors.value.port"
             />
           </div>
@@ -137,6 +158,8 @@
             v-model="form.values.password"
             label="Password"
             password
+            boxed
+            bare
             :call-error="form.errors.value.password"
           />
           <template v-else>
@@ -145,17 +168,26 @@
               label="Private key"
               type="textarea"
               :rows="5"
+              mono
+              boxed
+              bare
               placeholder="-----BEGIN OPENSSH PRIVATE KEY-----"
               :call-error="form.errors.value.privateKey"
             />
-            <Input v-model="form.values.passphrase" label="Passphrase (optional)" password />
+            <Input
+              v-model="form.values.passphrase"
+              label="Passphrase (optional)"
+              password
+              boxed
+              bare
+            />
           </template>
         </template>
       </template>
 
       <div class="flex items-center justify-end gap-2">
-        <Button theme="quiet" type="button" @click="open = false">Cancel</Button>
-        <Button theme="primary" type="submit" :disabled="form.loading.value">
+        <Button theme="quiet" size="sm" type="button" @click="open = false">Cancel</Button>
+        <Button theme="primary" size="sm" type="submit" :disabled="form.loading.value">
           <Icon v-if="form.loading.value" name="svg-spinners:tadpole" size="16" />
           Save
         </Button>

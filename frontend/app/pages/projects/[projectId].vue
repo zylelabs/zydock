@@ -203,10 +203,12 @@
         </Button>
       </div>
 
-      <Card v-if="editingProject" title="Edit project">
+      <Card v-if="editingProject" title="Edit project" rows>
         <template #footer>
           <div class="flex w-full items-center justify-end gap-2">
-            <Button theme="quiet" type="button" @click="editingProject = false">Cancel</Button>
+            <Button theme="quiet" size="sm" type="button" @click="editingProject = false">
+              Cancel
+            </Button>
             <Button
               theme="primary"
               size="sm"
@@ -219,10 +221,11 @@
           </div>
         </template>
 
-        <div class="flex flex-col gap-1.5">
+        <div class="flex flex-col">
           <Input
             v-model="projectForm.values.name"
             label="Name"
+            boxed
             :call-error="projectForm.errors.value.name"
             :disabled="projectForm.loading.value"
           />
@@ -231,6 +234,7 @@
             label="Description"
             type="textarea"
             :rows="3"
+            boxed
             :disabled="projectForm.loading.value"
           />
         </div>
@@ -254,7 +258,7 @@
           class="mb-3 flex items-center gap-2"
           @submit.prevent="handleAddEnvironment"
         >
-          <Input v-model="newEnvironment" class="flex-1" placeholder="staging" compact />
+          <Input v-model="newEnvironment" class="flex-1" placeholder="staging" boxed bare />
           <Button theme="secondary" size="xs" type="submit" :disabled="addingEnvironment">
             <Icon v-if="addingEnvironment" name="svg-spinners:tadpole" size="16" />
             Add
@@ -271,7 +275,7 @@
               class="flex items-center gap-2"
               @submit.prevent="handleRenameEnvironment"
             >
-              <Input v-model="renameValue" class="w-40" compact />
+              <Input v-model="renameValue" class="w-40" boxed bare />
               <Button theme="secondary" size="xs" type="submit" :disabled="renamingBusy">
                 <Icon v-if="renamingBusy" name="svg-spinners:tadpole" size="16" />
                 Save

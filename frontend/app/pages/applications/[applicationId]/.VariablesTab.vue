@@ -102,12 +102,16 @@
         </Row>
       </template>
 
-      <div v-else class="flex flex-col gap-3 p-4.25">
-        <Alert v-if="varsError" theme="error">{{ varsError }}</Alert>
+      <div v-else class="flex flex-col">
+        <Alert v-if="varsError" theme="error" class="mx-4.25 mt-3">{{ varsError }}</Alert>
 
-        <div v-for="(variable, index) in draft" :key="index" class="flex items-center gap-2">
-          <Input v-model="variable.key" class="flex-1" placeholder="KEY" compact />
-          <Input v-model="variable.value" class="flex-1" placeholder="value" compact />
+        <div
+          v-for="(variable, index) in draft"
+          :key="index"
+          class="flex items-center gap-2 border-b border-hairline px-4.25"
+        >
+          <Input v-model="variable.key" class="flex-1" placeholder="KEY" mono boxed bare />
+          <Input v-model="variable.value" class="flex-1" placeholder="value" mono boxed bare />
           <label class="flex cursor-pointer items-center gap-1.5 text-caption text-ink-2">
             <Checkbox v-model="variable.secret" />
             secret
@@ -121,12 +125,12 @@
           </button>
         </div>
 
-        <div class="flex items-center justify-between">
+        <div class="flex flex-wrap items-center gap-2 px-4.25 py-3.25">
           <Button theme="quiet" size="sm" @click="addVar">
             <Icon name="proicons:add" size="16" />
             Add
           </Button>
-          <div class="flex gap-2">
+          <div class="ml-auto flex items-center gap-2">
             <Button theme="quiet" size="sm" @click="editingVars = false">Cancel</Button>
             <Button theme="primary" size="sm" :disabled="savingVars" @click="saveVars">
               <Icon v-if="savingVars" name="svg-spinners:tadpole" size="16" />

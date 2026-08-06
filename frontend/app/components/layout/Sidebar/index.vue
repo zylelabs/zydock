@@ -191,45 +191,59 @@
     <div class="flex flex-col gap-3 border-t border-hairline pt-3">
       <Segmented v-model="appearanceMode" :options="appearanceOptions" class="w-full" />
 
-      <div class="flex items-center gap-1.5">
-        <NuxtLink
-          to="/account"
-          class="flex min-w-0 flex-1 items-center gap-2 rounded-button border border-edge bg-page p-1.5 hover:border-edge-strong"
-          @click="close"
-        >
-          <Avatar :name="session.user?.name ?? ''" class="size-6.5 shrink-0 text-[10px]" />
-          <span class="min-w-0 flex-1">
-            <span class="block truncate text-[12.5px] font-medium text-ink">
-              {{ session.user?.name }}
+      <Dropdown alignment-x="right" alignment-y="top">
+        <template #button>
+          <button
+            type="button"
+            class="flex w-full cursor-pointer items-center gap-2 rounded-button border border-edge bg-page p-1.5 text-left hover:border-edge-strong"
+          >
+            <Avatar :name="session.user?.name ?? ''" class="size-6.5 shrink-0 text-[10px]" />
+            <span class="min-w-0 flex-1">
+              <span class="block truncate text-[12.5px] font-medium text-ink">
+                {{ session.user?.name }}
+              </span>
+              <span v-if="role" class="block truncate text-[11px] text-ink-3 capitalize">
+                {{ role }}
+              </span>
             </span>
-            <span v-if="role" class="block truncate text-[11px] text-ink-3 capitalize">
-              {{ role }}
-            </span>
-          </span>
-        </NuxtLink>
+          </button>
+        </template>
 
-        <NuxtLink
-          to="/settings"
-          title="Settings"
-          class="flex size-8.5 shrink-0 items-center justify-center rounded-button border border-edge bg-page text-ink-2 hover:border-edge-strong hover:text-ink"
-          @click="close"
-        >
-          <Icon name="lucide:settings" class="size-4" />
-        </NuxtLink>
+        <div class="flex flex-col">
+          <NuxtLink
+            to="/account"
+            class="flex w-full items-center gap-2 rounded-control px-3 py-2 text-left text-sm text-ink-2 transition-colors hover:bg-inset hover:text-ink"
+            @click="close"
+          >
+            <Icon name="lucide:user" class="size-4" />
+            Account
+          </NuxtLink>
 
-        <button
-          type="button"
-          title="Sign out"
-          :disabled="loggingOut"
-          class="flex size-8.5 shrink-0 items-center justify-center rounded-button border border-edge bg-page text-ink-2 hover:border-edge-strong hover:text-ink disabled:opacity-60"
-          @click="logout"
-        >
-          <Icon
-            :name="loggingOut ? 'lucide:loader-circle' : 'lucide:log-out'"
-            :class="['size-4', loggingOut && 'animate-spin']"
-          />
-        </button>
-      </div>
+          <NuxtLink
+            to="/settings"
+            class="flex w-full items-center gap-2 rounded-control px-3 py-2 text-left text-sm text-ink-2 transition-colors hover:bg-inset hover:text-ink"
+            @click="close"
+          >
+            <Icon name="lucide:settings" class="size-4" />
+            Settings
+          </NuxtLink>
+
+          <div class="my-1 border-t border-hairline" />
+
+          <button
+            type="button"
+            :disabled="loggingOut"
+            class="flex w-full cursor-pointer items-center gap-2 rounded-control px-3 py-2 text-left text-sm text-ink-2 transition-colors hover:bg-inset hover:text-ink disabled:opacity-60"
+            @click.stop="logout"
+          >
+            <Icon
+              :name="loggingOut ? 'lucide:loader-circle' : 'lucide:log-out'"
+              :class="['size-4', loggingOut && 'animate-spin']"
+            />
+            Logout
+          </button>
+        </div>
+      </Dropdown>
     </div>
   </aside>
 </template>

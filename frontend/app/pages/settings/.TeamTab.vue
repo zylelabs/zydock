@@ -183,6 +183,8 @@
           :model-value="member.role"
           :options="roleOptions"
           class="w-32"
+          boxed
+          bare
           @update:model-value="role => changeRole(member, role as string)"
         />
         <Tag v-else class="capitalize">{{ member.role }}</Tag>
@@ -214,11 +216,13 @@
             v-model="inviteForm.values.email"
             type="email"
             placeholder="colleague@company.com"
+            boxed
+            bare
             :call-error="inviteForm.errors.value.email"
           />
         </div>
         <div class="w-full sm:w-40">
-          <Select v-model="inviteForm.values.role" :options="inviteRoleOptions" />
+          <Select v-model="inviteForm.values.role" :options="inviteRoleOptions" boxed bare />
         </div>
         <Button theme="primary" type="submit" :disabled="inviteForm.loading.value">
           <Icon v-if="inviteForm.loading.value" name="svg-spinners:tadpole" size="16" />

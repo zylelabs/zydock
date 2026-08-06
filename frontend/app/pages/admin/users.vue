@@ -76,10 +76,10 @@
     <div v-else class="flex flex-col gap-4.5">
       <div class="flex flex-wrap gap-4">
         <div class="flex-1">
-          <Input v-model="search" label="Search" placeholder="name or email" />
+          <Input v-model="search" label="Search" placeholder="name or email" boxed bare />
         </div>
         <div class="w-48">
-          <Select v-model="statusFilter" label="Status" :options="statusOptions" />
+          <Select v-model="statusFilter" label="Status" :options="statusOptions" boxed bare />
         </div>
       </div>
 

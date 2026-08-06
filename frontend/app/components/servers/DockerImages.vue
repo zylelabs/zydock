@@ -72,7 +72,7 @@
 <template>
   <div class="flex flex-col gap-3">
     <form v-if="canManage" class="flex gap-2" @submit.prevent="handlePull">
-      <Input v-model="pullReference" class="flex-1" placeholder="nginx:latest" compact />
+      <Input v-model="pullReference" class="flex-1" placeholder="nginx:latest" mono boxed bare />
       <Button theme="secondary" size="sm" type="submit" :disabled="pulling">
         <Icon v-if="pulling" name="svg-spinners:tadpole" size="16" />
         Pull
