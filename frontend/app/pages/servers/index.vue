@@ -1,7 +1,5 @@
 <script setup lang="ts">
   import AddServerPanel from '~/components/servers/AddServerPanel.vue';
-  import MachineCard from '~/components/servers/MachineCard.vue';
-  import { useApplications, type Application } from '~/composables/services/useApplications';
   import { useMetrics, type SystemMetrics } from '~/composables/services/useMetrics';
   import { useOrganizations } from '~/composables/services/useOrganizations';
   import { serverStatusDot, useServers, type Server } from '~/composables/services/useServers';
@@ -13,7 +11,6 @@
 
   const { current } = useOrganizations();
   const { list, provision, remove } = useServers();
-  const { list: listApplications } = useApplications();
   const { serverMetrics } = useMetrics();
 
   const canManage = computed(() => ['owner', 'admin'].includes(current.value?.role ?? ''));
@@ -22,7 +19,7 @@
     (error as { message?: string }).message || fallback;
 
   const load = async () => {
-    const [servers, applications] = await Promise.all([list(), listApplications()]);
+    const servers = await list();
 
     const metricsByServer = new Map<string, SystemMetrics>();
 
@@ -36,22 +33,12 @@
       }),
     );
 
-    const applicationsByServer = new Map<string, Application[]>();
-
-    for (const application of applications.items) {
-      const bucket = applicationsByServer.get(application.serverId) ?? [];
-
-      bucket.push(application);
-      applicationsByServer.set(application.serverId, bucket);
-    }
-
-    return { items: servers.items, metricsByServer, applicationsByServer };
+    return { items: servers.items, metricsByServer };
   };
 
   const empty = {
     items: [] as Server[],
     metricsByServer: new Map<string, SystemMetrics>(),
-    applicationsByServer: new Map<string, Application[]>(),
   };
 
   const { data, refresh, status } = await useAsyncData(
@@ -75,16 +62,8 @@
   );
 
   const metricsFor = (server: Server) => data.value?.metricsByServer.get(server.id) ?? null;
-  const applicationsFor = (server: Server) => data.value?.applicationsByServer.get(server.id) ?? [];
 
   const percent = (used = 0, total = 0) => (total ? Math.round((used / total) * 100) : 0);
-
-  const viewOptions = [
-    { label: 'List', value: 'list' },
-    { label: 'By machine', value: 'machine' },
-  ];
-
-  const viewMode = ref<'list' | 'machine'>('list');
 
   const adding = ref(false);
 
@@ -168,10 +147,6 @@
     <div v-else class="flex max-w-225 flex-col gap-4.5">
       <AddServerPanel v-model:open="adding" @created="handleCreated" />
 
-      <div v-if="servers.length" class="flex items-center justify-between">
-        <Segmented v-model="viewMode" :options="viewOptions" />
-      </div>
-
       <div v-if="status === 'pending' && !hasLoadedOnce" class="flex flex-col gap-2">
         <Skeleton v-for="index in 4" :key="index" class="h-20" />
       </div>
@@ -184,25 +159,6 @@
       >
         <Button theme="primary" @click="openAdd">Add server</Button>
       </EmptyState>
-
-      <div
-        v-else-if="viewMode === 'machine'"
-        class="grid grid-cols-[repeat(auto-fill,minmax(330px,1fr))] gap-4.5"
-      >
-        <MachineCard
-          v-for="server in servers"
-          :key="server.id"
-          :server="server"
-          :metrics="metricsFor(server)"
-          :applications="applicationsFor(server)"
-        >
-          <template #actions>
-            <Button theme="quiet" size="xs" :to="`/servers/${server.id}`">
-              <Icon name="lucide:chevron-right" size="16" />
-            </Button>
-          </template>
-        </MachineCard>
-      </div>
 
       <Card v-else content-class="p-0">
         <Row v-for="server in servers" :key="server.id" as="div" class="grid-cols-[1.4fr_1fr_auto]">
