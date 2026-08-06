@@ -2,6 +2,7 @@
   import GeneralTab from './.GeneralTab.vue';
   import TeamTab from './.TeamTab.vue';
   import GitSourcesTab from './.GitSourcesTab.vue';
+  import UpdatesTab from './.UpdatesTab.vue';
   import DangerZoneTab from './.DangerZoneTab.vue';
   import { useOrganizations } from '~/composables/services/useOrganizations';
   import { useTeam } from '~/composables/services/useTeam';
@@ -9,22 +10,25 @@
   useHead({ title: 'Settings' });
 
   const route = useRoute();
+  const session = useSessionStore();
   const { current } = useOrganizations();
   const { listMembers } = useTeam();
 
   const canManage = computed(() => ['owner', 'admin'].includes(current.value?.role ?? ''));
   const isOwner = computed(() => current.value?.role === 'owner');
+  const isSuperuser = computed(() => Boolean(session.user?.superuser));
 
-  type TabId = 'general' | 'team' | 'git' | 'danger';
+  type TabId = 'general' | 'team' | 'git' | 'updates' | 'danger';
 
-  const TABS: { id: TabId; label: string }[] = [
+  const TABS = computed<{ id: TabId; label: string }[]>(() => [
     { id: 'general', label: 'General' },
     { id: 'team', label: 'Team' },
     { id: 'git', label: 'Git sources' },
+    ...(isSuperuser.value ? [{ id: 'updates' as const, label: 'Updates' }] : []),
     { id: 'danger', label: 'Danger zone' },
-  ];
+  ]);
 
-  const isTab = (value: unknown): value is TabId => TABS.some(tab => tab.id === value);
+  const isTab = (value: unknown): value is TabId => TABS.value.some(tab => tab.id === value);
 
   const activeTab = ref<TabId>(isTab(route.query.tab) ? route.query.tab : 'general');
 
@@ -74,6 +78,7 @@
         :organization="current"
         :can-manage="canManage"
       />
+      <UpdatesTab v-else-if="activeTab === 'updates' && isSuperuser" />
       <DangerZoneTab v-else :organization="current" :is-owner="isOwner" />
     </div>
   </Content>
