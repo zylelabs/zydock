@@ -1,9 +1,12 @@
+import { describeConnectionFailure } from '../../utils/network';
 import type { GitRepository } from './git.contract';
 
 export const DEFAULT_BASE_URL = 'https://api.github.com';
 export const PAGE_SIZE = 100;
 export const MAX_PAGES = 10;
 export const REQUEST_TIMEOUT_MS = 15000;
+export const RETRY_ATTEMPTS = 3;
+export const RETRY_DELAY_MS = 1000;
 
 export type RepositoryResponse = {
   id: number;
@@ -58,22 +61,35 @@ export const send = async (
 ) => {
   const { method = 'GET', body } = init;
 
-  let response: Response;
+  let response: Response | undefined;
+  let failure: unknown;
 
-  try {
-    response = await fetch(url, {
-      method,
-      headers: {
-        ...headers,
-        ...(body === undefined ? {} : { 'Content-Type': 'application/json' }),
-      },
-      body: body === undefined ? undefined : JSON.stringify(body),
-      signal: AbortSignal.timeout(REQUEST_TIMEOUT_MS),
-    });
-  } catch (error) {
-    const reason = error instanceof Error ? error.message : String(error);
+  for (let attempt = 1; attempt <= RETRY_ATTEMPTS; attempt += 1) {
+    try {
+      response = await fetch(url, {
+        method,
+        headers: {
+          ...headers,
+          ...(body === undefined ? {} : { 'Content-Type': 'application/json' }),
+        },
+        body: body === undefined ? undefined : JSON.stringify(body),
+        signal: AbortSignal.timeout(REQUEST_TIMEOUT_MS),
+      });
 
-    throw new Error(`GitHub did not answer ${method} ${url}: ${reason}`);
+      break;
+    } catch (error) {
+      failure = error;
+
+      if (attempt < RETRY_ATTEMPTS) {
+        await Bun.sleep(RETRY_DELAY_MS * attempt);
+      }
+    }
+  }
+
+  if (!response) {
+    throw new Error(
+      `GitHub did not answer ${method} ${url} after ${RETRY_ATTEMPTS} attempts: ${await describeConnectionFailure(url, failure)}`,
+    );
   }
 
   if (!response.ok) {

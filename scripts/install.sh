@@ -10,6 +10,7 @@ ZYDOCK_HOST="${ZYDOCK_HOST:-}"
 ZYDOCK_SUPERUSER_EMAIL="${ZYDOCK_SUPERUSER_EMAIL:-}"
 
 log() { printf '\n\033[1;36m▸ %s\033[0m\n' "$1"; }
+warn() { printf '\n\033[1;33m⚠ %s\033[0m\n' "$1" >&2; }
 fail() {
   printf '\n\033[1;31m✖ %s\033[0m\n' "$1" >&2
   exit 1
@@ -124,6 +125,29 @@ until [ "$(docker compose "${COMPOSE_ARGS[@]}" ps --format '{{.Health}}' backend
   [ "${ATTEMPTS}" -le 60 ] || fail "Backend did not become healthy in time. Check: docker compose -f docker-compose.prod.yml logs backend"
   sleep 2
 done
+
+# A container that cannot reach GitHub installs fine and only fails at the first deploy, where the
+# cause is far from obvious — so it is worth naming here, while the operator is still watching.
+log "Checking that the containers can reach GitHub"
+GITHUB_CHECK="$(docker compose "${COMPOSE_ARGS[@]}" exec -T backend bun -e 'try { const r = await fetch("https://api.github.com/", { signal: AbortSignal.timeout(10000) }); console.log(r.ok ? "ok" : "http"); } catch { const dns = await import("node:dns/promises"); try { await dns.lookup("api.github.com"); console.log("egress"); } catch { console.log("dns"); } }' 2>/dev/null | tr -d '\r' | tail -n1)"
+
+case "${GITHUB_CHECK}" in
+ok) ;;
+dns)
+  warn "The containers cannot resolve api.github.com — deploys from GitHub will fail.
+  Give the Docker daemon an explicit resolver and restart it:
+    echo '{ \"dns\": [\"1.1.1.1\", \"8.8.8.8\"] }' >/etc/docker/daemon.json && systemctl restart docker"
+  ;;
+egress)
+  warn "The containers resolve api.github.com but cannot connect to it — deploys from GitHub will fail.
+  The name resolves, so this is outbound filtering: check 'iptables -S DOCKER-USER', the FORWARD
+  chain policy and any firewall of your provider."
+  ;;
+*)
+  warn "Could not check GitHub connectivity from the backend container. If deploys fail at the
+  clone step, run: docker compose -f docker-compose.prod.yml exec backend sh -c 'getent hosts api.github.com'"
+  ;;
+esac
 
 log "Provisioning the superadmin account and the default organization"
 SEED_OUTPUT="$(docker compose "${COMPOSE_ARGS[@]}" exec -T backend bun run seed 2>&1)" || true
