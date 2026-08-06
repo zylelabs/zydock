@@ -46,7 +46,7 @@ export const createDeployment = (params: {
     commit: params.commitDetail ?? (params.commit ? { sha: params.commit } : undefined),
     imageTag: params.imageTag,
     steps: [],
-    buildLog: [],
+    log: [],
   });
 
 export const markRunning = async (deploymentId: string) => {
@@ -74,14 +74,14 @@ export const recordStep = async (
   publish(topicOf(deploymentId), 'step', { deploymentId, ...result });
 };
 
-export const appendBuildLog = async (deploymentId: string, lines: string[]) => {
+export const appendLog = async (deploymentId: string, lines: string[]) => {
   if (!lines.length) {
     return;
   }
 
   await deploymentModel.updateOne(
     { _id: deploymentId },
-    { $push: { buildLog: { $each: lines, $slice: -config.deploy.buildLogLines } } },
+    { $push: { log: { $each: lines, $slice: -config.deploy.logLines } } },
   );
 
   publish(topicOf(deploymentId), 'log', { deploymentId, lines });
@@ -166,8 +166,8 @@ export const serializeDeployment = (deployment: Deployment) => ({
 
 export const serializeDeploymentDetail = (deployment: Deployment) => ({
   ...serializeDeployment(deployment),
-  buildLog: deployment.buildLog,
+  log: deployment.log,
 });
 
-export const buildLogEntries = (deployment: Deployment, query: LogsQuery): ClassifiedLog[] =>
-  filterLogs(deployment.buildLog.slice(-query.tail).map(classifyLine), query);
+export const logEntries = (deployment: Deployment, query: LogsQuery): ClassifiedLog[] =>
+  filterLogs(deployment.log.slice(-query.tail).map(classifyLine), query);

@@ -543,13 +543,37 @@ export const createDockerProvider = (): ContainerProvider => ({
 
     const process = Bun.spawn(['docker', ...args], { stdout: 'pipe', stderr: 'pipe' });
 
-    const decoder = new TextDecoder();
+    const pumpBuildOutput = async (
+      readable: ReadableStream<Uint8Array>,
+      stream: 'stdout' | 'stderr',
+    ) => {
+      const decoder = new TextDecoder();
 
-    for await (const chunk of process.stderr) {
-      const message = decoder.decode(chunk, { stream: true });
+      let buffer = '';
 
-      spec.onLog?.({ timestamp: new Date().toISOString(), stream: 'stderr', message });
-    }
+      for await (const chunk of readable) {
+        buffer += decoder.decode(chunk, { stream: true });
+
+        const lines = buffer.split('\n');
+
+        buffer = lines.pop() ?? '';
+
+        for (const line of lines) {
+          if (line) {
+            spec.onLog?.({ timestamp: new Date().toISOString(), stream, message: line });
+          }
+        }
+      }
+
+      if (buffer) {
+        spec.onLog?.({ timestamp: new Date().toISOString(), stream, message: buffer });
+      }
+    };
+
+    await Promise.all([
+      pumpBuildOutput(process.stdout, 'stdout'),
+      pumpBuildOutput(process.stderr, 'stderr'),
+    ]);
 
     const code = await process.exited;
 

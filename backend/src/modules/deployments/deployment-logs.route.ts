@@ -5,7 +5,7 @@ import { LogsQuery, logsQuerySchema } from '../logs/logs.schema';
 import { authMiddleware } from '../auth/auth.middleware';
 import { createOrganizationRoleGuard } from '../organizations/organizations.middleware';
 import { DeploymentIdParam, deploymentIdParamSchema } from './deployment.schema';
-import { buildLogEntries, findDeployment } from './deployment.service';
+import { findDeployment, logEntries } from './deployment.service';
 import { deploymentsDocs } from './deployments.docs';
 
 const { router, get } = createRouter();
@@ -28,7 +28,7 @@ get(
 
     const query = c.req.valid('query' as never) as LogsQuery;
 
-    return c.json({ deploymentId, entries: buildLogEntries(deployment, query) });
+    return c.json({ deploymentId, entries: logEntries(deployment, query) });
   },
 );
 
@@ -53,7 +53,7 @@ get(
     c.header('Content-Type', 'text/plain; charset=utf-8');
     c.header('Content-Disposition', `attachment; filename="deploy-${deploymentId}.log"`);
 
-    return c.body(logsToText(buildLogEntries(deployment, query)));
+    return c.body(logsToText(logEntries(deployment, query)));
   },
 );
 

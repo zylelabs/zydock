@@ -1,7 +1,7 @@
 import type { DocOptions } from 'hono-route-docs';
 import { bearerOrApiKeyAuth, errorRes, jsonRes, paginatedSchema } from '../../utils/openapi';
 
-const buildLogEntrySchema = {
+const logEntrySchema = {
   type: 'object',
   properties: {
     message: { type: 'string' },
@@ -10,7 +10,7 @@ const buildLogEntrySchema = {
   },
 };
 
-const buildLogParameters = [
+const logParameters = [
   { name: 'search', in: 'query' as const, schema: { type: 'string' } },
   {
     name: 'level',
@@ -75,7 +75,7 @@ export const deploymentsDocs = {
   },
   get: {
     tags: ['Deployments'],
-    summary: 'Read a deployment, with the tail of its build log',
+    summary: 'Read a deployment, with the tail of its log',
     security: bearerOrApiKeyAuth,
     responses: {
       200: jsonRes('Deployment.', {
@@ -85,7 +85,7 @@ export const deploymentsDocs = {
             ...deploymentSchema,
             properties: {
               ...deploymentSchema.properties,
-              buildLog: { type: 'array', items: { type: 'string' } },
+              log: { type: 'array', items: { type: 'string' } },
             },
           },
         },
@@ -95,20 +95,21 @@ export const deploymentsDocs = {
   },
   logs: {
     tags: ['Logs'],
-    summary: 'Read the build log of a deploy',
+    summary: 'Read the log of a deploy',
     description:
-      'The build output of a specific deploy, as classified entries — the same shape as an ' +
-      "application's runtime logs, so `search`, `level` and download work the same way. Build " +
-      'lines carry no timestamp, so `since`/`until`/`stream` do not apply; `tail` keeps the last ' +
-      'lines.',
+      'The full output of a deploy — clone, build and container boot, in a single ' +
+      'chronological stream, each line prefixed with its step — as classified entries, the ' +
+      "same shape as an application's runtime logs, so `search`, `level` and download work the " +
+      'same way. Lines carry no timestamp, so `since`/`until`/`stream` do not apply; `tail` ' +
+      'keeps the last lines.',
     security: bearerOrApiKeyAuth,
-    parameters: buildLogParameters,
+    parameters: logParameters,
     responses: {
-      200: jsonRes('Build log.', {
+      200: jsonRes('Deployment log.', {
         type: 'object',
         properties: {
           deploymentId: { type: 'string' },
-          entries: { type: 'array', items: buildLogEntrySchema },
+          entries: { type: 'array', items: logEntrySchema },
         },
       }),
       404: errorRes('Deployment not found.'),
@@ -116,10 +117,10 @@ export const deploymentsDocs = {
   },
   logsDownload: {
     tags: ['Logs'],
-    summary: 'Download the build log of a deploy',
+    summary: 'Download the log of a deploy',
     description: 'Same filters as the listing, returned as a `text/plain` attachment.',
     security: bearerOrApiKeyAuth,
-    parameters: buildLogParameters,
+    parameters: logParameters,
     responses: {
       200: {
         description: 'Build log file.',

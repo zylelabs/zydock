@@ -25,7 +25,43 @@ const pathOf = (workspace: string) => {
   return target;
 };
 
-const run = async (args: string[], cwd?: string) => {
+export type CloneLogEntry = { stream: 'stdout' | 'stderr'; message: string };
+
+const pump = async (
+  readable: ReadableStream<Uint8Array>,
+  stream: 'stdout' | 'stderr',
+  onLog?: (entry: CloneLogEntry) => void,
+) => {
+  const decoder = new TextDecoder();
+
+  let buffer = '';
+  let full = '';
+
+  for await (const chunk of readable) {
+    const text = decoder.decode(chunk, { stream: true });
+
+    full += text;
+    buffer += text;
+
+    const lines = buffer.split('\n');
+
+    buffer = lines.pop() ?? '';
+
+    for (const line of lines) {
+      if (line) {
+        onLog?.({ stream, message: line });
+      }
+    }
+  }
+
+  if (buffer) {
+    onLog?.({ stream, message: buffer });
+  }
+
+  return full;
+};
+
+const run = async (args: string[], cwd?: string, onLog?: (entry: CloneLogEntry) => void) => {
   const process = Bun.spawn(['git', ...args], {
     cwd,
     stdout: 'pipe',
@@ -34,8 +70,8 @@ const run = async (args: string[], cwd?: string) => {
   });
 
   const [stdout, stderr, code] = await Promise.all([
-    new Response(process.stdout).text(),
-    new Response(process.stderr).text(),
+    pump(process.stdout, 'stdout', onLog),
+    pump(process.stderr, 'stderr', onLog),
     process.exited,
   ]);
 
@@ -44,8 +80,13 @@ const run = async (args: string[], cwd?: string) => {
 
 const withoutCredentials = (message: string) => message.replace(/\/\/[^@\s/]+@/g, '//');
 
-const runChecked = async (args: string[], description: string, cwd?: string) => {
-  const result = await run(args, cwd);
+const runChecked = async (
+  args: string[],
+  description: string,
+  cwd?: string,
+  onLog?: (entry: CloneLogEntry) => void,
+) => {
+  const result = await run(args, cwd, onLog);
 
   if (result.code !== 0) {
     throw new Error(`${description}: ${withoutCredentials(result.stderr || 'git failed')}`);
@@ -54,7 +95,10 @@ const runChecked = async (args: string[], description: string, cwd?: string) => 
   return result.stdout;
 };
 
-export const cloneRepository = async (request: CloneDTO): Promise<CloneResult> => {
+export const cloneRepository = async (
+  request: CloneDTO,
+  onLog?: (entry: CloneLogEntry) => void,
+): Promise<CloneResult> => {
   const path = pathOf(request.workspace);
 
   await rm(path, { recursive: true, force: true });
@@ -64,10 +108,17 @@ export const cloneRepository = async (request: CloneDTO): Promise<CloneResult> =
   await runChecked(
     ['clone', ...shallow, '--branch', request.branch, '--single-branch', request.url, path],
     `Failed to clone the ${request.branch} branch`,
+    undefined,
+    onLog,
   );
 
   if (request.commit) {
-    await runChecked(['checkout', request.commit], `Failed to check out ${request.commit}`, path);
+    await runChecked(
+      ['checkout', request.commit],
+      `Failed to check out ${request.commit}`,
+      path,
+      onLog,
+    );
   }
 
   const [commit, message, author, committedAt] = (
