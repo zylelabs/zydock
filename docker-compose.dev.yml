@@ -1,0 +1,108 @@
+services:
+  mongo:
+    image: mongo:7
+    restart: unless-stopped
+    volumes:
+      - mongo-data-dev:/data/db
+    ports:
+      - '127.0.0.1:27017:27017'
+    healthcheck:
+      test: ['CMD', 'mongosh', '--quiet', '--eval', "db.adminCommand({ ping: 1 })"]
+      interval: 5s
+      timeout: 5s
+      retries: 10
+
+  backend:
+    image: oven/bun:alpine
+    restart: unless-stopped
+    working_dir: /app
+    command: sh -c "bun install && bun run dev"
+    depends_on:
+      mongo:
+        condition: service_healthy
+    environment:
+      MODE: dev
+      PORT: '8000'
+      AGENT_BUNDLE_PATH: /agent/dist/agent.js
+      MONGO_URI: mongodb://mongo:27017/zydock
+      JWT_SECRET: dev-secret-change-me
+      ENCRYPTION_KEY: '0000000000000000000000000000000000000000000000000000000000000000'
+      CORS_ORIGIN: http://localhost:3000
+      LOCAL_AGENT_TOKEN: dev-local-agent-token-change-me
+      LOCAL_AGENT_HOST: agent
+    volumes:
+      - ./backend:/app
+      - backend-node-modules:/app/node_modules
+    ports:
+      - '8000:8000'
+
+  agent:
+    image: oven/bun:alpine
+    restart: unless-stopped
+    working_dir: /app
+    command: sh -c "apk add --no-cache docker-cli git && bun install && bun run dev"
+    depends_on:
+      - backend
+    environment:
+      MODE: dev
+      AGENT_TOKEN: dev-local-agent-token-change-me
+      BACKEND_URL: http://backend:8000
+      WORKSPACE_PATH: /var/lib/zydock/builds
+      CADDY_ADMIN_URL: unix:/var/run/caddy/admin.sock
+      PROXY_HTTPS_HOST: caddy
+    volumes:
+      - ./agent:/app
+      - agent-node-modules:/app/node_modules
+      - /var/run/docker.sock:/var/run/docker.sock
+      - /var/lib/zydock/builds:/var/lib/zydock/builds
+      - caddy-admin-dev:/var/run/caddy
+
+  frontend:
+    image: oven/bun:alpine
+    restart: unless-stopped
+    working_dir: /app
+    command: sh -c "bun install && bun run dev"
+    depends_on:
+      - backend
+    environment:
+      URL_API: http://backend:8000
+      NUXT_PUBLIC_WS_URL: ws://localhost:8000/api/ws
+      PORT: '3000'
+      HOST: 0.0.0.0
+    volumes:
+      - ./frontend:/app
+      - frontend-node-modules:/app/node_modules
+    ports:
+      - '3000:3000'
+
+  caddy:
+    image: caddy:2
+    restart: unless-stopped
+    command: sh -c 'rm -f /var/run/caddy/admin.sock && exec caddy run --config /etc/caddy/Caddyfile --adapter caddyfile --resume'
+    depends_on:
+      - frontend
+      - backend
+    ports:
+      - '80:80'
+      - '443:443'
+    volumes:
+      - ./scripts/Caddyfile:/etc/caddy/Caddyfile:ro
+      - caddy-data-dev:/data
+      - caddy-config-dev:/config
+      - caddy-admin-dev:/var/run/caddy
+    networks:
+      - default
+      - zydock
+
+volumes:
+  mongo-data-dev:
+  caddy-data-dev:
+  caddy-config-dev:
+  caddy-admin-dev:
+  backend-node-modules:
+  agent-node-modules:
+  frontend-node-modules:
+
+networks:
+  zydock:
+    name: zydock

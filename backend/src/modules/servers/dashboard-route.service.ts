@@ -30,40 +30,35 @@ const applyDashboardRoutes = async (domain: string) => {
   }
 
   const proxy = resolveReverseProxyProvider(buildAgentConnection(server));
+  const domainSpec = domain ? { domain, tls: true } : { isDefault: true, tls: false };
 
   await proxy.upsertRoute({
     id: WEBSOCKET_ROUTE_ID,
-    domain,
+    ...domainSpec,
     pathPrefix: '/api/ws',
     upstreams: [upstreamOf(config.backendUrl)],
-    tls: true,
   });
 
   await proxy.upsertRoute({
     id: DASHBOARD_ROUTE_ID,
-    domain,
+    ...domainSpec,
     upstreams: [upstreamOf(config.frontendUrl)],
-    tls: true,
   });
 };
 
 export const ensureDashboardRoutes = async () => {
   const domain = config.dashboard.domain;
 
-  if (!domain) {
-    return;
-  }
-
   for (let attempt = 1; attempt <= MAX_ATTEMPTS; attempt += 1) {
     try {
       await applyDashboardRoutes(domain);
-      logInfo('Dashboard route applied', { domain });
+      logInfo('Dashboard route applied', { domain: domain || '(default)' });
 
       return;
     } catch (error) {
       if (attempt === MAX_ATTEMPTS) {
         logWarn('Could not publish the dashboard domain on the proxy', {
-          domain,
+          domain: domain || '(default)',
           error: errorMessage(error),
         });
 

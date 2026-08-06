@@ -109,17 +109,18 @@ const load = (configuration: CaddyConfig) =>
       : configuration,
   });
 
-const toCaddyRoute = (spec: RouteSpec): CaddyRoute => {
+export const toCaddyRoute = (spec: RouteSpec): CaddyRoute => {
   const headers = Object.entries(spec.headers ?? {});
+  const path = spec.pathPrefix ? [`${spec.pathPrefix.replace(/\*$/, '')}*`] : undefined;
+  const match = spec.domain
+    ? [{ host: [spec.domain], ...(path ? { path } : {}) }]
+    : path
+      ? [{ path }]
+      : undefined;
 
   return {
     '@id': routeIdOf(spec.id),
-    match: [
-      {
-        host: [spec.domain],
-        ...(spec.pathPrefix ? { path: [`${spec.pathPrefix.replace(/\*$/, '')}*`] } : {}),
-      },
-    ],
+    ...(match ? { match } : {}),
     handle: [
       {
         handler: 'reverse_proxy',
@@ -137,7 +138,7 @@ const toCaddyRoute = (spec: RouteSpec): CaddyRoute => {
   };
 };
 
-const fromCaddyRoute = (route: CaddyRoute, managedDomains: string[]): RouteSpec | null => {
+export const fromCaddyRoute = (route: CaddyRoute, managedDomains: string[]): RouteSpec | null => {
   const id = route['@id'];
 
   if (!id?.startsWith(ROUTE_ID_PREFIX)) {
@@ -146,13 +147,13 @@ const fromCaddyRoute = (route: CaddyRoute, managedDomains: string[]): RouteSpec 
 
   const match = route.match?.[0];
   const handle = route.handle?.find(entry => entry.handler === 'reverse_proxy');
-  const domain = match?.host?.[0] ?? '';
+  const domain = match?.host?.[0];
   const path = match?.path?.[0];
   const headers = Object.entries(handle?.headers?.request?.set ?? {});
 
   return {
     id: id.slice(ROUTE_ID_PREFIX.length),
-    domain,
+    ...(domain ? { domain } : { isDefault: true }),
     upstreams: (handle?.upstreams ?? []).flatMap(upstream => {
       const dial = upstream.dial ?? '';
       const separator = dial.lastIndexOf(':');
@@ -164,7 +165,7 @@ const fromCaddyRoute = (route: CaddyRoute, managedDomains: string[]): RouteSpec 
       return [{ host: dial.slice(0, separator), port: Number(dial.slice(separator + 1)) }];
     }),
     ...(path ? { pathPrefix: path.replace(/\*$/, '') } : {}),
-    tls: managedDomains.includes(domain),
+    tls: domain ? managedDomains.includes(domain) : false,
     ...(headers.length
       ? { headers: Object.fromEntries(headers.map(([key, value]) => [key, value[0] ?? ''])) }
       : {}),
@@ -216,18 +217,23 @@ export const upsertRoute = async (spec: RouteSpec) => {
 
   if (exists) {
     await request(`/id/${routeIdOf(spec.id)}`, { method: 'PATCH', body: payload });
-  } else {
+  } else if (spec.isDefault) {
     await request(`/config/apps/http/servers/${SERVER_NAME}/routes`, {
       method: 'POST',
       body: payload,
     });
+  } else {
+    await request(`/config/apps/http/servers/${SERVER_NAME}/routes/0`, {
+      method: 'PUT',
+      body: payload,
+    });
   }
 
-  if (spec.tls) {
+  if (spec.tls && spec.domain) {
     await enableTls(spec.domain);
   }
 
-  logInfo('Proxy route applied', { route: spec.id, domain: spec.domain });
+  logInfo('Proxy route applied', { route: spec.id, domain: spec.domain ?? '(default)' });
 };
 
 export const removeRoute = async (id: string) => {

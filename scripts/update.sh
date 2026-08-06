@@ -20,6 +20,46 @@ ensure_env() {
   grep -q "^${key}=" .env 2>/dev/null || printf '%s="%s"\n' "${key}" "${value}" >>.env
 }
 
+set_env() {
+  local key="$1" value="$2"
+
+  if grep -q "^${key}=" .env 2>/dev/null; then
+    sed -i "s|^${key}=.*|${key}=\"${value}\"|" .env
+  else
+    printf '%s="%s"\n' "${key}" "${value}" >>.env
+  fi
+}
+
+migrate_port_urls() {
+  [ -f .env ] || return 0
+
+  . ./.env
+  local changed=false
+
+  case "${APP_URL:-}" in
+  *:3000)
+    set_env APP_URL "${APP_URL%:3000}"
+    changed=true
+    ;;
+  esac
+
+  case "${CORS_ORIGIN:-}" in
+  *:3000)
+    set_env CORS_ORIGIN "${CORS_ORIGIN%:3000}"
+    changed=true
+    ;;
+  esac
+
+  case "${NUXT_PUBLIC_WS_URL:-}" in
+  *:8000/api/ws)
+    set_env NUXT_PUBLIC_WS_URL "${NUXT_PUBLIC_WS_URL%:8000/api/ws}/api/ws"
+    changed=true
+    ;;
+  esac
+
+  [ "${changed}" = true ] && log "Migrated .env off the published :3000/:8000 URLs"
+}
+
 [ "$(id -u)" -eq 0 ] || fail "Run as root (or with sudo)."
 [ -d "${ZYDOCK_INSTALL_DIR}" ] || fail "${ZYDOCK_INSTALL_DIR} does not exist. Set ZYDOCK_INSTALL_DIR if Zydock was installed elsewhere, or install it with scripts/install.sh."
 
@@ -64,6 +104,7 @@ log "Updating the code to $(git rev-parse --short "${NEXT}")"
 git reset --hard "${NEXT}"
 
 ensure_env LOCAL_AGENT_TOKEN "$(openssl rand -hex 32)"
+migrate_port_urls
 
 . ./.env
 
@@ -71,8 +112,6 @@ COMPOSE_ARGS=(-f docker-compose.prod.yml --env-file .env)
 
 docker network inspect zydock >/dev/null 2>&1 || docker network create zydock
 
-# Only the Zydock stack is touched: the containers of the deployed applications live outside this
-# Compose project and keep running through the update.
 log "Rebuilding and restarting the stack"
 docker compose "${COMPOSE_ARGS[@]}" up -d --build --remove-orphans
 
