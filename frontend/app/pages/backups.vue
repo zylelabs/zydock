@@ -225,8 +225,10 @@
     }
   };
 
+  const { set: setNavbar } = useNavbar();
+
   watchEffect(() => {
-    useNavbar().set({ title: 'Backups', context: current.value?.name });
+    setNavbar({ title: 'Backups', context: current.value?.name });
   });
 </script>
 

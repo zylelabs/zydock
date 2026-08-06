@@ -38,8 +38,10 @@
 
   const memberCount = computed(() => membersData.value?.total ?? 0);
 
+  const { set: setNavbar } = useNavbar();
+
   watchEffect(() => {
-    useNavbar().set({ title: 'Settings', context: current.value?.name });
+    setNavbar({ title: 'Settings', context: current.value?.name });
   });
 </script>
 

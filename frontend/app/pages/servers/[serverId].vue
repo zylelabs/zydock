@@ -54,8 +54,10 @@
 
   useHead(() => ({ title: server.value?.name ?? 'Server' }));
 
+  const { set: setNavbar } = useNavbar();
+
   watchEffect(() => {
-    useNavbar().set({ title: server.value?.name ?? 'Server', context: 'Servers' });
+    setNavbar({ title: server.value?.name ?? 'Server', context: 'Servers' });
   });
 
   const percent = (used = 0, total = 0) => (total ? Math.round((used / total) * 100) : 0);

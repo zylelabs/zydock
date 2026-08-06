@@ -142,8 +142,10 @@
   const canProvision = (server: Server) =>
     server.type === 'ssh' && ['pending', 'failed', 'offline'].includes(server.status);
 
+  const { set: setNavbar } = useNavbar();
+
   watchEffect(() => {
-    useNavbar().set({
+    setNavbar({
       title: 'Servers',
       context: current.value?.name,
       action:

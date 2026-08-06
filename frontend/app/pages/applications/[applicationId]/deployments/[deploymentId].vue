@@ -51,8 +51,10 @@
 
   useHead(() => ({ title: `Deploy · ${applicationName.value || 'Application'}` }));
 
+  const { set: setNavbar } = useNavbar();
+
   watchEffect(() => {
-    useNavbar().set({ title: 'Deploy', context: applicationName.value });
+    setNavbar({ title: 'Deploy', context: applicationName.value });
   });
 
   const load = async () => {

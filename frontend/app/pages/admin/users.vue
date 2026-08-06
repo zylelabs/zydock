@@ -62,8 +62,10 @@
 
   const formatWhen = (value?: string) => (value ? new Date(value).toLocaleString('en-US') : '—');
 
+  const { set: setNavbar } = useNavbar();
+
   watchEffect(() => {
-    useNavbar().set({ title: 'Users', context: 'Account' });
+    setNavbar({ title: 'Users', context: 'Account' });
   });
 </script>
 
