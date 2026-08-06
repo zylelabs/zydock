@@ -14,7 +14,9 @@ interface IRecentApplicationsStore {
 const MAX_RECENT = 5;
 
 export const useRecentApplicationsStore = defineStore('recentApplications', {
-  state: (): IRecentApplicationsStore => ({ items: [] }),
+  state: (): IRecentApplicationsStore => ({
+    items: [],
+  }),
   actions: {
     push(application: IRecentApplication) {
       const rest = this.items.filter(item => item.id !== application.id);
