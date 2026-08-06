@@ -251,20 +251,24 @@
             v-model="form.values.databaseId"
             label="Database"
             :options="databaseOptions"
+            boxed
           />
 
           <template v-else-if="form.values.type === 'volume'">
-            <Select v-model="form.values.serverId" label="Server" :options="serverOptions" />
+            <Select v-model="form.values.serverId" label="Server" :options="serverOptions" boxed />
             <Input
               v-model="form.values.volumeName"
               label="Volume name"
               placeholder="zydock-my-app-data"
+              mono
+              boxed
               :call-error="form.errors.value.volumeName"
             />
             <Select
               v-model="form.values.applicationId"
               label="Application"
               :options="applicationOptions"
+              boxed
             />
           </template>
 

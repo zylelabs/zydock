@@ -50,7 +50,7 @@
 
 <template>
   <div>
-    <Dropdown ref="dropdownRef" alignment-x="right" content-class="w-full min-w-64">
+    <Dropdown ref="dropdownRef" alignment-x="right" content-class="min-w-64">
       <template #button>
         <button
           type="button"
@@ -105,21 +105,23 @@
       <Card
         title="Create organization"
         description="A space for your projects, servers, and team."
+        rows
         class="w-md max-w-full"
         close-button
         @on-close="creating = false"
       >
-        <form class="flex flex-col gap-4" @submit.prevent="handleCreate">
+        <form class="flex flex-col" @submit.prevent="handleCreate">
           <Input
             v-model="form.values.name"
             label="Name"
             placeholder="My company"
+            boxed
             :call-error="form.errors.value.name"
           />
 
-          <div class="flex justify-end gap-2">
-            <Button theme="ghost" type="button" @click="creating = false">Cancel</Button>
-            <Button theme="primary" type="submit" :disabled="form.loading.value">
+          <div class="flex justify-end gap-2 px-4.25 py-3.25">
+            <Button theme="ghost" size="sm" type="button" @click="creating = false">Cancel</Button>
+            <Button theme="primary" size="sm" type="submit" :disabled="form.loading.value">
               <Icon v-if="form.loading.value" name="svg-spinners:tadpole" size="16" />
               Create
             </Button>

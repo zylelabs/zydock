@@ -71,7 +71,7 @@
 <template>
   <div class="flex flex-col gap-3">
     <form v-if="canManage" class="flex gap-2" @submit.prevent="handleCreate">
-      <Input v-model="newName" class="flex-1" placeholder="my-volume" compact />
+      <Input v-model="newName" class="flex-1" placeholder="my-volume" mono boxed bare />
       <Button theme="secondary" size="sm" type="submit" :disabled="creating">
         <Icon v-if="creating" name="svg-spinners:tadpole" size="16" />
         Create

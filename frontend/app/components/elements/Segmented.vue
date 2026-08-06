@@ -12,7 +12,7 @@
       v-for="option in options"
       :key="option.value"
       type="button"
-      class="cursor-pointer rounded-[7px] font-medium transition-colors"
+      class="flex-1 basis-0 cursor-pointer rounded-[7px] text-center font-medium transition-colors"
       :class="[
         size === 'sm' ? 'px-2.75 py-1 text-[12px]' : 'px-3.5 py-1.5 text-[13px]',
         model === option.value ? 'bg-card text-ink shadow-lifted' : 'text-ink-2 hover:text-ink',

@@ -37,7 +37,7 @@
 </script>
 
 <template>
-  <Card title="General" content-class="p-0">
+  <Card title="General" rows>
     <template v-if="canManage" #right>
       <Button v-if="!editing" theme="secondary" size="xs" @click="startEdit">Edit</Button>
     </template>
@@ -65,11 +65,11 @@
       </Row>
     </template>
 
-    <form v-else class="flex flex-col gap-1.5 p-4.25" @submit.prevent="handleSave">
-      <Input v-model="form.values.name" label="Name" :call-error="form.errors.value.name" />
+    <form v-else class="flex flex-col" @submit.prevent="handleSave">
+      <Input v-model="form.values.name" label="Name" boxed :call-error="form.errors.value.name" />
 
-      <div class="mt-1 flex justify-end gap-2">
-        <Button theme="quiet" type="button" @click="editing = false">Cancel</Button>
+      <div class="flex justify-end gap-2 px-4.25 py-3.25">
+        <Button theme="quiet" size="sm" type="button" @click="editing = false">Cancel</Button>
         <Button theme="primary" size="sm" type="submit" :disabled="form.loading.value">
           <Icon v-if="form.loading.value" name="svg-spinners:tadpole" size="16" />
           Save

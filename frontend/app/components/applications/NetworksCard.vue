@@ -54,15 +54,21 @@
       {{ application.networks.length ? application.networks.join(', ') : '—' }}
     </p>
 
-    <div v-else class="flex flex-col gap-3 p-4.25">
-      <Alert v-if="networksError" theme="error">{{ networksError }}</Alert>
+    <div v-else class="flex flex-col">
+      <Alert v-if="networksError" theme="error" class="mx-4.25 mt-3">{{ networksError }}</Alert>
 
-      <div v-for="(_, index) in networksDraft" :key="index" class="flex items-center gap-2">
+      <div
+        v-for="(_, index) in networksDraft"
+        :key="index"
+        class="flex items-center gap-2 border-b border-hairline px-4.25"
+      >
         <Input
           v-model="networksDraft[index]"
           class="flex-1"
           placeholder="docker-network-name"
-          compact
+          mono
+          boxed
+          bare
         />
         <button
           type="button"
@@ -73,12 +79,12 @@
         </button>
       </div>
 
-      <div class="flex items-center justify-between">
+      <div class="flex flex-wrap items-center gap-2 px-4.25 py-3.25">
         <Button theme="quiet" size="sm" @click="addNetwork">
           <Icon name="proicons:add" size="16" />
           Add network
         </Button>
-        <div class="flex gap-2">
+        <div class="ml-auto flex items-center gap-2">
           <Button theme="quiet" size="sm" @click="editingNetworks = false">Cancel</Button>
           <Button theme="primary" size="sm" :disabled="savingNetworks" @click="saveNetworks">
             <Icon v-if="savingNetworks" name="svg-spinners:tadpole" size="16" />
@@ -87,7 +93,7 @@
         </div>
       </div>
 
-      <p class="text-caption text-ink-3">Changes take effect on the next deploy.</p>
+      <p class="px-4.25 pb-3.25 text-caption text-ink-3">Changes take effect on the next deploy.</p>
     </div>
   </Card>
 </template>

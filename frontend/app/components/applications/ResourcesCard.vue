@@ -159,72 +159,79 @@
       </Row>
     </template>
 
-    <div v-else class="flex flex-col gap-6 p-4.25">
-      <Alert v-if="advError" theme="error">{{ advError }}</Alert>
+    <div v-else class="flex flex-col">
+      <Alert v-if="advError" theme="error" class="mx-4.25 mt-3">{{ advError }}</Alert>
 
-      <div>
-        <p class="mb-2 text-[13px] font-medium text-ink">Volumes</p>
-        <div class="flex flex-col gap-2">
-          <div
-            v-for="(volume, index) in advDraft.volumes"
-            :key="index"
-            class="flex items-center gap-2"
-          >
-            <Input v-model="volume.source" class="flex-1" placeholder="source" mono compact />
-            <span class="text-ink-3">:</span>
-            <Input
-              v-model="volume.target"
-              class="flex-1"
-              placeholder="/path/in/container"
-              mono
-              compact
-            />
-            <label class="flex cursor-pointer items-center gap-1 text-caption text-ink-2">
-              <Checkbox v-model="volume.readOnly" />
-              ro
-            </label>
-            <button
-              type="button"
-              class="cursor-pointer rounded-control p-1.5 text-ink-2 hover:text-failed"
-              @click="removeVolume(index)"
-            >
-              <Icon name="lucide:x" class="size-3.5" />
-            </button>
-          </div>
-          <Button theme="quiet" size="sm" class="self-start" @click="addVolume">
-            <Icon name="proicons:add" size="16" />
-            Add volume
+      <p class="border-b border-hairline px-4.25 py-2.5 text-[13px] font-medium text-ink">
+        Volumes
+      </p>
+
+      <div
+        v-for="(volume, index) in advDraft.volumes"
+        :key="index"
+        class="flex items-center gap-2 border-b border-hairline px-4.25"
+      >
+        <Input v-model="volume.source" class="flex-1" placeholder="source" mono boxed bare />
+        <span class="text-ink-3">:</span>
+        <Input
+          v-model="volume.target"
+          class="flex-1"
+          placeholder="/path/in/container"
+          mono
+          boxed
+          bare
+        />
+        <label class="flex cursor-pointer items-center gap-1 text-caption text-ink-2">
+          <Checkbox v-model="volume.readOnly" />
+          ro
+        </label>
+        <button
+          type="button"
+          class="cursor-pointer rounded-control p-1.5 text-ink-2 hover:text-failed"
+          @click="removeVolume(index)"
+        >
+          <Icon name="lucide:x" class="size-3.5" />
+        </button>
+      </div>
+
+      <div class="border-b border-hairline px-4.25 py-2.5">
+        <Button theme="quiet" size="sm" @click="addVolume">
+          <Icon name="proicons:add" size="16" />
+          Add volume
+        </Button>
+      </div>
+
+      <div class="flex items-center border-b border-hairline px-4.25 py-3.25">
+        <Switch v-model="advDraft.healthcheckEnabled" label="Enable healthcheck" />
+      </div>
+
+      <div v-if="advDraft.healthcheckEnabled" data-rows class="flex flex-col">
+        <Input v-model="advDraft.hcPath" label="Path" placeholder="/health" mono boxed />
+        <Input v-model="advDraft.hcInterval" label="Interval (s)" mono boxed />
+        <Input v-model="advDraft.hcTimeout" label="Timeout (s)" mono boxed />
+        <Input v-model="advDraft.hcRetries" label="Retries" mono boxed />
+        <Input v-model="advDraft.hcStartPeriod" label="Start period (s)" mono boxed />
+      </div>
+
+      <p class="border-b border-hairline px-4.25 py-2.5 text-[13px] font-medium text-ink">
+        Resources (empty means no limit)
+      </p>
+
+      <div data-rows class="flex flex-col">
+        <Input v-model="advDraft.cpus" label="CPUs" placeholder="e.g. 0.5" mono boxed />
+        <Input v-model="advDraft.memoryMb" label="Memory (MB)" placeholder="e.g. 512" mono boxed />
+      </div>
+
+      <div class="flex flex-wrap items-center gap-2 px-4.25 py-3.25">
+        <p class="text-caption text-ink-3">Changes take effect on the next deploy.</p>
+
+        <div class="ml-auto flex items-center gap-2">
+          <Button theme="quiet" size="sm" @click="editingAdv = false">Cancel</Button>
+          <Button theme="primary" size="sm" :disabled="savingAdv" @click="saveAdv">
+            <Icon v-if="savingAdv" name="svg-spinners:tadpole" size="16" />
+            Save
           </Button>
         </div>
-      </div>
-
-      <div class="border-t border-hairline pt-4">
-        <Switch v-model="advDraft.healthcheckEnabled" label="Enable healthcheck" />
-        <div v-if="advDraft.healthcheckEnabled" class="mt-3 flex flex-col gap-1.5">
-          <Input v-model="advDraft.hcPath" label="Path" placeholder="/health" mono compact />
-          <Input v-model="advDraft.hcInterval" label="Interval (s)" compact />
-          <Input v-model="advDraft.hcTimeout" label="Timeout (s)" compact />
-          <Input v-model="advDraft.hcRetries" label="Retries" compact />
-          <Input v-model="advDraft.hcStartPeriod" label="Start period (s)" compact />
-        </div>
-      </div>
-
-      <div class="border-t border-hairline pt-4">
-        <p class="mb-2 text-[13px] font-medium text-ink">Resources (empty means no limit)</p>
-        <div class="flex flex-col gap-1.5">
-          <Input v-model="advDraft.cpus" label="CPUs" placeholder="e.g. 0.5" compact />
-          <Input v-model="advDraft.memoryMb" label="Memory (MB)" placeholder="e.g. 512" compact />
-        </div>
-      </div>
-
-      <p class="text-caption text-ink-3">Changes take effect on the next deploy.</p>
-
-      <div class="flex justify-end gap-2">
-        <Button theme="quiet" size="sm" @click="editingAdv = false">Cancel</Button>
-        <Button theme="primary" size="sm" :disabled="savingAdv" @click="saveAdv">
-          <Icon v-if="savingAdv" name="svg-spinners:tadpole" size="16" />
-          Save
-        </Button>
       </div>
     </div>
   </Card>

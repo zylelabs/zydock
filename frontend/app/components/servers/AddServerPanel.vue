@@ -129,27 +129,51 @@
         v-model="form.values.name"
         label="Name"
         placeholder="hetzner-02"
+        boxed
+        bare
         :call-error="form.errors.value.name"
       />
       <Input
         v-model="form.values.agentPort"
         label="Agent port"
+        mono
+        boxed
+        bare
         :call-error="form.errors.value.agentPort"
       />
       <Input
         v-model="form.values.host"
         label="Host"
         placeholder="5.161.44.91"
+        mono
+        boxed
+        bare
         :call-error="form.errors.value.host"
       />
-      <Input v-model="form.values.port" label="SSH port" :call-error="form.errors.value.port" />
+      <Input
+        v-model="form.values.port"
+        label="SSH port"
+        mono
+        boxed
+        bare
+        :call-error="form.errors.value.port"
+      />
       <Input
         v-model="form.values.username"
         label="SSH user"
         placeholder="root"
+        mono
+        boxed
+        bare
         :call-error="form.errors.value.username"
       />
-      <Select v-model="form.values.authMethod" label="Authentication" :options="authOptions" />
+      <Select
+        v-model="form.values.authMethod"
+        label="Authentication"
+        :options="authOptions"
+        boxed
+        bare
+      />
     </div>
 
     <Input
@@ -157,6 +181,8 @@
       v-model="form.values.password"
       label="Password"
       password
+      boxed
+      bare
       class="mt-1.5"
       :call-error="form.errors.value.password"
     />
@@ -166,11 +192,14 @@
         label="Private key"
         type="textarea"
         :rows="5"
+        mono
+        boxed
+        bare
         class="mt-1.5"
         placeholder="-----BEGIN OPENSSH PRIVATE KEY-----"
         :call-error="form.errors.value.privateKey"
       />
-      <Input v-model="form.values.passphrase" label="Passphrase (optional)" password />
+      <Input v-model="form.values.passphrase" label="Passphrase (optional)" password boxed bare />
     </template>
 
     <Alert v-if="probe && probe.reachable" theme="success" class="mt-3">

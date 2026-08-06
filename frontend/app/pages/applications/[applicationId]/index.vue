@@ -8,15 +8,19 @@
     useApplications,
     type ApplicationStatus,
   } from '~/composables/services/useApplications';
+  import { useDomains } from '~/composables/services/useDomains';
   import { useOrganizations } from '~/composables/services/useOrganizations';
   import { useProjects } from '~/composables/services/useProjects';
+  import { useServers } from '~/composables/services/useServers';
 
   const route = useRoute();
   const session = useSessionStore();
 
   const { current } = useOrganizations();
   const applicationsApi = useApplications();
+  const domainsApi = useDomains();
   const projectsApi = useProjects();
+  const serversApi = useServers();
 
   const applicationId = computed(() => String(route.params.applicationId));
   const canManage = computed(() => ['owner', 'admin'].includes(current.value?.role ?? ''));
@@ -39,6 +43,55 @@
   );
 
   const application = computed(() => data.value);
+
+  const { data: domainsData } = await useAsyncData(
+    () => `application-${applicationId.value}-primary-domain`,
+    () =>
+      session.organizationId
+        ? domainsApi.list({ applicationId: applicationId.value })
+        : Promise.resolve(null),
+    { server: false, watch: [() => session.organizationId, applicationId] },
+  );
+
+  const { data: server } = await useAsyncData(
+    () => `application-${applicationId.value}-server`,
+    async () => {
+      const serverId = application.value?.serverId;
+
+      if (!serverId) {
+        return null;
+      }
+
+      const { server: item } = await serversApi.get(serverId);
+
+      return item;
+    },
+    { server: false, watch: [() => application.value?.serverId] },
+  );
+
+  const applicationUrl = computed(() => {
+    const domains = domainsData.value?.items ?? [];
+    const domain = domains.find(item => item.status === 'active') ?? domains[0];
+
+    if (domain) {
+      const label = `${domain.hostname}${domain.pathPrefix ?? ''}`;
+
+      return { href: `${domain.tls ? 'https' : 'http'}://${label}`, label, local: false };
+    }
+
+    const mappings = application.value?.portMappings ?? [];
+    const mapping =
+      mappings.find(item => item.containerPort === application.value?.port) ?? mappings[0];
+    const host = server.value?.ssh.host ?? server.value?.agent.host;
+
+    if (!mapping || !host) {
+      return null;
+    }
+
+    const label = `${host}:${mapping.hostPort}`;
+
+    return { href: `http://${label}`, label, local: true };
+  });
 
   useHead(() => ({ title: application.value?.name ?? 'Application' }));
 
@@ -144,6 +197,18 @@
         <StatusDot :status="applicationStatusDot(application.status)" />
         {{ STATUS_LABEL[application.status] }}
       </div>
+
+      <a
+        v-if="applicationUrl"
+        :href="applicationUrl.href"
+        target="_blank"
+        rel="noopener noreferrer"
+        class="flex min-w-0 items-center gap-1.5 font-mono text-[12.5px] text-ink-2 transition-colors hover:text-ink"
+      >
+        <span class="truncate">{{ applicationUrl.label }}</span>
+        <span v-if="applicationUrl.local" class="shrink-0 font-sans text-ink-2">(local)</span>
+        <Icon name="lucide:external-link" class="size-3.5 shrink-0" />
+      </a>
 
       <div class="flex-1" />
 

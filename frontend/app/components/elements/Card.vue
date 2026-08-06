@@ -1,5 +1,7 @@
 <script setup lang="ts">
-  defineProps<{
+  import { mergeClasses } from '~/utils';
+
+  const props = defineProps<{
     title?: string;
     description?: string;
     headerClass?: string;
@@ -20,6 +22,14 @@
   const emit = defineEmits(['onClose']);
 
   const slots = useSlots();
+
+  /**
+   * Merged so `content-class` really overrides the default padding — concatenating leaves both
+   * `p-4.25` and `p-0` in the class list, and the loser depends on the stylesheet order.
+   */
+  const contentClasses = computed(() =>
+    mergeClasses(props.rows ? 'p-0' : 'p-4.25 has-[>[data-row]]:p-0', props.contentClass),
+  );
 </script>
 
 <template>
@@ -39,7 +49,7 @@
         </div>
       </div>
 
-      <div v-if="slots.right" class="w-full sm:ml-auto sm:w-auto">
+      <div v-if="slots.right" class="min-h-7 w-full sm:ml-auto sm:w-auto">
         <slot name="right" />
       </div>
 
@@ -56,10 +66,7 @@
       <slot name="header" />
     </div>
 
-    <div
-      :data-rows="rows || undefined"
-      :class="[rows ? 'p-0' : 'p-4.25 has-[>[data-row]]:p-0', contentClass]"
-    >
+    <div :data-rows="rows || undefined" :class="contentClasses">
       <slot />
     </div>
 

@@ -90,6 +90,11 @@
   const RESTART_POLICIES = ['unless-stopped', 'always', 'on-failure', 'no'] as const;
   const restartOptions = RESTART_POLICIES.map(value => ({ value, label: value }));
 
+  const autoDeployOptions = [
+    { value: 'on', label: 'on every push to main' },
+    { value: 'off', label: 'off' },
+  ];
+
   const editingConfig = ref(false);
 
   const configForm = useSchemaForm(
@@ -103,7 +108,7 @@
       dockerfilePath: z.string().trim().min(1, 'Enter the Dockerfile'),
       buildContext: z.string().trim().min(1, 'Enter the build context'),
       port: z.string().regex(/^\d+$/, 'Invalid port'),
-      autoDeploy: z.boolean(),
+      autoDeploy: z.enum(['on', 'off']),
       restartPolicy: z.string().trim().min(1, 'Choose a restart policy'),
     }),
     {
@@ -113,7 +118,7 @@
       dockerfilePath: 'Dockerfile',
       buildContext: '.',
       port: '3000',
-      autoDeploy: true,
+      autoDeploy: 'on',
       restartPolicy: 'unless-stopped',
     },
   );
@@ -127,7 +132,7 @@
     configForm.values.dockerfilePath = app.git.dockerfilePath;
     configForm.values.buildContext = app.git.buildContext;
     configForm.values.port = String(app.port);
-    configForm.values.autoDeploy = app.git.autoDeploy;
+    configForm.values.autoDeploy = app.git.autoDeploy ? 'on' : 'off';
     configForm.values.restartPolicy = app.restartPolicy;
     editingConfig.value = true;
   };
@@ -142,7 +147,7 @@
         branch: values.branch,
         dockerfilePath: values.dockerfilePath,
         buildContext: values.buildContext,
-        autoDeploy: values.autoDeploy,
+        autoDeploy: values.autoDeploy === 'on',
       },
     });
 
@@ -254,7 +259,7 @@
         </Card>
       </div>
 
-      <Card title="Configuration" content-class="p-0">
+      <Card title="Configuration" rows>
         <template v-if="canManage" #right>
           <Button v-if="!editingConfig" theme="secondary" size="xs" @click="startEditConfig">
             Edit
@@ -262,6 +267,12 @@
         </template>
 
         <template v-if="!editingConfig">
+          <Row as="div" class="flex items-center">
+            <div class="w-33 shrink-0 text-[13px] text-ink-2">Name</div>
+            <div class="truncate font-mono text-[13px] text-ink">
+              {{ application.name }}
+            </div>
+          </Row>
           <Row as="div" class="flex items-center">
             <div class="w-33 shrink-0 text-[13px] text-ink-2">Repository</div>
             <div class="truncate font-mono text-[13px] text-ink">
@@ -291,7 +302,7 @@
           <Row as="div" class="flex items-center">
             <div class="w-33 shrink-0 text-[13px] text-ink-2">Auto-deploy</div>
             <div class="font-mono text-[13px] text-ink">
-              {{ application.git.autoDeploy ? 'on' : 'off' }}
+              {{ application.git.autoDeploy ? 'on every push to main' : 'off' }}
             </div>
           </Row>
           <Row as="div" class="flex items-center">
@@ -300,14 +311,16 @@
           </Row>
         </template>
 
-        <form v-else class="flex flex-col gap-1.5 p-4.25" @submit.prevent="handleSaveConfig">
-          <Alert v-if="configForm.formError.value" theme="error">
+        <form v-else class="flex flex-col" @submit.prevent="handleSaveConfig">
+          <Alert v-if="configForm.formError.value" theme="error" class="mx-4.25 mt-3">
             {{ configForm.formError.value }}
           </Alert>
 
           <Input
             v-model="configForm.values.name"
             label="Name"
+            mono
+            boxed
             :call-error="configForm.errors.value.name"
           />
           <Input
@@ -315,50 +328,62 @@
             label="Repository"
             placeholder="owner/repository"
             mono
+            boxed
             :call-error="configForm.errors.value.repository"
           />
           <Input
             v-model="configForm.values.branch"
             label="Branch"
             mono
+            boxed
             :call-error="configForm.errors.value.branch"
           />
           <Input
             v-model="configForm.values.dockerfilePath"
             label="Dockerfile"
             mono
+            boxed
             :call-error="configForm.errors.value.dockerfilePath"
           />
           <Input
             v-model="configForm.values.buildContext"
             label="Build context"
             mono
+            boxed
             :call-error="configForm.errors.value.buildContext"
           />
           <Input
             v-model="configForm.values.port"
             label="Port"
             mono
+            boxed
             :call-error="configForm.errors.value.port"
+          />
+          <Select
+            v-model="configForm.values.autoDeploy"
+            label="Auto-deploy"
+            :options="autoDeployOptions"
+            boxed
           />
           <Select
             v-model="configForm.values.restartPolicy"
             label="Restart policy"
             :options="restartOptions"
+            boxed
           />
 
-          <div class="flex items-center gap-3.5 py-3">
-            <Switch v-model="configForm.values.autoDeploy" label="Auto-deploy on every push" />
-          </div>
+          <div class="flex flex-wrap items-center gap-2 px-4.25 py-3.25">
+            <p class="text-caption text-ink-3">Changes take effect on the next deploy.</p>
 
-          <p class="text-caption text-ink-3">Changes take effect on the next deploy.</p>
-
-          <div class="mt-1 flex justify-end gap-2">
-            <Button theme="quiet" type="button" @click="editingConfig = false">Cancel</Button>
-            <Button theme="primary" size="sm" type="submit" :disabled="configForm.loading.value">
-              <Icon v-if="configForm.loading.value" name="svg-spinners:tadpole" size="16" />
-              Save
-            </Button>
+            <div class="ml-auto flex items-center gap-2">
+              <Button theme="quiet" size="sm" type="button" @click="editingConfig = false">
+                Cancel
+              </Button>
+              <Button theme="primary" size="sm" type="submit" :disabled="configForm.loading.value">
+                <Icon v-if="configForm.loading.value" name="svg-spinners:tadpole" size="16" />
+                Save
+              </Button>
+            </div>
           </div>
         </form>
       </Card>
