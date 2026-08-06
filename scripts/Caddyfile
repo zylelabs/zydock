@@ -1,11 +1,10 @@
-{$ZYDOCK_DOMAIN} {
-	# The browser connects to the WebSocket directly (it cannot pass through a JSON proxy) —
-	# everything else, including the API, goes through the frontend's own Nitro proxy.
-	handle /api/ws* {
-		reverse_proxy backend:8000
-	}
-
-	handle {
-		reverse_proxy frontend:3000
-	}
+# Bootstrap only: every route (the dashboard's own domain included) is pushed by the agent through
+# the admin API, so this file must not declare sites — a site block here would take :80/:443 and
+# collide with the server the agent creates. Caddy runs with --resume, so the routes written by the
+# admin API survive restarts and this file is used only on the very first boot.
+#
+# The admin API listens on a unix socket shared with the agent alone: on a TCP port it would also be
+# reachable by the deployed application containers, which share the 'zydock' network with the proxy.
+{
+	admin unix//var/run/caddy/admin.sock
 }

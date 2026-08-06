@@ -7,6 +7,7 @@ import type { RouteSpecDTO } from './proxy.schema';
 const SERVER_NAME = 'zydock';
 const ROUTE_ID_PREFIX = 'zydock-route-';
 const PROBE_TIMEOUT_MS = 5000;
+const UNIX_SCHEME = 'unix:';
 
 export type RouteSpec = RouteSpecDTO & { id: string };
 
@@ -36,6 +37,7 @@ type CaddyServer = {
 };
 
 type CaddyConfig = {
+  admin?: { listen?: string };
   apps?: {
     http?: { servers?: Record<string, CaddyServer> };
     tls?: { automation?: { policies?: { subjects?: string[] }[] } };
@@ -47,17 +49,24 @@ const routeIdOf = (id: string) => `${ROUTE_ID_PREFIX}${id}`;
 const firstValue = (value: string | string[] | undefined) =>
   Array.isArray(value) ? value[0] : value;
 
+const socketPath = config.proxy.adminUrl.startsWith(UNIX_SCHEME)
+  ? config.proxy.adminUrl.slice(UNIX_SCHEME.length)
+  : undefined;
+
+const adminBaseUrl = socketPath ? 'http://localhost' : config.proxy.adminUrl;
+
 const request = async (path: string, init: { method?: string; body?: unknown } = {}) => {
   const { method = 'GET', body } = init;
 
   let response: Response;
 
   try {
-    response = await fetch(`${config.proxy.adminUrl}${path}`, {
+    response = await fetch(`${adminBaseUrl}${path}`, {
       method,
       headers: body === undefined ? {} : { 'Content-Type': 'application/json' },
       body: body === undefined ? undefined : JSON.stringify(body),
       signal: AbortSignal.timeout(PROBE_TIMEOUT_MS),
+      ...(socketPath ? { unix: socketPath } : {}),
     });
   } catch (error) {
     throw new Error(`Caddy admin API did not answer ${method} ${path}: ${errorMessage(error)}`);
@@ -93,7 +102,12 @@ const readConfig = async (): Promise<CaddyConfig> => {
 };
 
 const load = (configuration: CaddyConfig) =>
-  request('/load', { method: 'POST', body: configuration });
+  request('/load', {
+    method: 'POST',
+    body: socketPath
+      ? { ...configuration, admin: { listen: `unix/${socketPath}` } }
+      : configuration,
+  });
 
 const toCaddyRoute = (spec: RouteSpec): CaddyRoute => {
   const headers = Object.entries(spec.headers ?? {});
@@ -270,7 +284,7 @@ export const getCertificateStatus = (domain: string) =>
   new Promise<CertificateStatus>(resolve => {
     const socket = connect(
       {
-        host: '127.0.0.1',
+        host: config.proxy.httpsHost,
         port: config.proxy.httpsPort,
         servername: domain,
         rejectUnauthorized: false,
