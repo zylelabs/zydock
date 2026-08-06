@@ -1,46 +1,27 @@
-import type { RouteLocationRaw } from 'vue-router';
-
-export type NavbarBreadcrumbItem = {
+export type NavbarAction = {
   label: string;
-  to?: RouteLocationRaw;
-  disabled?: boolean;
-};
-
-export type NavbarBreadcrumb = {
-  items?: NavbarBreadcrumbItem[];
-  separator?: string;
-  autoFromRoute?: boolean;
-  includeHome?: boolean;
-  homeLabel?: string;
-  homeTo?: RouteLocationRaw;
+  icon?: string;
+  theme?: 'primary' | 'secondary';
+  loading?: boolean;
+  onClick: () => void;
 };
 
 export type Navbar = {
   title: string;
-  breadcrumb?: NavbarBreadcrumb;
+  context?: string;
   loading?: boolean;
+  action?: NavbarAction;
 };
 
 export const useNavbar = (navbar?: Partial<Navbar>) => {
-  const router = useRoute();
-  const titleSplit = router.name?.toString().split('-');
+  const navbarState = useState<Navbar>('navbar', () => ({ title: '' }));
 
-  const navbarState = useState<Navbar>('navbar', () => ({
-    title: titleSplit?.[titleSplit?.length - 1] ?? '',
-    loading: false,
-  }));
-
-  const set = (navbar: Partial<Navbar>) => {
+  const set = (next: Partial<Navbar>) => {
     navbarState.value = {
-      ...navbarState.value,
-      ...navbar,
-    };
-  };
-
-  const setBreadcrumb = (breadcrumb?: NavbarBreadcrumb) => {
-    navbarState.value = {
-      ...navbarState.value,
-      breadcrumb,
+      title: next.title ?? navbarState.value.title,
+      context: next.context,
+      loading: next.loading,
+      action: next.action,
     };
   };
 
@@ -50,7 +31,6 @@ export const useNavbar = (navbar?: Partial<Navbar>) => {
 
   return {
     set,
-    setBreadcrumb,
     navbar: navbarState,
   };
 };

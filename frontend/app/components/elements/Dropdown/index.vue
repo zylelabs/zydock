@@ -46,7 +46,7 @@
 
     <div
       v-show="dropdownOpened"
-      class="z-50 absolute mt-1.5 min-w-32 rounded-lg border border-surface-border bg-surface-overlay p-1 shadow-xl backdrop-blur-sm"
+      class="z-50 absolute mt-1.5 min-w-32 rounded-panel border border-edge bg-card p-1 shadow-lifted"
       :class="[
         [undefined, 'left'].includes(alignmentX) && 'right-0',
         alignmentX === 'right' && 'left-0',

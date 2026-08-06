@@ -1,4 +1,5 @@
 import tailwindcss from '@tailwindcss/vite';
+import pkg from './package.json';
 
 export default defineNuxtConfig({
   compatibilityDate: '2025-07-15',
@@ -33,12 +34,29 @@ export default defineNuxtConfig({
   runtimeConfig: {
     public: {
       wsUrl: process.env.WS_URL ?? '',
+      version: pkg.version,
     },
   },
   app: {
     head: {
       title: 'Zydock',
       meta: [{ name: 'viewport', content: 'width=device-width, initial-scale=1' }],
+      link: [{ rel: 'icon', href: '/favicon.ico' }],
+      script: [
+        {
+          key: 'appearance',
+          innerHTML: `(function () {
+            try {
+              var raw = localStorage.getItem('zydock:appearance');
+              var mode = raw ? JSON.parse(raw).mode : 'system';
+              var prefersDark = window.matchMedia('(prefers-color-scheme: dark)').matches;
+              if (mode === 'dark' || (mode === 'system' && prefersDark)) {
+                document.documentElement.classList.add('dark');
+              }
+            } catch (e) {}
+          })();`,
+        },
+      ],
     },
   },
   piniaPluginPersistedstate: {

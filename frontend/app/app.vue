@@ -1,5 +1,5 @@
 <script setup lang="ts">
-  useTheme().applyToDocument();
+  useAppearance();
 </script>
 
 <template>

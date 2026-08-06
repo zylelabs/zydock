@@ -7,7 +7,7 @@
 
   const props = defineProps<Props>();
 
-  const emit = defineEmits(['change-page']);
+  const emit = defineEmits<{ changePage: [page: number] }>();
 
   const currentPage = ref<number>(props.page || 1);
 
@@ -44,7 +44,7 @@
 
   const handleClick = (page: number | string) => {
     if (typeof page === 'number' && page !== currentPage.value) {
-      emit('change-page', { page: Number(page) || 1 });
+      emit('changePage', page);
     }
   };
 
@@ -57,57 +57,45 @@
 </script>
 
 <template>
-  <div
-    class="flex flex-col gap-3 justify-between items-center w-full px-4 py-3 bg-slate-50 border-t rounded-b-lg text-sm sm:flex-row sm:text-base"
-  >
-    <div class="whitespace-nowrap">Per page: {{ props.limit }}</div>
+  <div class="flex items-center justify-between gap-3 border-t border-hairline px-4.5 py-3">
+    <div class="text-caption text-ink-2">Per page: {{ props.limit }}</div>
 
-    <div class="flex flex-wrap items-center justify-center gap-2">
-      <div
-        class="flex items-center justify-center border p-1 rounded shadow w-7! h-7!"
-        :class="Number(currentPage) === 1 ? 'cursor-default opacity-50' : 'cursor-pointer'"
-        @click="
-          () => {
-            if (currentPage >= 2) {
-              handleClick(currentPage - 1);
-            }
-          }
-        "
+    <div class="flex flex-wrap items-center justify-center gap-1.5">
+      <button
+        type="button"
+        class="flex size-7 items-center justify-center rounded-control border border-edge text-ink-2 hover:bg-inset disabled:cursor-default disabled:opacity-40 disabled:hover:bg-transparent"
+        :disabled="currentPage <= 1"
+        @click="handleClick(currentPage - 1)"
       >
-        <Icon name="hugeicons:arrow-left-01" size="18" />
-      </div>
+        <Icon name="hugeicons:arrow-left-01" size="16" />
+      </button>
 
-      <div
+      <button
         v-for="(pageItem, index) in getPages"
         :key="index"
-        class="flex items-center justify-center rounded select-none"
-        :class="[
+        type="button"
+        class="flex size-7 items-center justify-center rounded-control text-[13px] select-none"
+        :class="
           pageItem === '...'
-            ? 'font-medium text-gray-800'
-            : 'p-1 border w-7! h-7! cursor-pointer shadow',
-          pageItem === currentPage && 'font-medium bg-primary text-white border-transparent',
-          getPages.length === 1 && 'opacity-50 cursor-default!',
-        ]"
+            ? 'cursor-default text-ink-3'
+            : pageItem === currentPage
+              ? 'bg-ink font-medium text-page'
+              : 'border border-edge text-ink-2 hover:bg-inset'
+        "
+        :disabled="pageItem === '...'"
         @click="handleClick(pageItem)"
       >
         {{ pageItem }}
-      </div>
+      </button>
 
-      <div
-        class="flex items-center justify-center border p-1 rounded shadow w-7! h-7!"
-        :class="
-          Number(currentPage) === getPages.length ? 'cursor-default opacity-50' : 'cursor-pointer'
-        "
-        @click="
-          () => {
-            if (currentPage <= getPages.length - 1) {
-              handleClick(currentPage + 1);
-            }
-          }
-        "
+      <button
+        type="button"
+        class="flex size-7 items-center justify-center rounded-control border border-edge text-ink-2 hover:bg-inset disabled:cursor-default disabled:opacity-40 disabled:hover:bg-transparent"
+        :disabled="currentPage >= getPages.length"
+        @click="handleClick(currentPage + 1)"
       >
-        <Icon name="hugeicons:arrow-right-01" size="18" />
-      </div>
+        <Icon name="hugeicons:arrow-right-01" size="16" />
+      </button>
     </div>
   </div>
 </template>

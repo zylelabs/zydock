@@ -13,6 +13,7 @@
     remoteSearch?: boolean;
     placeholder?: string;
     inputMask?: string | MasksPatternKeys;
+    labelWidth?: string;
   }>();
 
   const emit = defineEmits<{ search: [query: string] }>();
@@ -146,18 +147,20 @@
     class="w-full"
   >
     <template #button>
-      <div class="flex flex-col gap-1 cursor-default select-none">
+      <div
+        class="flex cursor-default items-center gap-3.5 border-b border-hairline py-3 in-data-rows:px-4.25 select-none"
+      >
         <label
           v-if="label"
-          class="flex gap-0.5 text-xs font-semibold tracking-widest text-content-muted uppercase mb-1"
-          :class="{ 'text-content-dim': disabled }"
+          class="shrink-0 text-[13px] text-ink-2"
+          :class="[labelWidth || 'w-33', { 'text-ink-3': disabled }]"
         >
           {{ label }}
         </label>
 
         <div
           v-if="searchable || creatable"
-          class="flex w-full border border-field-border rounded-lg shadow-sm bg-surface-sunken transition-shadow duration-200"
+          class="flex min-w-0 flex-1 items-center"
           :class="{ 'cursor-not-allowed opacity-50': disabled }"
           :aria-disabled="disabled"
           @click.stop
@@ -166,7 +169,7 @@
             v-model="searchQuery"
             class="flex-1"
             type="text"
-            input-class="flex-1 bg-transparent outline-none text-sm disabled:cursor-not-allowed border-none shadow-none"
+            input-class="flex-1 bg-transparent outline-none text-sm disabled:cursor-not-allowed"
             :placeholder="searchPlaceholder"
             :disabled="disabled"
             :mask="inputMask"
@@ -175,33 +178,31 @@
           />
           <Icon
             name="mdi:chevron-down"
-            size="20"
-            class="my-auto ml-auto mr-2 shrink-0 text-content-muted"
+            size="18"
+            class="ml-2 shrink-0 text-ink-2"
             @click="openDropdown"
           />
         </div>
 
         <div
           v-else
-          class="flex w-full items-center border border-field-border rounded-lg shadow-sm px-2 py-2 bg-surface-sunken text-content-strong focus:outline-none focus:border-primary-400 transition-shadow duration-200 disabled:cursor-not-allowed disabled:text-content-dim disabled:border-surface-line"
-          :class="{ 'cursor-not-allowed opacity-50': disabled }"
+          class="flex min-w-0 flex-1 items-center font-mono text-sm text-ink"
+          :class="{ 'cursor-not-allowed text-ink-3 opacity-50': disabled }"
           :aria-disabled="disabled"
         >
           {{ searchPlaceholder }}
-          <div class="flex ml-auto my-auto">
-            <Icon name="mdi:chevron-down" size="20" class="my-auto text-content-muted" />
-          </div>
+          <Icon name="mdi:chevron-down" size="18" class="my-auto ml-auto text-ink-2" />
         </div>
       </div>
     </template>
 
-    <ul class="flex flex-col w-full gap-0.5">
+    <ul class="flex w-full flex-col gap-0.5">
       <li
         v-if="canCreate"
-        class="px-2 py-1.5 rounded-md whitespace-nowrap hover:bg-surface-hover w-full cursor-pointer"
+        class="w-full cursor-pointer rounded-control px-2 py-1.5 whitespace-nowrap hover:bg-inset"
         @click.stop="handleCreate"
       >
-        <div class="flex items-center gap-2 text-primary-400">
+        <div class="flex items-center gap-2 text-accent">
           <Icon name="mdi:plus-circle-outline" size="18" />
           <span>Add "{{ searchQuery }}"</span>
         </div>
@@ -209,8 +210,8 @@
       <li
         v-for="option in filteredOptions"
         :key="option.value"
-        class="px-2 py-1.5 rounded-md whitespace-nowrap hover:bg-surface-hover w-full text-content"
-        :class="isSelected(option.value) && 'bg-surface-hover'"
+        class="w-full rounded-control px-2 py-1.5 whitespace-nowrap text-ink hover:bg-inset"
+        :class="isSelected(option.value) && 'bg-inset'"
         @click.stop="handleClick(option.value)"
       >
         <div class="flex items-center gap-2">

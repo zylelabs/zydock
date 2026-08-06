@@ -24,8 +24,6 @@
     "@pinia/nuxt": "^1.0.1",
     "@tailwindcss/vite": "^4.3.3",
     "@unhead/vue": "^3.2.1",
-    "@unovis/ts": "^1.6.7",
-    "@unovis/vue": "^1.6.7",
     "@xterm/addon-fit": "^0.11.0",
     "@xterm/xterm": "^6.0.0",
     "date-fns": "^4.4.0",

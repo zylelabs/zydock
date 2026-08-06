@@ -7,16 +7,6 @@ import {
   paginatedSchema,
 } from '../../utils/openapi';
 
-export const brandingSchema = {
-  type: 'object',
-  properties: {
-    logo: { type: 'string', nullable: true },
-    favicon: { type: 'string', nullable: true },
-    primaryColor: { type: 'string', nullable: true },
-    secondaryColor: { type: 'string', nullable: true },
-  },
-};
-
 export const organizationSchema = {
   type: 'object',
   properties: {
@@ -24,7 +14,6 @@ export const organizationSchema = {
     name: { type: 'string' },
     slug: { type: 'string' },
     role: { type: 'string', enum: ['owner', 'admin', 'member'], nullable: true },
-    branding: brandingSchema,
     createdAt: { type: 'string', format: 'date-time' },
   },
 };
@@ -73,7 +62,7 @@ export const organizationsDocs = {
   update: {
     tags: ['Organizations'],
     summary: 'Update an organization',
-    description: 'Updates the name and/or the branding (logo, favicon, colors). Admin or owner.',
+    description: 'Updates the organization name. Admin or owner.',
     security: bearerOrApiKeyAuth,
     responses: {
       200: jsonRes('Updated organization.', organizationWrapped),

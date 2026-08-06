@@ -54,22 +54,17 @@
       <template #button>
         <button
           type="button"
-          class="flex w-full cursor-pointer items-center gap-2.5 rounded-lg p-1 text-left transition-colors hover:bg-surface-hover/60"
+          class="flex w-full cursor-pointer items-center gap-2.5 rounded-button border border-edge bg-page p-2 text-left transition-colors hover:border-edge-strong"
         >
           <span
-            class="flex size-8 shrink-0 items-center justify-center rounded-[7px] bg-linear-to-br from-primary to-primary-strong text-sm font-semibold text-white"
+            class="flex size-5.5 shrink-0 items-center justify-center rounded-control bg-accent-soft text-[10px] font-semibold text-white"
           >
             {{ label.charAt(0).toUpperCase() }}
           </span>
-          <span class="min-w-0 flex-1">
-            <span class="block truncate text-[15px] font-semibold text-content-strong">
-              {{ label }}
-            </span>
-            <span v-if="current?.role" class="block text-xs text-content-muted capitalize">
-              {{ current.role }}
-            </span>
+          <span class="min-w-0 flex-1 truncate text-[13px] font-medium text-ink">
+            {{ label }}
           </span>
-          <Icon name="lucide:chevrons-up-down" class="size-4 shrink-0 text-content-muted" />
+          <Icon name="lucide:chevron-down" class="size-3.5 shrink-0 text-ink-3" />
         </button>
       </template>
 
@@ -78,26 +73,26 @@
           v-for="organization in organizations"
           :key="organization.id"
           type="button"
-          class="flex w-full cursor-pointer items-center justify-between gap-2 rounded-md px-3 py-2 text-left text-sm transition-colors hover:bg-surface-hover"
+          class="flex w-full cursor-pointer items-center justify-between gap-2 rounded-control px-3 py-2 text-left text-sm transition-colors hover:bg-inset"
           @click.stop="choose(organization.id)"
         >
           <span class="truncate">{{ organization.name }}</span>
           <Icon
             v-if="organization.id === current?.id"
             name="lucide:check"
-            class="size-4 shrink-0 text-primary"
+            class="size-4 shrink-0 text-accent"
           />
         </button>
 
-        <p v-if="!organizations.length" class="px-3 py-2 text-xs text-content-muted">
+        <p v-if="!organizations.length" class="px-3 py-2 text-xs text-ink-3">
           You don't belong to any organization yet.
         </p>
 
-        <div class="my-1 border-t border-surface-border" />
+        <div class="my-1 border-t border-hairline" />
 
         <button
           type="button"
-          class="flex w-full cursor-pointer items-center gap-2 rounded-md px-3 py-2 text-left text-sm text-content-muted transition-colors hover:bg-surface-hover hover:text-content-strong"
+          class="flex w-full cursor-pointer items-center gap-2 rounded-control px-3 py-2 text-left text-sm text-ink-2 transition-colors hover:bg-inset hover:text-ink"
           @click.stop="openCreate"
         >
           <Icon name="lucide:plus" class="size-4" />

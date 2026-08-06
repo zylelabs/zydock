@@ -1,17 +1,35 @@
 <script setup lang="ts">
-  defineProps<{ title: string; description?: string }>();
+  import type { NavbarAction } from '~/composables/useNavbar';
 
-  const slots = useSlots();
+  defineProps<{
+    title?: string;
+    context?: string;
+    loading?: boolean;
+    action?: NavbarAction;
+  }>();
 </script>
 
 <template>
-  <div class="mb-8 flex">
-    <div>
-      <h1 class="text-2xl font-semibold text-white">{{ title }}</h1>
-      <p class="text-sm text-white/80">{{ description }}</p>
+  <header class="flex h-15 shrink-0 items-center gap-4 border-b border-edge px-7">
+    <div class="min-w-0">
+      <div v-if="context" class="truncate text-[11.5px] text-ink-3">{{ context }}</div>
+      <div class="truncate text-heading text-ink">{{ title }}</div>
     </div>
-    <div v-if="slots.right" class="ml-auto flex">
-      <slot name="right" />
-    </div>
-  </div>
+
+    <div class="flex-1" />
+
+    <Icon v-if="loading" name="svg-spinners:tadpole" class="text-ink-2" size="16" />
+
+    <Button
+      v-if="action"
+      :theme="action.theme ?? 'primary'"
+      size="sm"
+      :disabled="action.loading"
+      @click="action.onClick"
+    >
+      <Icon v-if="action.loading" name="svg-spinners:tadpole" size="16" />
+      <Icon v-else-if="action.icon" :name="action.icon" size="16" />
+      {{ action.label }}
+    </Button>
+  </header>
 </template>

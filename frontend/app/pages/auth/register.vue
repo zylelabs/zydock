@@ -7,6 +7,8 @@
     layout: 'blank',
   });
 
+  useHead({ title: 'Create account' });
+
   const api = useApi();
   const toast = useToast();
   const session = useSessionStore();
@@ -45,41 +47,56 @@
 </script>
 
 <template>
-  <div class="flex min-h-screen flex-col items-center justify-center gap-8 p-6">
-    <div class="flex items-center gap-3 select-none">
-      <img src="@/assets/img/logo.svg" width="42" />
-      <div class="border-l border-white/25 pl-3 my-auto flex flex-col">
-        <div class="text-lg/tight text-white uppercase font-montserrat tracking-wider">ZyDock</div>
-      </div>
-    </div>
-    <Card title="Create account" description="Start deploying your applications in minutes.">
-      <form class="flex flex-col gap-4" @submit.prevent="handleSubmit">
+  <div>
+    <h1 class="text-[25px] font-semibold tracking-tight text-ink">Create your account</h1>
+    <p class="mt-1.75 mb-5.5 text-body text-pretty text-ink-2">
+      You land straight in the product. No email confirmation step.
+    </p>
+
+    <form @submit.prevent="handleSubmit">
+      <Card rows>
         <Input
           v-model="form.values.name"
+          stacked
           label="Name"
           placeholder="Your name"
           :disabled="form.loading.value"
+          :call-error="form.errors.value.name"
         />
         <Input
           v-model="form.values.email"
+          stacked
           label="Email"
           type="email"
           placeholder="you@company.com"
           :disabled="form.loading.value"
+          :call-error="form.errors.value.email"
         />
         <Input
           v-model="form.values.password"
+          stacked
           label="Password"
           type="password"
           placeholder="••••••••"
           :disabled="form.loading.value"
+          :call-error="form.errors.value.password"
         />
-        <Button class="btn-primary" :disabled="form.loading.value">Create account</Button>
-        <p class="text-center text-sm text-content-muted">
-          Already have an account?
-          <NuxtLink to="/auth/login" class="text-primary hover:underline">Sign in</NuxtLink>
-        </p>
-      </form>
-    </Card>
+      </Card>
+
+      <p class="mt-2.25 text-caption text-ink-2">
+        A personal organization is created for you. You can add others later.
+      </p>
+
+      <Button theme="primary" type="submit" class="mt-4 w-full" :disabled="form.loading.value">
+        <Icon v-if="form.loading.value" name="svg-spinners:tadpole" size="16" />
+        Create account
+      </Button>
+    </form>
+
+    <div class="mt-4.5 flex flex-wrap gap-4 text-[13px]">
+      <NuxtLink to="/auth/login" class="text-accent hover:underline">
+        I already have an account
+      </NuxtLink>
+    </div>
   </div>
 </template>

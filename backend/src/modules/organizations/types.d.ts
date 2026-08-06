@@ -1,14 +1,6 @@
-interface OrganizationBranding {
-  logo?: string;
-  favicon?: string;
-  primaryColor?: string;
-  secondaryColor?: string;
-}
-
 interface OrganizationData {
   name: string;
   slug: string;
-  branding: OrganizationBranding;
 }
 
 type Organization = BaseDocument<OrganizationData>;

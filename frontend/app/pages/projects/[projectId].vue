@@ -1,7 +1,6 @@
 <script setup lang="ts">
   import { z } from 'zod';
-  import type { GitSourceSelection } from '~/components/git/GitSourcePicker.vue';
-  import { useApplications, type ApplicationStatus } from '~/composables/services/useApplications';
+  import { applicationStatusDot, useApplications } from '~/composables/services/useApplications';
   import { useOrganizations } from '~/composables/services/useOrganizations';
   import { useProjects } from '~/composables/services/useProjects';
   import { useServers } from '~/composables/services/useServers';
@@ -17,6 +16,8 @@
 
   const projectId = computed(() => String(route.params.projectId));
   const canManage = computed(() => ['owner', 'admin'].includes(current.value?.role ?? ''));
+
+  const countLabel = (count: number, noun: string) => `${count} ${count === 1 ? noun : `${noun}s`}`;
 
   const notifyError = (error: unknown, fallback: string) => {
     toast.error({
@@ -55,13 +56,14 @@
   const serverList = computed(() => data.value?.servers ?? []);
   const apps = computed(() => data.value?.applications ?? []);
 
-  const APP_STATUS: Record<ApplicationStatus, { label: string; color: string }> = {
-    created: { label: 'Created', color: 'default' },
-    deploying: { label: 'Deploying', color: 'blue' },
-    running: { label: 'Running', color: 'green' },
-    stopped: { label: 'Stopped', color: 'yellow' },
-    failed: { label: 'Failed', color: 'red' },
-  };
+  const appsOf = (environmentId: string) =>
+    apps.value.filter(application => application.environmentId === environmentId);
+
+  const serverName = (serverId: string) =>
+    serverList.value.find(server => server.id === serverId)?.name ?? '—';
+
+  const environmentName = (environmentId: string) =>
+    environments.value.find(environment => environment.id === environmentId)?.name ?? '—';
 
   const projectForm = useSchemaForm(
     z.object({
@@ -113,6 +115,7 @@
     }
   };
 
+  const showAddEnvironment = ref(false);
   const newEnvironment = ref('');
   const addingEnvironment = ref(false);
 
@@ -126,6 +129,7 @@
     try {
       await projects.createEnvironment(projectId.value, newEnvironment.value.trim());
       newEnvironment.value = '';
+      showAddEnvironment.value = false;
       await refresh();
     } catch (error) {
       notifyError(error, 'Failed to create environment.');
@@ -174,149 +178,48 @@
     }
   };
 
-  const addingApp = ref(false);
-
-  const appForm = useSchemaForm(
-    z
-      .object({
-        name: z.string().trim().min(1, 'Enter a name'),
-        environmentId: z.string().min(1, 'Choose an environment'),
-        serverId: z.string().min(1, 'Choose a server'),
-        sourceMode: z.enum(['github-app', 'token']),
-        repository: z.string().trim(),
-        gitSourceId: z.string().trim(),
-        installationId: z.string().trim(),
-        branch: z.string().trim().min(1),
-        dockerfilePath: z.string().trim().min(1),
-        port: z.string().regex(/^\d+$/, 'Invalid port'),
-        autoDeploy: z.boolean(),
-        token: z.string().trim(),
-      })
-      .superRefine((value, ctx) => {
-        if (value.sourceMode === 'token') {
-          if (!/^[^/\s]+\/[^/\s]+$/.test(value.repository)) {
-            ctx.addIssue({
-              code: 'custom',
-              path: ['repository'],
-              message: 'Use the owner/repository format',
-            });
-          }
-          return;
-        }
-
-        if (!value.gitSourceId || !value.installationId || !value.repository) {
-          ctx.addIssue({
-            code: 'custom',
-            path: ['repository'],
-            message: 'Choose a repository',
-          });
-        }
-      }),
-    {
-      name: '',
-      environmentId: '',
-      serverId: '',
-      sourceMode: 'github-app' as 'github-app' | 'token',
-      repository: '',
-      gitSourceId: '',
-      installationId: '',
-      branch: 'main',
-      dockerfilePath: 'Dockerfile',
-      port: '3000',
-      autoDeploy: true,
-      token: '',
-    },
-    {
-      onError: message => toast.error({ title: 'Error', message }),
-      onInvalid: (_errors, lastError) => toast.error({ title: 'Error', message: lastError }),
-    },
-  );
-
-  const environmentOptions = computed(() =>
-    environments.value.map(environment => ({ value: environment.id, label: environment.name })),
-  );
-  const serverOptions = computed(() =>
-    serverList.value.map(server => ({ value: server.id, label: server.name })),
-  );
-
-  const gitSourcePicker = ref<{ reset: () => void } | null>(null);
-
-  const openAddApp = () => {
-    appForm.reset();
-    appForm.values.environmentId = environments.value[0]?.id ?? '';
-    appForm.values.serverId = serverList.value[0]?.id ?? '';
-    gitSourcePicker.value?.reset();
-    addingApp.value = true;
-  };
-
-  const handlePickGitSource = (selection: GitSourceSelection | null) => {
-    appForm.values.gitSourceId = selection?.gitSourceId ?? '';
-    appForm.values.installationId = selection?.installationId ?? '';
-    appForm.values.repository = selection?.repository ?? '';
-
-    if (selection?.defaultBranch) {
-      appForm.values.branch = selection.defaultBranch;
-    }
-  };
-
-  const handleCreateApp = appForm.submit(async values => {
-    const { application } = await applications.create({
-      name: values.name,
-      environmentId: values.environmentId,
-      serverId: values.serverId,
-      port: Number(values.port),
-      git:
-        values.sourceMode === 'github-app'
-          ? {
-              host: 'github',
-              source: 'github-app',
-              repository: values.repository,
-              gitSourceId: values.gitSourceId,
-              installationId: values.installationId,
-              branch: values.branch,
-              dockerfilePath: values.dockerfilePath,
-              buildContext: '.',
-              autoDeploy: values.autoDeploy,
-            }
-          : {
-              host: 'github',
-              source: 'pat',
-              repository: values.repository,
-              branch: values.branch,
-              dockerfilePath: values.dockerfilePath,
-              buildContext: '.',
-              autoDeploy: values.autoDeploy,
-              token: values.token || undefined,
-            },
+  watchEffect(() => {
+    useNavbar().set({
+      title: data.value?.project.name ?? 'Project',
+      context: 'Projects',
+      action: {
+        label: 'New application',
+        icon: 'proicons:add',
+        onClick: () => navigateTo(`/applications/new?projectId=${projectId.value}`),
+      },
     });
-
-    addingApp.value = false;
-    await navigateTo(`/applications/${application.id}`);
   });
 </script>
 
 <template>
   <Content>
-    <NuxtLink
-      to="/projects"
-      class="mb-4 inline-flex items-center gap-1 text-sm text-content-muted transition-colors hover:text-content-strong"
-    >
-      <Icon name="lucide:chevron-left" class="size-4" />
-      Projects
-    </NuxtLink>
-
-    <Header :title="data?.project.name ?? 'Project'" :description="data?.project.description ?? ''">
-      <template #right>
-        <Button v-if="canManage" theme="ghost" class="my-auto" @click="openEditProject">
-          <Icon name="lucide:pencil" size="16" />
+    <div class="flex max-w-225 flex-col gap-4.5">
+      <div class="flex items-start justify-between gap-3">
+        <p v-if="data?.project.description" class="text-[13.5px] text-ink-2">
+          {{ data.project.description }}
+        </p>
+        <Button v-if="canManage" theme="quiet" size="sm" class="ml-auto" @click="openEditProject">
           Edit
         </Button>
-      </template>
-    </Header>
+      </div>
 
-    <div class="flex flex-col gap-6">
       <Card v-if="editingProject" title="Edit project">
-        <form class="flex flex-col gap-4" @submit.prevent="handleSaveProject">
+        <template #footer>
+          <div class="flex w-full items-center justify-end gap-2">
+            <Button theme="quiet" type="button" @click="editingProject = false">Cancel</Button>
+            <Button
+              theme="primary"
+              size="sm"
+              :disabled="projectForm.loading.value"
+              @click="handleSaveProject"
+            >
+              <Icon v-if="projectForm.loading.value" name="svg-spinners:tadpole" size="16" />
+              Save
+            </Button>
+          </div>
+        </template>
+
+        <div class="flex flex-col gap-1.5">
           <Input
             v-model="projectForm.values.name"
             label="Name"
@@ -330,234 +233,146 @@
             :rows="3"
             :disabled="projectForm.loading.value"
           />
-
-          <div class="flex items-center justify-end gap-2">
-            <Button theme="ghost" type="button" @click="editingProject = false">Cancel</Button>
-            <Button theme="primary" type="submit" :disabled="projectForm.loading.value">
-              <Icon v-if="projectForm.loading.value" name="svg-spinners:tadpole" size="16" />
-              Save
-            </Button>
-          </div>
-        </form>
+        </div>
       </Card>
 
-      <Card title="Environments">
-        <ul class="flex flex-col divide-y divide-surface-line">
-          <li
-            v-for="environment in environments"
-            :key="environment.id"
-            class="flex items-center justify-between gap-2 py-2"
+      <div class="rounded-card border border-edge bg-card p-4.25">
+        <div class="mb-3.25 flex items-center gap-2.5">
+          <div class="flex-1 text-[13px] font-semibold text-ink">Environments</div>
+          <Button
+            v-if="canManage && !showAddEnvironment"
+            theme="secondary"
+            size="xs"
+            @click="showAddEnvironment = true"
           >
-            <template v-if="renamingEnvironment === environment.id">
-              <div class="flex flex-1 items-center gap-2">
-                <Input
-                  v-model="renameValue"
-                  class="flex-1"
-                  compact
-                  @keyup.enter="handleRenameEnvironment"
-                />
-                <Button
-                  theme="secondary"
-                  type="button"
-                  :disabled="renamingBusy"
-                  @click="handleRenameEnvironment"
-                >
-                  <Icon v-if="renamingBusy" name="svg-spinners:tadpole" size="16" />
-                  Save
-                </Button>
-                <Button theme="ghost" type="button" @click="renamingEnvironment = ''">
-                  Cancel
-                </Button>
-              </div>
-            </template>
+            Add environment
+          </Button>
+        </div>
 
-            <template v-else>
-              <span class="text-sm text-content">{{ environment.name }}</span>
-              <div v-if="canManage" class="flex items-center gap-1">
+        <form
+          v-if="showAddEnvironment"
+          class="mb-3 flex items-center gap-2"
+          @submit.prevent="handleAddEnvironment"
+        >
+          <Input v-model="newEnvironment" class="flex-1" placeholder="staging" compact />
+          <Button theme="secondary" size="xs" type="submit" :disabled="addingEnvironment">
+            <Icon v-if="addingEnvironment" name="svg-spinners:tadpole" size="16" />
+            Add
+          </Button>
+          <Button theme="quiet" size="xs" type="button" @click="showAddEnvironment = false">
+            Cancel
+          </Button>
+        </form>
+
+        <div class="flex flex-wrap gap-2">
+          <template v-for="environment in environments" :key="environment.id">
+            <form
+              v-if="renamingEnvironment === environment.id"
+              class="flex items-center gap-2"
+              @submit.prevent="handleRenameEnvironment"
+            >
+              <Input v-model="renameValue" class="w-40" compact />
+              <Button theme="secondary" size="xs" type="submit" :disabled="renamingBusy">
+                <Icon v-if="renamingBusy" name="svg-spinners:tadpole" size="16" />
+                Save
+              </Button>
+              <Button theme="quiet" size="xs" type="button" @click="renamingEnvironment = ''">
+                Cancel
+              </Button>
+            </form>
+
+            <div
+              v-else
+              class="group flex items-center gap-2 rounded-full border border-edge bg-row-hover px-3 py-1.5 text-[13px] text-ink"
+            >
+              <span>{{ environment.name }}</span>
+              <span class="text-[11.5px] text-ink-3">{{ appsOf(environment.id).length }}</span>
+              <template v-if="canManage">
                 <button
                   type="button"
                   title="Rename environment"
-                  class="cursor-pointer rounded-lg p-1.5 text-content-muted transition-colors hover:bg-surface-hover hover:text-content-strong"
+                  class="cursor-pointer text-ink-3 hover:text-ink"
                   @click="startRenameEnvironment(environment)"
                 >
-                  <Icon name="lucide:pencil" class="size-4" />
+                  <Icon name="lucide:pencil" class="size-3" />
                 </button>
                 <button
                   v-if="environments.length > 1"
                   type="button"
                   title="Remove environment"
-                  class="cursor-pointer rounded-lg p-1.5 text-content-muted transition-colors hover:bg-surface-hover hover:text-danger"
+                  class="cursor-pointer text-ink-3 hover:text-failed"
                   @click="handleRemoveEnvironment(environment.id)"
                 >
-                  <Icon name="lucide:trash-2" class="size-4" />
+                  <Icon name="lucide:x" class="size-3" />
                 </button>
-              </div>
-            </template>
-          </li>
-        </ul>
+              </template>
+            </div>
+          </template>
+        </div>
+      </div>
 
-        <form v-if="canManage" class="mt-3 flex gap-2" @submit.prevent="handleAddEnvironment">
-          <Input v-model="newEnvironment" class="flex-1" placeholder="staging" compact />
-          <Button theme="secondary" type="submit" :disabled="addingEnvironment">
-            <Icon v-if="addingEnvironment" name="svg-spinners:tadpole" size="16" />
-            Add
-          </Button>
-        </form>
-      </Card>
-
-      <Card title="Applications">
+      <Card title="Applications" content-class="p-0">
         <template #right>
-          <Button v-if="canManage && !addingApp" theme="primary" @click="openAddApp">
-            <Icon name="proicons:add" size="18" />
+          <Button
+            theme="primary"
+            size="xs"
+            @click="navigateTo(`/applications/new?projectId=${projectId}`)"
+          >
             New application
           </Button>
         </template>
 
-        <form
-          v-if="addingApp"
-          class="mb-5 flex flex-col gap-4 rounded-lg border border-surface-border p-4"
-          @submit.prevent="handleCreateApp"
+        <EmptyState
+          v-if="!apps.length"
+          variant="prompt"
+          description="No applications in this project yet."
+          class="m-2.5"
+        />
+
+        <Row
+          v-for="app in apps"
+          :key="app.id"
+          :to="`/applications/${app.id}`"
+          class="grid-cols-[1.3fr_1fr_0.8fr_auto] gap-4"
         >
-          <div class="flex flex-col gap-2">
-            <span class="text-xs font-semibold tracking-widest text-content-muted uppercase">
-              Source
-            </span>
-            <div class="flex flex-wrap gap-4">
-              <label class="flex cursor-pointer items-center gap-2 text-sm">
-                <Checkbox v-model="appForm.values.sourceMode" type="radio" value="github-app" />
-                GitHub App
-              </label>
-              <label class="flex cursor-pointer items-center gap-2 text-sm">
-                <Checkbox v-model="appForm.values.sourceMode" type="radio" value="token" />
-                Public repository or token
-              </label>
-            </div>
+          <div class="flex min-w-0 items-center gap-2.5">
+            <StatusDot :status="applicationStatusDot(app.status)" />
+            <span class="truncate text-[13.5px] font-medium text-ink">{{ app.name }}</span>
           </div>
-
-          <div v-if="appForm.values.sourceMode === 'github-app'" class="flex flex-col gap-1">
-            <GitSourcePicker ref="gitSourcePicker" @select="handlePickGitSource" />
-            <span v-if="appForm.errors.value.repository" class="text-xs text-danger">
-              {{ appForm.errors.value.repository }}
-            </span>
+          <div class="truncate font-mono text-caption text-ink-2">{{ app.git.repository }}</div>
+          <div class="truncate text-caption text-ink-2">
+            {{ environmentName(app.environmentId) }}
           </div>
-          <Input
-            v-else
-            v-model="appForm.values.repository"
-            label="Repository (GitHub)"
-            placeholder="owner/repository"
-            :call-error="appForm.errors.value.repository"
-          />
-
-          <div class="grid gap-4 sm:grid-cols-2">
-            <Input
-              v-model="appForm.values.name"
-              label="Name"
-              placeholder="api"
-              :call-error="appForm.errors.value.name"
-            />
-
-            <div class="flex flex-col gap-1">
-              <Select
-                v-model="appForm.values.environmentId"
-                label="Environment"
-                :options="environmentOptions"
-                placeholder="Choose an environment"
-              />
-              <span v-if="appForm.errors.value.environmentId" class="text-xs text-danger">
-                {{ appForm.errors.value.environmentId }}
-              </span>
-            </div>
-
-            <div class="flex flex-col gap-1">
-              <Select
-                v-model="appForm.values.serverId"
-                label="Server"
-                :options="serverOptions"
-                placeholder="Choose a server"
-              />
-              <span v-if="appForm.errors.value.serverId" class="text-xs text-danger">
-                {{ appForm.errors.value.serverId }}
-              </span>
-            </div>
-
-            <Input v-model="appForm.values.branch" label="Branch" />
-            <Input v-model="appForm.values.dockerfilePath" label="Dockerfile" />
-            <Input
-              v-model="appForm.values.port"
-              label="Port"
-              :call-error="appForm.errors.value.port"
-            />
-          </div>
-
-          <template v-if="appForm.values.sourceMode === 'token'">
-            <Input
-              v-model="appForm.values.token"
-              label="Access token (private repository)"
-              password
-              placeholder="Leave blank if the repository is public"
-            />
-            <p class="text-xs text-content-muted">
-              GitHub Personal Access Token with repository read access. Stored encrypted.
-            </p>
-          </template>
-
-          <Switch v-model="appForm.values.autoDeploy" label="Auto-deploy on every push" />
-
-          <p v-if="!serverOptions.length" class="text-xs text-warning">
-            Register a server before creating applications.
-          </p>
-
-          <div class="flex justify-end gap-2">
-            <Button theme="ghost" type="button" @click="addingApp = false">Cancel</Button>
-            <Button
-              theme="primary"
-              type="submit"
-              :disabled="appForm.loading.value || !serverOptions.length"
-            >
-              <Icon v-if="appForm.loading.value" name="svg-spinners:tadpole" size="16" />
-              Create application
-            </Button>
-          </div>
-        </form>
-
-        <p v-if="!apps.length" class="text-sm text-content-muted">
-          No applications in this project.
-        </p>
-
-        <ul v-else class="flex flex-col divide-y divide-surface-line">
-          <li v-for="app in apps" :key="app.id">
-            <NuxtLink
-              :to="`/applications/${app.id}`"
-              class="flex items-center gap-3 py-3 transition-colors hover:text-primary"
-            >
-              <Icon name="lucide:box" class="size-5 shrink-0 text-content-muted" />
-              <div class="min-w-0 flex-1">
-                <p class="truncate text-sm font-medium text-content-strong">{{ app.name }}</p>
-                <p class="truncate text-xs text-content-muted">{{ app.git.repository }}</p>
-              </div>
-              <Tag :color="APP_STATUS[app.status].color">{{ APP_STATUS[app.status].label }}</Tag>
-            </NuxtLink>
-          </li>
-        </ul>
+          <div class="text-caption text-ink-3">{{ serverName(app.serverId) }}</div>
+        </Row>
       </Card>
 
-      <Card v-if="canManage && data" title="Danger zone">
-        <div class="flex flex-col gap-4 sm:flex-row sm:items-center sm:justify-between">
-          <p class="text-sm text-content-muted">
-            Deletes this project, its environments and every application inside it. This cannot be
-            undone.
-          </p>
-          <Button theme="danger" class="shrink-0" @click="confirmDeleteProjectOpen = true">
-            Delete project
-          </Button>
+      <div
+        v-if="canManage && data"
+        class="flex items-center gap-4 rounded-card border border-failed/30 bg-failed/5 p-4.25"
+      >
+        <div class="flex-1">
+          <div class="text-[13px] font-semibold text-failed">Delete this project</div>
+          <div class="mt-0.75 text-caption text-ink-2">
+            {{ countLabel(apps.length, 'application') }} and
+            {{ countLabel(environments.length, 'environment') }} go with it.
+          </div>
         </div>
-      </Card>
+        <Button
+          theme="destructive"
+          size="sm"
+          class="shrink-0"
+          @click="confirmDeleteProjectOpen = true"
+        >
+          Delete
+        </Button>
+      </div>
     </div>
 
     <Confirm
       v-model:open="confirmDeleteProjectOpen"
       title="Delete project"
-      :message="`Delete “${data?.project.name}”? ${apps.length} application(s) and ${environments.length} environment(s) are removed too. This cannot be undone.`"
+      :message="`Delete “${data?.project.name}”? ${countLabel(apps.length, 'application')} and ${countLabel(environments.length, 'environment')} are removed too. This cannot be undone.`"
       confirm-label="Delete"
       danger
       :loading="deletingProject"

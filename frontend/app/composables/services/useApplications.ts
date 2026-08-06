@@ -1,6 +1,23 @@
 import type { Paginated } from '../useApi';
+import type { Status } from '~/components/elements/StatusDot.vue';
 
 export type ApplicationStatus = 'created' | 'deploying' | 'running' | 'stopped' | 'failed';
+
+export const applicationStatusDot = (status: ApplicationStatus): Status => {
+  if (status === 'running') {
+    return 'live';
+  }
+
+  if (status === 'stopped') {
+    return 'stopped';
+  }
+
+  if (status === 'failed') {
+    return 'failed';
+  }
+
+  return 'attn';
+};
 
 export type GitHost = 'github';
 export type ApplicationGitSource = 'pat' | 'github-app';

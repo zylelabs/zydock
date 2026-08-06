@@ -21,6 +21,8 @@
 
   const user = computed(() => profileData.value?.user ?? null);
 
+  const editingProfile = ref(false);
+
   const profileForm = useSchemaForm(
     z.object({
       name: z.string().trim().min(1, 'Enter a name'),
@@ -33,16 +35,11 @@
     },
   );
 
-  watch(
-    user,
-    value => {
-      if (value) {
-        profileForm.values.name = value.name;
-        profileForm.values.avatar = value.avatar ?? '';
-      }
-    },
-    { immediate: true },
-  );
+  const startEditProfile = () => {
+    profileForm.values.name = user.value?.name ?? '';
+    profileForm.values.avatar = user.value?.avatar ?? '';
+    editingProfile.value = true;
+  };
 
   const onSaveProfile = profileForm.submit(async values => {
     const { user: updated } = await usersApi.updateMe({
@@ -51,7 +48,7 @@
     });
 
     session.updateUser({ name: updated.name, avatar: updated.avatar });
-    toast.success({ title: 'Success', message: 'Profile saved.' });
+    editingProfile.value = false;
     await refreshProfile();
   });
 
@@ -190,19 +187,38 @@
   };
 
   const formatWhen = (value?: string) => (value ? new Date(value).toLocaleString('en-US') : '—');
+
+  watchEffect(() => {
+    useNavbar().set({ title: 'Account' });
+  });
 </script>
 
 <template>
   <Content>
-    <Header title="Account" description="Your profile, password, API keys and sessions." />
+    <div class="mx-auto flex max-w-205 flex-col gap-4.5">
+      <Card title="Profile" content-class="p-0">
+        <template #right>
+          <Button v-if="!editingProfile" theme="secondary" size="xs" @click="startEditProfile">
+            Edit
+          </Button>
+        </template>
 
-    <div class="mx-auto flex max-w-2xl flex-col gap-6">
-      <Card title="Profile">
-        <form class="flex flex-col gap-4" @submit.prevent="onSaveProfile">
-          <div>
-            <p class="text-sm font-medium text-content-strong">Email</p>
-            <p class="mt-1.5 text-sm text-content-muted">{{ user?.email }}</p>
-          </div>
+        <template v-if="!editingProfile">
+          <Row as="div" class="flex items-center">
+            <div class="w-33 shrink-0 text-[13px] text-ink-2">Email</div>
+            <div class="truncate text-[13px] text-ink">{{ user?.email }}</div>
+          </Row>
+          <Row as="div" class="flex items-center">
+            <div class="w-33 shrink-0 text-[13px] text-ink-2">Name</div>
+            <div class="truncate text-[13px] text-ink">{{ user?.name }}</div>
+          </Row>
+          <Row v-if="user?.superuser" as="div" class="flex items-center">
+            <div class="w-33 shrink-0 text-[13px] text-ink-2">Role</div>
+            <Tag color="live">Superuser</Tag>
+          </Row>
+        </template>
+
+        <form v-else class="flex flex-col gap-1.5 p-4.25" @submit.prevent="onSaveProfile">
           <Input
             v-model="profileForm.values.name"
             label="Name"
@@ -210,14 +226,13 @@
           />
           <Input
             v-model="profileForm.values.avatar"
-            label="Avatar URL (optional)"
+            label="Avatar URL"
             placeholder="https://…/avatar.png"
           />
 
-          <Tag v-if="user?.superuser" color="blue" class="w-fit">Superuser</Tag>
-
-          <div class="flex justify-end">
-            <Button theme="primary" type="submit" :disabled="profileForm.loading.value">
+          <div class="mt-1 flex justify-end gap-2">
+            <Button theme="quiet" type="button" @click="editingProfile = false">Cancel</Button>
+            <Button theme="primary" size="sm" type="submit" :disabled="profileForm.loading.value">
               <Icon v-if="profileForm.loading.value" name="svg-spinners:tadpole" size="16" />
               Save
             </Button>
@@ -226,28 +241,28 @@
       </Card>
 
       <Card title="Password">
-        <form class="flex flex-col gap-4" @submit.prevent="onChangePassword">
+        <form class="flex flex-col gap-1.5" @submit.prevent="onChangePassword">
           <Input
             v-model="passwordForm.values.currentPassword"
-            label="Current password"
+            label="Current"
             password
             :call-error="passwordForm.errors.value.currentPassword"
           />
           <Input
             v-model="passwordForm.values.newPassword"
-            label="New password"
+            label="New"
             password
             :call-error="passwordForm.errors.value.newPassword"
           />
           <Input
             v-model="passwordForm.values.confirmPassword"
-            label="Confirm new password"
+            label="Confirm"
             password
             :call-error="passwordForm.errors.value.confirmPassword"
           />
 
-          <div class="flex justify-end">
-            <Button theme="primary" type="submit" :disabled="passwordForm.loading.value">
+          <div class="mt-1 flex justify-end">
+            <Button theme="primary" size="sm" type="submit" :disabled="passwordForm.loading.value">
               <Icon v-if="passwordForm.loading.value" name="svg-spinners:tadpole" size="16" />
               Change password
             </Button>
@@ -255,75 +270,80 @@
         </form>
       </Card>
 
-      <Card title="API keys" description="Tokens for scripts and integrations to call the API.">
+      <Card title="API keys" content-class="p-0">
         <template #right>
-          <Button v-if="!creatingKey" theme="secondary" @click="creatingKey = true">
-            <Icon name="lucide:plus" size="16" />
+          <Button v-if="!creatingKey" theme="secondary" size="xs" @click="creatingKey = true">
             New key
           </Button>
         </template>
 
-        <Alert v-if="createdToken" theme="success" class="mb-4">
-          <p>Copy this token now — it will not be shown again.</p>
-          <pre class="mt-2 overflow-x-auto rounded-lg bg-surface p-2 text-xs">{{
+        <Alert v-if="createdToken" theme="success" class="m-4.25">
+          Copy this token now — it will not be shown again.
+          <pre class="mt-2 overflow-x-auto rounded-control bg-inset p-2 text-xs">{{
             createdToken
           }}</pre>
         </Alert>
 
-        <form v-if="creatingKey" class="mb-4 flex flex-col gap-4" @submit.prevent="onCreateKey">
-          <div class="grid gap-4 sm:grid-cols-2">
-            <Input
-              v-model="keyForm.values.name"
-              label="Name"
-              placeholder="ci-deploy"
-              :call-error="keyForm.errors.value.name"
-            />
-            <Input
-              v-model="keyForm.values.expiresInDays"
-              label="Expires in days (optional)"
-              placeholder="90"
-              :call-error="keyForm.errors.value.expiresInDays"
-            />
-          </div>
+        <form
+          v-if="creatingKey"
+          class="flex flex-col gap-1.5 border-t border-hairline p-4.25"
+          @submit.prevent="onCreateKey"
+        >
+          <Input
+            v-model="keyForm.values.name"
+            label="Name"
+            placeholder="ci-deploy"
+            :call-error="keyForm.errors.value.name"
+          />
+          <Input
+            v-model="keyForm.values.expiresInDays"
+            label="Expires in days"
+            placeholder="90"
+            :call-error="keyForm.errors.value.expiresInDays"
+          />
 
-          <div class="flex justify-end gap-2">
-            <Button theme="ghost" type="button" @click="creatingKey = false">Cancel</Button>
-            <Button theme="primary" type="submit" :disabled="keyForm.loading.value">
+          <div class="mt-1 flex justify-end gap-2">
+            <Button theme="quiet" type="button" @click="creatingKey = false">Cancel</Button>
+            <Button theme="primary" size="sm" type="submit" :disabled="keyForm.loading.value">
               <Icon v-if="keyForm.loading.value" name="svg-spinners:tadpole" size="16" />
               Create
             </Button>
           </div>
         </form>
 
-        <p v-if="!apiKeys.length" class="text-sm text-content-muted">No API keys yet.</p>
+        <EmptyState
+          v-if="!apiKeys.length"
+          variant="prompt"
+          description="No API keys yet."
+          class="m-2.5"
+        />
 
-        <ul v-else class="flex flex-col divide-y divide-surface-line">
-          <li v-for="key in apiKeys" :key="key.id" class="flex items-center gap-3 py-3">
-            <div class="min-w-0 flex-1">
-              <p class="truncate text-sm font-medium text-content-strong">{{ key.name }}</p>
-              <p class="truncate text-xs text-content-muted">
-                {{ key.prefix }}••• · last used {{ formatWhen(key.lastUsedAt) }}
-                <span v-if="key.expiresAt"> · expires {{ formatWhen(key.expiresAt) }}</span>
-              </p>
-            </div>
-            <button
-              type="button"
-              title="Revoke"
-              :disabled="revokingKey === key.id"
-              class="cursor-pointer rounded-lg p-2 text-content-muted transition-colors hover:bg-surface-hover hover:text-danger disabled:opacity-60"
-              @click="revokeKey(key.id)"
-            >
-              <Icon name="lucide:trash-2" class="size-4" />
-            </button>
-          </li>
-        </ul>
+        <Row v-for="key in apiKeys" :key="key.id" as="div" class="flex items-center gap-3.5">
+          <div class="min-w-0 flex-1">
+            <p class="truncate text-[13.5px] text-ink">{{ key.name }}</p>
+            <p class="truncate text-caption text-ink-2">
+              {{ key.prefix }}••• · last used {{ formatWhen(key.lastUsedAt) }}
+              <span v-if="key.expiresAt"> · expires {{ formatWhen(key.expiresAt) }}</span>
+            </p>
+          </div>
+          <button
+            type="button"
+            title="Revoke"
+            :disabled="revokingKey === key.id"
+            class="cursor-pointer rounded-control p-1.5 text-ink-2 hover:bg-inset hover:text-failed disabled:opacity-60"
+            @click="revokeKey(key.id)"
+          >
+            <Icon name="lucide:trash-2" class="size-4" />
+          </button>
+        </Row>
       </Card>
 
-      <Card title="Active sessions">
+      <Card title="Active sessions" content-class="p-0">
         <template #right>
           <Button
             v-if="sessions.length > 1"
-            theme="ghost"
+            theme="quiet"
+            size="xs"
             :disabled="revokingAll"
             @click="revokeAllSessions"
           >
@@ -332,34 +352,32 @@
           </Button>
         </template>
 
-        <ul class="flex flex-col divide-y divide-surface-line">
-          <li v-for="item in sessions" :key="item.id" class="flex items-center gap-3 py-3">
-            <div class="min-w-0 flex-1">
-              <p class="truncate text-sm font-medium text-content-strong">
-                {{ item.userAgent || 'Unknown device' }}
-                <span v-if="item.current" class="text-xs text-content-muted">(this device)</span>
-              </p>
-              <p class="truncate text-xs text-content-muted">
-                {{ item.ip || 'unknown IP' }} · last used {{ formatWhen(item.lastUsedAt) }}
-              </p>
-            </div>
-            <button
-              type="button"
-              title="Revoke"
-              :disabled="revokingSession === item.id"
-              class="cursor-pointer rounded-lg p-2 text-content-muted transition-colors hover:bg-surface-hover hover:text-danger disabled:opacity-60"
-              @click="revokeSession(item.id)"
-            >
-              <Icon name="lucide:log-out" class="size-4" />
-            </button>
-          </li>
-        </ul>
+        <Row v-for="item in sessions" :key="item.id" as="div" class="flex items-center gap-3.5">
+          <div class="min-w-0 flex-1">
+            <p class="truncate text-[13.5px] text-ink">
+              {{ item.userAgent || 'Unknown device' }}
+              <span v-if="item.current" class="text-caption text-ink-2">(this device)</span>
+            </p>
+            <p class="truncate text-caption text-ink-2">
+              {{ item.ip || 'unknown IP' }} · last used {{ formatWhen(item.lastUsedAt) }}
+            </p>
+          </div>
+          <button
+            type="button"
+            title="Revoke"
+            :disabled="revokingSession === item.id"
+            class="cursor-pointer rounded-control p-1.5 text-ink-2 hover:bg-inset hover:text-failed disabled:opacity-60"
+            @click="revokeSession(item.id)"
+          >
+            <Icon name="lucide:log-out" class="size-4" />
+          </button>
+        </Row>
       </Card>
 
       <NuxtLink
         v-if="user?.superuser"
         to="/admin/users"
-        class="flex items-center justify-between rounded-xl border border-surface-border bg-surface-raised p-4 text-sm transition-colors hover:text-primary"
+        class="flex items-center justify-between rounded-card border border-edge bg-card px-4.25 py-3.25 text-[13px] text-ink transition-colors hover:text-accent"
       >
         <span>Manage all users (superuser)</span>
         <Icon name="lucide:chevron-right" class="size-4" />

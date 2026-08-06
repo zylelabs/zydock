@@ -7,6 +7,8 @@
     layout: 'blank',
   });
 
+  useHead({ title: 'Sign in' });
+
   const api = useApi();
   const toast = useToast();
   const session = useSessionStore();
@@ -44,42 +46,45 @@
 </script>
 
 <template>
-  <div class="flex min-h-screen flex-col items-center justify-center gap-8 p-6">
-    <div class="flex items-center gap-3 select-none">
-      <img src="@/assets/img/logo.svg" width="42" />
-      <div class="border-l border-white/25 pl-3 my-auto flex flex-col">
-        <div class="text-lg/tight text-white uppercase font-montserrat tracking-wider">ZyDock</div>
-      </div>
-    </div>
-    <Card title="Sign in" description="Sign in to your account to manage your deployments.">
-      <form class="flex flex-col gap-4" @submit.prevent="handleSubmit">
+  <div>
+    <h1 class="text-[25px] font-semibold tracking-tight text-ink">Sign in</h1>
+    <p class="mt-1.75 mb-5.5 text-body text-pretty text-ink-2">
+      Deployments, servers and logs for your organizations.
+    </p>
+
+    <form @submit.prevent="handleSubmit">
+      <Card rows>
         <Input
           v-model="form.values.email"
+          stacked
           label="Email"
           type="email"
           placeholder="you@company.com"
           :disabled="form.loading.value"
+          :call-error="form.errors.value.email"
         />
         <Input
           v-model="form.values.password"
+          stacked
           label="Password"
           type="password"
           placeholder="••••••••"
           :disabled="form.loading.value"
+          :call-error="form.errors.value.password"
         />
-        <div class="flex justify-end">
-          <NuxtLink to="/auth/forgot-password" class="text-xs text-primary hover:underline">
-            Forgot your password?
-          </NuxtLink>
-        </div>
-        <Button class="btn-primary" :disabled="form.loading.value">Sign In</Button>
-        <p class="text-center text-sm text-content-muted">
-          Don't have an account?
-          <NuxtLink to="/auth/register" class="text-primary hover:underline"
-            >Create account</NuxtLink
-          >
-        </p>
-      </form>
-    </Card>
+      </Card>
+
+      <Button theme="primary" type="submit" class="mt-4 w-full" :disabled="form.loading.value">
+        <Icon v-if="form.loading.value" name="svg-spinners:tadpole" size="16" />
+        Sign in
+      </Button>
+    </form>
+
+    <div class="mt-4.5 flex flex-wrap gap-4 text-[13px]">
+      <NuxtLink to="/auth/forgot-password" class="text-accent hover:underline">
+        Forgot your password?
+      </NuxtLink>
+      <NuxtLink to="/auth/register" class="text-accent hover:underline">Create account</NuxtLink>
+    </div>
   </div>
 </template>

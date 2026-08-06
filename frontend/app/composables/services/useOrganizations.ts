@@ -1,11 +1,10 @@
 import type { Paginated } from '../useApi';
-import type { Organization, OrganizationBranding } from '~/stores/organization.store';
+import type { Organization } from '~/stores/organization.store';
 
 export const useOrganizations = () => {
   const api = useApi();
   const store = useOrganizationStore();
   const session = useSessionStore();
-  const { setTheme } = useTheme();
 
   const organizations = computed(() => store.organizations);
 
@@ -14,12 +13,8 @@ export const useOrganizations = () => {
       store.organizations.find(organization => organization.id === session.organizationId) ?? null,
   );
 
-  const applyBranding = (organization: Organization | null) =>
-    setTheme(organization?.name, organization?.branding);
-
   const select = (organization: Organization) => {
     session.selectOrganization(organization.id);
-    applyBranding(organization);
   };
 
   const load = async () => {
@@ -33,8 +28,6 @@ export const useOrganizations = () => {
 
     if (active) {
       select(active);
-    } else {
-      applyBranding(null);
     }
 
     return items;
@@ -51,20 +44,13 @@ export const useOrganizations = () => {
     return organization;
   };
 
-  const update = async (
-    organizationId: string,
-    body: { name?: string; branding?: OrganizationBranding },
-  ) => {
+  const update = async (organizationId: string, body: { name?: string }) => {
     const { organization } = await api.patch<{ organization: Organization }>(
       `/organizations/${organizationId}`,
       { body },
     );
 
     store.upsert(organization);
-
-    if (organization.id === session.organizationId) {
-      applyBranding(organization);
-    }
 
     return organization;
   };
@@ -84,9 +70,8 @@ export const useOrganizations = () => {
       select(next);
     } else {
       session.selectOrganization('');
-      applyBranding(null);
     }
   };
 
-  return { organizations, current, load, select, create, update, remove, applyBranding };
+  return { organizations, current, load, select, create, update, remove };
 };

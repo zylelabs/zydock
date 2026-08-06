@@ -35,10 +35,7 @@
     <Header title="Connecting GitHub" description="Finishing the GitHub App registration." />
 
     <Card title="Connecting GitHub" class="mx-auto w-md max-w-full">
-      <div
-        v-if="status === 'loading'"
-        class="flex flex-col items-center gap-3 py-6 text-content-muted"
-      >
+      <div v-if="status === 'loading'" class="flex flex-col items-center gap-3 py-6 text-ink-2">
         <Icon name="svg-spinners:tadpole" size="28" />
         <p class="text-sm">Finishing the connection…</p>
       </div>

@@ -8,17 +8,17 @@
     theme?: AlertTheme;
   }>();
 
-  const base = 'flex items-start gap-2 rounded-lg border px-3 py-2 text-sm';
+  const base = 'flex items-start gap-2 rounded-control border px-3 py-2 text-sm';
 
   const themes: Record<AlertTheme, { class: string; icon: string }> = {
-    error: { class: 'border-danger/40 bg-danger/10 text-danger', icon: 'lucide:circle-alert' },
+    error: { class: 'border-failed/40 bg-failed/10 text-failed', icon: 'lucide:circle-alert' },
     warning: {
-      class: 'border-warning/40 bg-warning/10 text-warning',
+      class: 'border-attn/40 bg-attn-bg text-attn-ink',
       icon: 'lucide:triangle-alert',
     },
-    success: { class: 'border-success/40 bg-success/10 text-success', icon: 'lucide:circle-check' },
+    success: { class: 'border-live/40 bg-live-bg text-live-ink', icon: 'lucide:circle-check' },
     info: {
-      class: 'border-surface-border bg-surface-sunken text-content-muted',
+      class: 'border-edge bg-inset text-ink-2',
       icon: 'lucide:info',
     },
   };

@@ -10,7 +10,7 @@
 </script>
 
 <template>
-  <label class="inline-flex items-center cursor-pointer">
+  <label class="inline-flex cursor-pointer items-center gap-2.5">
     <input
       :id="id"
       v-model="model"
@@ -18,11 +18,11 @@
       type="checkbox"
       :checked="checked"
       value=""
-      class="sr-only peer"
+      class="peer sr-only"
     />
     <div
-      class="relative w-11 h-6 bg-gray-200 peer-focus:outline-none rounded-full peer peer-checked:after:translate-x-full rtl:peer-checked:after:-translate-x-full peer-checked:after:border-white after:content-[''] after:absolute after:top-0.5 after:inset-s-0.5 after:bg-white after:border-gray-300 after:border after:rounded-full after:w-5 after:h-5 after:transition-all peer-checked:bg-linear-to-l from-primary to-primary-700"
+      class="relative h-6 w-10 shrink-0 rounded-full bg-hairline transition-colors after:absolute after:top-0.75 after:left-0.75 after:h-4.5 after:w-4.5 after:rounded-full after:bg-card after:shadow-lifted after:transition-transform after:content-[''] peer-checked:bg-accent peer-checked:after:translate-x-4 peer-focus-visible:outline-2 peer-focus-visible:outline-offset-2 peer-focus-visible:outline-accent"
     ></div>
-    <span class="pl-2 select-none">{{ label }}</span>
+    <span v-if="label" class="text-[13.5px] text-ink select-none">{{ label }}</span>
   </label>
 </template>

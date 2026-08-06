@@ -16,7 +16,7 @@
     <input
       :id="props.id"
       v-model="model"
-      class="peer cursor-pointer rounded border-2 border-slate-400 transition-colors duration-300 ease-in-out checked:bg-primary checked:hover:bg-primary checked:border-primary checked:disabled:border-slate-300 checked:disabled:bg-slate-300 checked:disabled:hover:bg-slate-300 disabled:hover:none disabled:cursor-not-allowed disabled:border-slate-200 disabled:indeterminate:border-slate-300 disabled:indeterminate:bg-slate-300 disabled:hover:bg-transparent focus:ring-transparent hover:border-primary hover:bg-primary/10 indeterminate:bg-primary indeterminate:disabled:hover:bg-slate-300 size-[14px]"
+      class="peer size-3.5 cursor-pointer rounded-sm border-2 border-edge-strong transition-colors checked:border-accent checked:bg-accent checked:hover:bg-accent hover:border-accent hover:bg-accent/10 indeterminate:border-accent indeterminate:bg-accent focus:ring-0 focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-accent disabled:cursor-not-allowed disabled:border-edge disabled:hover:bg-transparent disabled:checked:border-edge disabled:checked:bg-hairline disabled:indeterminate:border-edge disabled:indeterminate:bg-hairline"
       :type="props.type ? props.type : 'checkbox'"
       :name="props.name ? props.name : props.id"
       :checked="typeof checked === 'string' ? (checked === 'true' ? true : false) : checked"
