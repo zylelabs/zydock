@@ -1,7 +1,20 @@
 import type { Paginated } from '../useApi';
+import type { Status } from '~/components/elements/StatusDot.vue';
 import type { LogEntry, LogFilters } from './useLogs';
 
 export type DeploymentStatus = 'queued' | 'running' | 'succeeded' | 'failed';
+
+export const deploymentStatusDot = (status: DeploymentStatus): Status => {
+  if (status === 'succeeded') {
+    return 'live';
+  }
+
+  if (status === 'failed') {
+    return 'failed';
+  }
+
+  return 'attn';
+};
 
 export type DeploymentStepName = 'clone' | 'build' | 'container' | 'proxy' | 'healthcheck';
 

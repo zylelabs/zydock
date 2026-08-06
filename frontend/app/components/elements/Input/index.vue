@@ -25,8 +25,14 @@
     compact?: boolean;
     rows?: number;
     cols?: number;
-    labelInline?: boolean;
     required?: boolean;
+    labelWidth?: string;
+    mono?: boolean;
+    /**
+     * Label above the field instead of to its left, the way the auth screens stack them.
+     * The row keeps the divider on top (like `Row`), so the first field sits flush with the card.
+     */
+    stacked?: boolean;
   }>();
   const emit = defineEmits(['input', 'focus']);
 
@@ -113,82 +119,110 @@
 </script>
 
 <template>
-  <div class="flex flex-col gap-1" :class="{ 'flex-row! items-center gap-2': labelInline }">
-    <label
-      v-if="label"
-      :for="inputId"
-      class="flex gap-0.5 text-xs font-semibold tracking-widest text-content-muted uppercase mb-1"
-      :class="{ 'text-content-dim': disabled }"
+  <div
+    class="flex flex-col"
+    :class="
+      stacked
+        ? [
+            'border-t transition-shadow first:border-t-0 focus-within:shadow-[inset_2px_0_0_0_var(--color-accent)]',
+            errorMessage || callError ? 'border-failed/40' : 'border-hairline',
+          ]
+        : 'gap-1.5'
+    "
+  >
+    <div
+      :class="[
+        stacked
+          ? 'flex flex-col items-start gap-0.75 px-3.75 pt-2.25 pb-2.75'
+          : [
+              'flex gap-3.5 border-b py-3 transition-shadow in-data-rows:px-4.25 focus-within:shadow-[inset_2px_0_0_0_var(--color-accent)]',
+              type === 'textarea' ? 'items-start' : 'items-center',
+              errorMessage || callError ? 'border-failed/40' : 'border-hairline',
+              compact && 'py-2',
+            ],
+      ]"
     >
-      {{ label }}
-      <div v-if="required" class="text-danger">*</div>
-    </label>
-    <div class="relative flex">
-      <textarea
-        v-if="type === 'textarea'"
-        :id="inputId"
-        v-model="model"
-        :name="id"
-        :placeholder="
-          placeholder !== ''
-            ? ((placeholder as string) !== 'false' && (placeholder as string)) || ''
-            : label
-        "
-        :class="
-          mergeClasses(
-            'w-full border rounded-lg shadow-sm px-2 py-2 bg-surface-sunken text-content-strong placeholder:text-content-muted focus:outline-none focus:border-primary-400 focus:ring-1 focus:ring-primary-400/40 transition duration-200 disabled:cursor-not-allowed disabled:text-content-dim disabled:border-surface-line resize-none',
-            errorMessage || callError ? 'border-danger' : 'border-field-border',
-            compact && 'py-1',
-            inputClass,
-          )
-        "
-        :disabled="disabled"
-        :rows="rows"
-        :cols="cols"
-        :required="required"
-        @input="handleInput"
-        @focus="e => emit('focus', e)"
-      ></textarea>
-
-      <input
-        v-else
-        :id="inputId"
-        v-model="model"
-        :name="id"
-        :placeholder="
-          placeholder !== ''
-            ? ((placeholder as string) !== 'false' && (placeholder as string)) || ''
-            : label
-        "
-        :type="password ? (viewPassword ? 'password' : 'text') : type"
-        :class="
-          mergeClasses(
-            'w-full border rounded-lg shadow-sm px-2 py-2 bg-surface-sunken text-content-strong placeholder:text-content-muted focus:outline-none focus:border-primary-400 focus:ring-1 focus:ring-primary-400/40 transition duration-200 disabled:cursor-not-allowed disabled:text-content-dim disabled:border-surface-line',
-            errorMessage || callError ? 'border-danger' : 'border-surface-border',
-            compact && 'py-1',
-            inputClass,
-          )
-        "
-        :disabled="disabled"
-        :min="min"
-        :max="max"
-        :required="required"
-        @focus="e => emit('focus', e)"
-      />
-
-      <button
-        v-if="password && type !== 'textarea'"
-        type="button"
-        :disabled="disabled"
-        :aria-label="viewPassword ? 'Show password' : 'Hide password'"
-        class="text-2xl absolute right-2 bottom-1 z-50 text-content-muted transition hover:text-content-strong disabled:cursor-not-allowed disabled:text-content-dim"
-        @click="viewPassword = !viewPassword"
+      <label
+        v-if="label"
+        :for="inputId"
+        class="shrink-0 text-ink-2"
+        :class="[
+          stacked ? 'text-[11.5px]' : ['text-[13px]', labelWidth || 'w-33'],
+          { 'text-ink-3': disabled },
+        ]"
       >
-        <Icon :name="viewPassword ? 'proicons:eye-off' : 'proicons:eye'" />
-      </button>
+        {{ label }}
+        <span v-if="required" class="text-failed">*</span>
+      </label>
+
+      <div class="relative flex min-w-0" :class="stacked ? 'w-full' : 'flex-1'">
+        <textarea
+          v-if="type === 'textarea'"
+          :id="inputId"
+          v-model="model"
+          :name="id"
+          :placeholder="
+            placeholder !== ''
+              ? ((placeholder as string) !== 'false' && (placeholder as string)) || ''
+              : label
+          "
+          :class="
+            mergeClasses(
+              'w-full resize-none bg-transparent text-sm text-ink outline-none placeholder:text-ink-3 disabled:cursor-not-allowed disabled:text-ink-3',
+              mono && 'font-mono',
+              inputClass,
+            )
+          "
+          :disabled="disabled"
+          :rows="rows"
+          :cols="cols"
+          :required="required"
+          @input="handleInput"
+          @focus="e => emit('focus', e)"
+        ></textarea>
+
+        <input
+          v-else
+          :id="inputId"
+          v-model="model"
+          :name="id"
+          :placeholder="
+            placeholder !== ''
+              ? ((placeholder as string) !== 'false' && (placeholder as string)) || ''
+              : label
+          "
+          :type="password ? (viewPassword ? 'password' : 'text') : type"
+          :class="
+            mergeClasses(
+              'w-full min-w-0 bg-transparent text-sm text-ink outline-none placeholder:text-ink-3 disabled:cursor-not-allowed disabled:text-ink-3',
+              mono && 'font-mono',
+              inputClass,
+            )
+          "
+          :disabled="disabled"
+          :min="min"
+          :max="max"
+          :required="required"
+          @focus="e => emit('focus', e)"
+        />
+
+        <button
+          v-if="password && type !== 'textarea'"
+          type="button"
+          :disabled="disabled"
+          :aria-label="viewPassword ? 'Show password' : 'Hide password'"
+          class="ml-2 shrink-0 text-ink-2 transition hover:text-ink disabled:cursor-not-allowed disabled:text-ink-3"
+          @click="viewPassword = !viewPassword"
+        >
+          <Icon :name="viewPassword ? 'proicons:eye-off' : 'proicons:eye'" class="size-4" />
+        </button>
+      </div>
     </div>
-    <span v-if="errorMessage || callError" class="text-danger text-xs">{{
-      errorMessage ? errorMessage : callError
-    }}</span>
+    <span
+      v-if="errorMessage || callError"
+      class="text-caption text-failed"
+      :class="stacked ? 'px-3.75 pb-2.5' : 'in-data-rows:px-4.25'"
+      >{{ errorMessage ? errorMessage : callError }}</span
+    >
   </div>
 </template>

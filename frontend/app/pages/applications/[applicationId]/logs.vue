@@ -1,17 +1,24 @@
 <script setup lang="ts">
+  import { useApplications } from '~/composables/services/useApplications';
   import { useLogs, type LogEntry, type LogLevel } from '~/composables/services/useLogs';
-
-  useHead({ title: 'Logs' });
 
   const route = useRoute();
   const session = useSessionStore();
 
+  const applications = useApplications();
   const { history, download, topic } = useLogs();
   const { subscribe, status } = useWebSocket();
 
   const applicationId = computed(() => String(route.params.applicationId));
+  const applicationName = ref('');
 
-  const filters = reactive({ search: '', stream: '', level: '', tail: '200' });
+  useHead(() => ({ title: `Logs · ${applicationName.value || 'Application'}` }));
+
+  watchEffect(() => {
+    useNavbar().set({ title: 'Logs', context: applicationName.value });
+  });
+
+  const filters = reactive({ search: '', stream: '', level: '' });
   const entries = ref<LogEntry[]>([]);
   const loading = ref(false);
   const live = ref(false);
@@ -30,16 +37,16 @@
   ];
 
   const LEVEL_CLASS: Record<LogLevel, string> = {
-    error: 'text-danger',
-    warn: 'text-warning',
-    info: 'text-content',
+    error: 'text-failed',
+    warn: 'text-attn',
+    info: 'text-white/85',
   };
 
   const query = () => ({
     search: filters.search || undefined,
     stream: (filters.stream || undefined) as 'stdout' | 'stderr' | undefined,
     level: (filters.level || undefined) as LogLevel | undefined,
-    tail: Number(filters.tail) || 200,
+    tail: 200,
   });
 
   const load = async () => {
@@ -120,57 +127,69 @@
     }
   };
 
-  onMounted(load);
+  onMounted(async () => {
+    if (!session.organizationId) {
+      return;
+    }
+
+    const { application } = await applications.get(applicationId.value);
+    applicationName.value = application.name;
+
+    await load();
+  });
 </script>
 
 <template>
   <Content>
-    <NuxtLink
-      :to="`/applications/${applicationId}`"
-      class="mb-4 inline-flex items-center gap-1 text-sm text-content-muted transition-colors hover:text-content-strong"
-    >
-      <Icon name="lucide:chevron-left" class="size-4" />
-      Application
-    </NuxtLink>
-
-    <Header title="Logs">
-      <template #right>
-        <div class="flex flex-wrap items-center gap-2">
-          <span class="text-xs text-content-muted">{{ live ? status : 'paused' }}</span>
-          <Button :theme="live ? 'danger' : 'secondary'" @click="toggleLive">
-            <Icon :name="live ? 'lucide:pause' : 'lucide:play'" class="size-4" />
-            {{ live ? 'Stop' : 'Live' }}
-          </Button>
-          <Button theme="ghost" :disabled="downloading" @click="handleDownload">
-            <Icon :name="downloading ? 'svg-spinners:tadpole' : 'lucide:download'" class="size-4" />
-            Download
-          </Button>
-        </div>
-      </template>
-    </Header>
-
     <div class="flex flex-col gap-4">
-      <div class="grid gap-2 sm:grid-cols-4">
-        <Input v-model="filters.search" placeholder="Search…" @keyup.enter="load" />
-        <Select v-model="filters.stream" :options="streamOptions" />
-        <Select v-model="filters.level" :options="levelOptions" />
-        <Button theme="secondary" :disabled="loading" @click="load">
-          <Icon v-if="loading" name="svg-spinners:tadpole" size="16" />
-          Apply
+      <div class="flex flex-wrap items-center gap-2">
+        <input
+          v-model="filters.search"
+          placeholder="Filter output"
+          class="max-w-75 flex-1 rounded-control border border-edge bg-card px-3 py-2 text-[13.5px] text-ink outline-none placeholder:text-ink-3 focus:border-edge-strong"
+          @keyup.enter="load"
+        />
+        <Segmented v-model="filters.stream" :options="streamOptions" @update:model-value="load" />
+        <Segmented
+          v-model="filters.level"
+          :options="levelOptions"
+          size="sm"
+          @update:model-value="load"
+        />
+
+        <div class="flex-1" />
+
+        <button
+          type="button"
+          class="flex cursor-pointer items-center gap-2 rounded-control border border-edge bg-card px-3.5 py-1.5 text-[13px] text-ink transition-colors hover:bg-inset"
+          @click="toggleLive"
+        >
+          <StatusDot :status="live ? 'live' : 'stopped'" />
+          {{ live ? (status === 'open' ? 'Live' : status) : 'Paused' }}
+        </button>
+        <Button theme="secondary" size="sm" :disabled="downloading" @click="handleDownload">
+          <Icon v-if="downloading" name="svg-spinners:tadpole" class="size-4" />
+          Download
         </Button>
       </div>
 
       <Alert v-if="error" theme="error">{{ error }}</Alert>
 
       <div
-        class="h-[65vh] overflow-auto rounded-xl border border-surface-border bg-surface-raised p-4 font-mono text-xs leading-relaxed"
+        class="max-h-[65vh] overflow-auto rounded-card bg-terminal p-4 font-mono text-[12.5px] leading-[1.8]"
       >
-        <p v-if="!visible.length" class="text-content-muted">No log lines.</p>
-        <div v-for="(entry, index) in visible" :key="index" class="flex gap-2 whitespace-pre-wrap">
-          <span v-if="entry.timestamp" class="shrink-0 text-content-muted">
-            {{ entry.timestamp }}
-          </span>
+        <p v-if="loading" class="text-white/50">Loading…</p>
+        <p v-else-if="!visible.length" class="text-white/50">No log lines.</p>
+        <div
+          v-for="(entry, index) in visible"
+          :key="index"
+          class="flex gap-3.5 whitespace-pre-wrap"
+        >
+          <span v-if="entry.timestamp" class="shrink-0 text-white/50">{{ entry.timestamp }}</span>
           <span :class="LEVEL_CLASS[entry.level]">{{ entry.message }}</span>
+        </div>
+        <div v-if="live" class="text-white/75">
+          <span class="animate-pulse motion-reduce:animate-none">▋</span>
         </div>
       </div>
     </div>

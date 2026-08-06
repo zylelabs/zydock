@@ -37,7 +37,7 @@
 <template>
   <Modal :open="open" @on-close-modal="handleClose">
     <Card :title="title" class="w-[32rem] max-w-full" close-button @on-close="handleClose">
-      <p class="text-sm text-content-muted">{{ message }}</p>
+      <p class="text-sm text-ink-2">{{ message }}</p>
 
       <Input
         v-if="confirmText"
@@ -48,11 +48,11 @@
 
       <template #footer>
         <div class="ml-auto flex items-center gap-2">
-          <Button theme="ghost" type="button" :disabled="loading" @click="handleClose">
+          <Button theme="quiet" type="button" :disabled="loading" @click="handleClose">
             Cancel
           </Button>
           <Button
-            :theme="danger ? 'danger' : 'primary'"
+            :theme="danger ? 'destructive' : 'primary'"
             type="button"
             :disabled="confirmDisabled"
             @click="emit('confirm')"

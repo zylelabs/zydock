@@ -55,19 +55,24 @@
   const repositoriesError = ref('');
 
   const selectedRepository = ref('');
+  const repositoryQuery = ref('');
+
+  const filteredRepositories = computed(() => {
+    const query = repositoryQuery.value.trim().toLowerCase();
+
+    if (!query) {
+      return repositories.value;
+    }
+
+    return repositories.value.filter(repository =>
+      repository.fullName.toLowerCase().includes(query),
+    );
+  });
 
   const installationOptions = computed(() =>
     installations.value.map(installation => ({
       value: installation.id,
       label: `${installation.account} (${installation.accountType})`,
-    })),
-  );
-
-  const repositoryOptions = computed(() =>
-    repositories.value.map(repository => ({
-      value: repository.fullName,
-      label: repository.fullName,
-      description: repository.private ? 'private' : 'public',
     })),
   );
 
@@ -119,6 +124,7 @@
     selectedRepository.value = '';
     repositories.value = [];
     repositoriesError.value = '';
+    repositoryQuery.value = '';
 
     if (installationId && selectedGitSourceId.value) {
       loadRepositories(selectedGitSourceId.value, installationId);
@@ -146,18 +152,19 @@
       selectedGitSourceId.value = '';
       selectedInstallationId.value = '';
       selectedRepository.value = '';
+      repositoryQuery.value = '';
     },
   });
 </script>
 
 <template>
-  <div class="flex flex-col gap-4">
+  <div class="flex flex-col gap-3.5">
     <div
       v-if="!gitSourcesLoading && !gitSources.length"
-      class="flex flex-col gap-2 rounded-lg border border-dashed border-field-border bg-surface-sunken px-4 py-6 text-center text-sm text-content-muted"
+      class="flex flex-col gap-2 rounded-card border border-dashed border-edge-strong px-4 py-6 text-center text-[13px] text-ink-2"
     >
       <p>No git source connected for this organization.</p>
-      <NuxtLink to="/settings?tab=git" class="text-primary hover:underline">
+      <NuxtLink to="/settings?tab=git" class="text-accent hover:underline">
         Connect a GitHub App in Settings
       </NuxtLink>
     </div>
@@ -172,9 +179,9 @@
       />
 
       <div v-if="selectedGitSourceId" class="flex flex-col gap-1">
-        <p v-if="installationsLoading" class="text-xs text-content-muted">Loading installations…</p>
+        <p v-if="installationsLoading" class="text-caption text-ink-2">Loading installations…</p>
         <Alert v-else-if="installationsError" theme="error">{{ installationsError }}</Alert>
-        <p v-else-if="!installations.length" class="text-xs text-warning">
+        <p v-else-if="!installations.length" class="text-caption text-attn-ink">
           This source has no installation yet — install the App on GitHub first.
         </p>
         <Select
@@ -187,18 +194,53 @@
       </div>
 
       <div v-if="selectedInstallationId" class="flex flex-col gap-1">
-        <p v-if="repositoriesLoading" class="text-xs text-content-muted">Loading repositories…</p>
+        <p v-if="repositoriesLoading" class="text-caption text-ink-2">Loading repositories…</p>
         <Alert v-else-if="repositoriesError" theme="error">{{ repositoriesError }}</Alert>
-        <p v-else-if="!repositories.length" class="text-xs text-warning">
+        <p v-else-if="!repositories.length" class="text-caption text-attn-ink">
           This installation has no accessible repository.
         </p>
-        <SearchSelect
-          v-else
-          v-model="selectedRepository"
-          label="Repository"
-          :options="repositoryOptions"
-          placeholder="Search a repository"
-        />
+
+        <div v-else class="overflow-hidden rounded-card border border-edge">
+          <div class="border-b border-hairline px-3.5 py-2.5">
+            <input
+              v-model="repositoryQuery"
+              type="text"
+              placeholder="Search repositories"
+              class="w-full bg-transparent text-[13.5px] text-ink outline-none placeholder:text-ink-3"
+            />
+          </div>
+
+          <div class="max-h-72 overflow-y-auto">
+            <button
+              v-for="repository in filteredRepositories"
+              :key="repository.id"
+              type="button"
+              class="flex w-full items-center gap-3 border-t border-hairline px-3.5 py-3 text-left first:border-t-0 hover:bg-row-hover"
+              :class="selectedRepository === repository.fullName && 'bg-accent-soft/15'"
+              @click="selectedRepository = repository.fullName"
+            >
+              <div class="size-5.5 shrink-0 rounded-control bg-inset" />
+              <div class="min-w-0 flex-1">
+                <div class="truncate font-mono text-[13.5px] font-medium text-ink">
+                  {{ repository.fullName }}
+                </div>
+                <div class="text-caption text-ink-2">
+                  {{ repository.private ? 'private' : 'public' }} · default branch
+                  {{ repository.defaultBranch }}
+                </div>
+              </div>
+              <Icon
+                v-if="selectedRepository === repository.fullName"
+                name="lucide:check"
+                class="size-4 shrink-0 text-accent"
+              />
+            </button>
+
+            <p v-if="!filteredRepositories.length" class="px-3.5 py-3 text-caption text-ink-3">
+              No repository found.
+            </p>
+          </div>
+        </div>
       </div>
     </template>
   </div>

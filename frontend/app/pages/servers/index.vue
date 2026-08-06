@@ -1,13 +1,10 @@
 <script setup lang="ts">
-  import { z } from 'zod';
+  import AddServerPanel from '~/components/servers/AddServerPanel.vue';
+  import MachineCard from '~/components/servers/MachineCard.vue';
+  import { useApplications, type Application } from '~/composables/services/useApplications';
+  import { useMetrics, type SystemMetrics } from '~/composables/services/useMetrics';
   import { useOrganizations } from '~/composables/services/useOrganizations';
-  import {
-    useServers,
-    type ConnectionProbe,
-    type Server,
-    type ServerStatus,
-    type SshCredentials,
-  } from '~/composables/services/useServers';
+  import { serverStatusDot, useServers, type Server } from '~/composables/services/useServers';
 
   useHead({ title: 'Servers' });
 
@@ -15,127 +12,88 @@
   const session = useSessionStore();
 
   const { current } = useOrganizations();
-  const { list, validate, create, provision, remove } = useServers();
+  const { list, provision, remove } = useServers();
+  const { list: listApplications } = useApplications();
+  const { serverMetrics } = useMetrics();
 
   const canManage = computed(() => ['owner', 'admin'].includes(current.value?.role ?? ''));
 
-  const notifyError = (error: unknown, fallback: string) => {
-    toast.error({
-      title: 'Error',
-      message: (error as { message?: string }).message || fallback,
-    });
+  const messageOf = (error: unknown, fallback: string) =>
+    (error as { message?: string }).message || fallback;
+
+  const load = async () => {
+    const [servers, applications] = await Promise.all([list(), listApplications()]);
+
+    const metricsByServer = new Map<string, SystemMetrics>();
+
+    await Promise.all(
+      servers.items.map(async server => {
+        try {
+          metricsByServer.set(server.id, await serverMetrics(server.id));
+        } catch {
+          // metrics unavailable for an offline or unreachable server
+        }
+      }),
+    );
+
+    const applicationsByServer = new Map<string, Application[]>();
+
+    for (const application of applications.items) {
+      const bucket = applicationsByServer.get(application.serverId) ?? [];
+
+      bucket.push(application);
+      applicationsByServer.set(application.serverId, bucket);
+    }
+
+    return { items: servers.items, metricsByServer, applicationsByServer };
   };
 
-  const empty = { items: [], total: 0, page: 1, size: 0, pages: 0 };
+  const empty = {
+    items: [] as Server[],
+    metricsByServer: new Map<string, SystemMetrics>(),
+    applicationsByServer: new Map<string, Application[]>(),
+  };
 
   const { data, refresh, status } = await useAsyncData(
     'servers',
-    () => (session.organizationId ? list() : Promise.resolve(empty)),
+    () => (session.organizationId ? load() : Promise.resolve(empty)),
     { server: false, watch: [() => session.organizationId], default: () => empty },
   );
 
   const servers = computed(() => data.value?.items ?? []);
 
-  const SERVER_STATUS: Record<ServerStatus, { label: string; color: string }> = {
-    pending: { label: 'Pending', color: 'default' },
-    validating: { label: 'Validating', color: 'blue' },
-    provisioning: { label: 'Provisioning', color: 'blue' },
-    online: { label: 'Online', color: 'green' },
-    offline: { label: 'Offline', color: 'yellow' },
-    failed: { label: 'Failed', color: 'red' },
-  };
+  const hasLoadedOnce = ref(false);
 
-  const adding = ref(false);
-  const probe = ref<ConnectionProbe | null>(null);
-
-  const schema = z
-    .object({
-      name: z.string().trim().min(1, 'Enter a name'),
-      host: z.string(),
-      port: z.string(),
-      username: z.string(),
-      authMethod: z.enum(['password', 'privateKey']),
-      password: z.string(),
-      privateKey: z.string(),
-      passphrase: z.string(),
-      agentPort: z.string().regex(/^\d+$/, 'Invalid port'),
-    })
-    .superRefine((value, ctx) => {
-      if (!value.host.trim()) {
-        ctx.addIssue({ code: 'custom', path: ['host'], message: 'Enter the host' });
+  watch(
+    status,
+    value => {
+      if (value !== 'pending') {
+        hasLoadedOnce.value = true;
       }
-
-      if (!/^\d+$/.test(value.port)) {
-        ctx.addIssue({ code: 'custom', path: ['port'], message: 'Invalid port' });
-      }
-
-      if (!value.username.trim()) {
-        ctx.addIssue({ code: 'custom', path: ['username'], message: 'Enter the user' });
-      }
-
-      if (value.authMethod === 'password' && !value.password) {
-        ctx.addIssue({ code: 'custom', path: ['password'], message: 'Enter the password' });
-      }
-
-      if (value.authMethod === 'privateKey' && !value.privateKey) {
-        ctx.addIssue({ code: 'custom', path: ['privateKey'], message: 'Enter the private key' });
-      }
-    });
-
-  const form = useSchemaForm(
-    schema,
-    {
-      name: '',
-      host: '',
-      port: '22',
-      username: 'root',
-      authMethod: 'password' as 'password' | 'privateKey',
-      password: '',
-      privateKey: '',
-      passphrase: '',
-      agentPort: '9000',
     },
-    {
-      onError: message => toast.error({ title: 'Error', message }),
-      onInvalid: (_errors, lastError) => toast.error({ title: 'Error', message: lastError }),
-    },
+    { immediate: true },
   );
 
-  const buildSsh = (values: typeof form.values): SshCredentials => ({
-    host: values.host,
-    port: Number(values.port),
-    username: values.username,
-    ...(values.authMethod === 'password'
-      ? { password: values.password }
-      : { privateKey: values.privateKey, passphrase: values.passphrase || undefined }),
-  });
+  const metricsFor = (server: Server) => data.value?.metricsByServer.get(server.id) ?? null;
+  const applicationsFor = (server: Server) => data.value?.applicationsByServer.get(server.id) ?? [];
 
-  const authOptions = [
-    { value: 'password', label: 'Password' },
-    { value: 'privateKey', label: 'Private key' },
+  const percent = (used = 0, total = 0) => (total ? Math.round((used / total) * 100) : 0);
+
+  const viewOptions = [
+    { label: 'List', value: 'list' },
+    { label: 'By machine', value: 'machine' },
   ];
 
-  const handleTest = form.submit(async values => {
-    probe.value = await validate(buildSsh(values));
-  });
+  const viewMode = ref<'list' | 'machine'>('list');
 
-  const handleCreate = form.submit(async values => {
-    await create({
-      name: values.name,
-      ssh: buildSsh(values),
-      agentPort: Number(values.agentPort),
-    });
-
-    await refresh();
-    adding.value = false;
-    probe.value = null;
-    form.reset();
-  });
+  const adding = ref(false);
 
   const openAdd = () => {
-    probe.value = null;
-    form.reset();
     adding.value = true;
+  };
+
+  const handleCreated = async () => {
+    await refresh();
   };
 
   const provisioning = ref('');
@@ -147,7 +105,7 @@
       await provision(server.id);
       await refresh();
     } catch (error) {
-      notifyError(error, 'Failed to provision the server.');
+      toast.error({ title: 'Error', message: messageOf(error, 'Failed to provision the server.') });
     } finally {
       provisioning.value = '';
     }
@@ -175,203 +133,137 @@
       confirmRemoveOpen.value = false;
       toRemove.value = null;
     } catch (error) {
-      notifyError(error, 'Failed to remove the server.');
+      toast.error({ title: 'Error', message: messageOf(error, 'Failed to remove the server.') });
     } finally {
       removing.value = false;
     }
   };
+
+  const canProvision = (server: Server) =>
+    server.type === 'ssh' && ['pending', 'failed', 'offline'].includes(server.status);
+
+  watchEffect(() => {
+    useNavbar().set({
+      title: 'Servers',
+      context: current.value?.name,
+      action:
+        current.value && canManage.value && !adding.value
+          ? { label: 'Add server', icon: 'proicons:add', onClick: openAdd }
+          : undefined,
+    });
+  });
 </script>
 
 <template>
   <Content>
-    <Header title="Servers" description="Machines where your applications and databases run.">
-      <template #right>
-        <Button
-          v-if="current && canManage && !adding"
-          theme="primary"
-          class="my-auto"
-          @click="openAdd"
-        >
-          <Icon name="proicons:add" size="18" />
-          Add server
-        </Button>
-      </template>
-    </Header>
+    <EmptyState
+      v-if="!current"
+      variant="action"
+      title="Select an organization"
+      description="Choose or create an organization in the sidebar selector to manage servers."
+    />
 
-    <Card v-if="!current" title="Select an organization">
-      <p class="text-sm text-content-muted">
-        Choose or create an organization in the sidebar selector to manage servers.
-      </p>
-    </Card>
+    <div v-else class="flex max-w-225 flex-col gap-4.5">
+      <AddServerPanel v-model:open="adding" @created="handleCreated" />
 
-    <div v-else class="flex flex-col gap-6">
-      <Card v-if="adding" title="Add server" description="Connect a machine via SSH.">
-        <form class="flex flex-col gap-4" @submit.prevent="handleCreate">
-          <div class="grid gap-4 sm:grid-cols-2">
-            <Input
-              v-model="form.values.name"
-              label="Name"
-              placeholder="production-1"
-              :call-error="form.errors.value.name"
-            />
-            <Input
-              v-model="form.values.agentPort"
-              label="Agent port"
-              :call-error="form.errors.value.agentPort"
-            />
-          </div>
-
-          <div class="grid gap-4 sm:grid-cols-2">
-            <Input
-              v-model="form.values.username"
-              label="SSH user"
-              placeholder="root"
-              :call-error="form.errors.value.username"
-            />
-            <Select
-              v-model="form.values.authMethod"
-              label="Authentication"
-              :options="authOptions"
-            />
-            <Input
-              v-model="form.values.host"
-              label="Host"
-              placeholder="203.0.113.10"
-              :call-error="form.errors.value.host"
-            />
-            <Input
-              v-model="form.values.port"
-              label="SSH port"
-              :call-error="form.errors.value.port"
-            />
-          </div>
-
-          <Input
-            v-if="form.values.authMethod === 'password'"
-            v-model="form.values.password"
-            label="Password"
-            password
-            :call-error="form.errors.value.password"
-          />
-
-          <template v-else>
-            <Input
-              v-model="form.values.privateKey"
-              label="Private key"
-              type="textarea"
-              :rows="5"
-              placeholder="-----BEGIN OPENSSH PRIVATE KEY-----"
-              :call-error="form.errors.value.privateKey"
-            />
-            <Input v-model="form.values.passphrase" label="Passphrase (optional)" password />
-          </template>
-
-          <Alert v-if="probe && probe.reachable" theme="success">
-            Connection succeeded — {{ probe.osRelease ?? 'host reachable' }},
-            {{ probe.cpuCount ?? '?' }} vCPU, {{ probe.memoryMb ?? '?' }} MB of RAM.
-          </Alert>
-          <Alert v-else-if="probe" theme="error">
-            {{ probe.error ?? 'Could not connect.' }}
-          </Alert>
-
-          <div class="flex items-center justify-end gap-2">
-            <Button theme="ghost" type="button" @click="adding = false">Cancel</Button>
-            <Button
-              theme="secondary"
-              type="button"
-              :disabled="form.loading.value"
-              @click="handleTest"
-            >
-              <Icon v-if="form.loading.value" name="svg-spinners:tadpole" size="16" />
-              Test connection
-            </Button>
-            <Button theme="primary" type="submit" :disabled="form.loading.value">
-              <Icon v-if="form.loading.value" name="svg-spinners:tadpole" size="16" />
-              Add
-            </Button>
-          </div>
-        </form>
-      </Card>
-
-      <Card v-if="status === 'pending'" title="Servers">
-        <p class="text-sm text-content-muted">Loading…</p>
-      </Card>
-
-      <div
-        v-else-if="!servers.length"
-        class="flex flex-col items-center gap-3 rounded-xl border border-dashed border-field-border bg-surface-sunken px-6 py-12 text-center"
-      >
-        <Icon name="lucide:server" class="size-8 text-content-dim" />
-        <div>
-          <h3 class="text-content-strong">No servers yet</h3>
-          <p class="mt-1 text-sm text-content-muted">
-            The local server should already be here — check the agent's logs, or add a remote server
-            via SSH.
-          </p>
-        </div>
+      <div v-if="servers.length" class="flex items-center justify-between">
+        <Segmented v-model="viewMode" :options="viewOptions" />
       </div>
 
-      <div v-else class="flex flex-col gap-3">
-        <div
+      <div v-if="status === 'pending' && !hasLoadedOnce" class="flex flex-col gap-2">
+        <Skeleton v-for="index in 4" :key="index" class="h-20" />
+      </div>
+
+      <EmptyState
+        v-else-if="!servers.length"
+        variant="action"
+        title="No servers yet."
+        description="The local server should already be here — check the agent's logs, or add a remote server via SSH."
+      >
+        <Button theme="primary" @click="openAdd">Add server</Button>
+      </EmptyState>
+
+      <div
+        v-else-if="viewMode === 'machine'"
+        class="grid grid-cols-[repeat(auto-fill,minmax(330px,1fr))] gap-4.5"
+      >
+        <MachineCard
           v-for="server in servers"
           :key="server.id"
-          class="flex flex-wrap items-center gap-4 rounded-xl border border-surface-border bg-surface-raised p-4 shadow-soft backdrop-blur-sm"
+          :server="server"
+          :metrics="metricsFor(server)"
+          :applications="applicationsFor(server)"
         >
-          <div class="min-w-0 flex-1">
-            <div class="flex flex-wrap items-center gap-2">
-              <h3 class="truncate text-content-strong">{{ server.name }}</h3>
-              <Tag :color="SERVER_STATUS[server.status].color">
-                {{ SERVER_STATUS[server.status].label }}
-              </Tag>
-              <Tag v-if="server.type === 'local'">local</Tag>
-              <Tag v-if="server.online" color="green">agent</Tag>
-            </div>
-
-            <p v-if="server.type === 'local'" class="mt-1 truncate text-xs text-content-muted">
-              Local machine · agent at {{ server.agent.host }}:{{ server.agent.port }}
-            </p>
-            <p v-else class="mt-1 truncate text-xs text-content-muted">
-              {{ server.ssh.username }}@{{ server.ssh.host }}:{{ server.ssh.port }}
-              <span v-if="server.resources.osRelease"> · {{ server.resources.osRelease }}</span>
-              <span v-if="server.resources.cpuCount">
-                · {{ server.resources.cpuCount }} vCPU · {{ server.resources.memoryMb }} MB
-              </span>
-            </p>
-            <p v-if="server.lastError" class="mt-1 truncate text-xs text-danger">
-              {{ server.lastError }}
-            </p>
-          </div>
-
-          <div class="flex items-center gap-2">
-            <Button theme="secondary" :to="`/servers/${server.id}`">
-              <Icon name="lucide:layout-grid" class="size-4" />
-              Resources
+          <template #actions>
+            <Button theme="quiet" size="xs" :to="`/servers/${server.id}`">
+              <Icon name="lucide:chevron-right" size="16" />
             </Button>
-            <Button
-              v-if="
-                canManage &&
-                server.type === 'ssh' &&
-                ['pending', 'failed', 'offline'].includes(server.status)
+          </template>
+        </MachineCard>
+      </div>
+
+      <Card v-else content-class="p-0">
+        <Row v-for="server in servers" :key="server.id" as="div" class="grid-cols-[1.4fr_1fr_auto]">
+          <NuxtLink
+            :to="`/servers/${server.id}`"
+            class="flex min-w-0 items-center gap-2.75 after:absolute after:inset-0"
+          >
+            <StatusDot :status="serverStatusDot(server.status)" />
+            <div class="min-w-0">
+              <div class="flex items-center gap-2">
+                <span class="truncate text-[14px] font-medium text-ink">{{ server.name }}</span>
+                <Tag v-if="server.type === 'local'">local</Tag>
+              </div>
+              <div class="truncate font-mono text-caption text-ink-2">
+                {{
+                  server.type === 'local'
+                    ? `${server.agent.host}:${server.agent.port}`
+                    : server.ssh.host
+                }}
+                <span v-if="server.resources.osRelease"> · {{ server.resources.osRelease }}</span>
+              </div>
+            </div>
+          </NuxtLink>
+
+          <div v-if="metricsFor(server)" class="flex flex-col gap-1.5">
+            <Gauge
+              label="CPU"
+              :value="`${Math.round(metricsFor(server)?.cpuPercent ?? 0)}%`"
+              :percent="metricsFor(server)?.cpuPercent ?? 0"
+            />
+            <Gauge
+              label="Memory"
+              :value="`${percent(metricsFor(server)?.memoryUsedMb, metricsFor(server)?.memoryTotalMb)}%`"
+              :percent="
+                percent(metricsFor(server)?.memoryUsedMb, metricsFor(server)?.memoryTotalMb)
               "
+            />
+          </div>
+          <div v-else class="text-caption text-ink-3">Metrics unavailable</div>
+
+          <div class="relative flex items-center gap-1.5">
+            <Button
+              v-if="canManage && canProvision(server)"
               theme="secondary"
+              size="xs"
               :disabled="provisioning === server.id"
               @click="handleProvision(server)"
             >
-              <Icon v-if="provisioning === server.id" name="svg-spinners:tadpole" size="16" />
+              <Icon v-if="provisioning === server.id" name="svg-spinners:tadpole" size="14" />
               Provision
             </Button>
             <button
               v-if="canManage && !server.managed"
               type="button"
               title="Remove server"
-              class="cursor-pointer rounded-lg p-2 text-content-muted transition-colors hover:bg-surface-hover hover:text-danger"
+              class="cursor-pointer rounded-button p-1.5 text-ink-2 hover:bg-inset hover:text-failed"
               @click="openRemove(server)"
             >
               <Icon name="lucide:trash-2" class="size-4" />
             </button>
           </div>
-        </div>
-      </div>
+        </Row>
+      </Card>
     </div>
 
     <Confirm

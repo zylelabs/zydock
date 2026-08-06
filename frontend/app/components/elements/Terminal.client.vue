@@ -3,7 +3,14 @@
   import { FitAddon } from '@xterm/addon-fit';
   import '@xterm/xterm/css/xterm.css';
 
-  const props = defineProps<{ serverId: string; containerId: string; shell?: string }>();
+  import { mergeClasses } from '~/utils';
+
+  const props = defineProps<{
+    serverId: string;
+    containerId: string;
+    shell?: string;
+    hostClass?: string;
+  }>();
 
   const session = useSessionStore();
   const { public: runtime } = useRuntimeConfig();
@@ -14,6 +21,9 @@
   let terminal: XTerm | undefined;
   let socket: WebSocket | undefined;
   let fit: FitAddon | undefined;
+
+  const resolveToken = (name: string, fallback: string) =>
+    getComputedStyle(document.documentElement).getPropertyValue(name).trim() || fallback;
 
   const sendResize = () => {
     if (!terminal || socket?.readyState !== WebSocket.OPEN) {
@@ -49,9 +59,13 @@
     terminal = new XTerm({
       convertEol: true,
       cursorBlink: true,
-      fontSize: 13,
-      fontFamily: 'ui-monospace, SFMono-Regular, Menlo, monospace',
-      theme: { background: '#05060f', foreground: '#cdcfdb', cursor: '#645df1' },
+      fontSize: 12.5,
+      fontFamily: "'JetBrains Mono', ui-monospace, monospace",
+      theme: {
+        background: resolveToken('--color-terminal', '#151515'),
+        foreground: 'rgba(255, 255, 255, 0.85)',
+        cursor: resolveToken('--color-accent', '#645df1'),
+      },
     });
 
     fit = new FitAddon();
@@ -91,10 +105,10 @@
 
 <template>
   <div class="flex flex-col gap-2">
-    <span class="text-xs text-content-muted">{{ statusText }}</span>
+    <span class="text-caption text-ink-2">{{ statusText }}</span>
     <div
       ref="host"
-      class="h-[70vh] overflow-hidden rounded-xl border border-surface-border bg-surface p-2"
+      :class="mergeClasses('h-[70vh] overflow-hidden rounded-card bg-terminal p-4', hostClass)"
     />
   </div>
 </template>

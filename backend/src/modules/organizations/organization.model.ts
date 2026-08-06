@@ -7,12 +7,6 @@ export default model<Organization & Document>(
     {
       name: { type: String, required: true, trim: true },
       slug: { type: String, required: true, unique: true, lowercase: true, trim: true },
-      branding: {
-        logo: { type: String },
-        favicon: { type: String },
-        primaryColor: { type: String },
-        secondaryColor: { type: String },
-      },
     },
     {
       versionKey: false,

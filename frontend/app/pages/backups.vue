@@ -28,10 +28,7 @@
   const canManage = computed(() => ['owner', 'admin'].includes(current.value?.role ?? ''));
 
   const notifyError = (error: unknown, fallback: string) => {
-    toast.error({
-      title: 'Error',
-      message: (error as { message?: string }).message || fallback,
-    });
+    toast.error({ title: 'Error', message: (error as { message?: string }).message || fallback });
   };
 
   const empty = {
@@ -88,16 +85,14 @@
   };
 
   const STATUS: Record<BackupStatus, { label: string; color: string }> = {
-    running: { label: 'Running', color: 'blue' },
-    completed: { label: 'Completed', color: 'green' },
-    failed: { label: 'Failed', color: 'red' },
+    running: { label: 'Running', color: 'default' },
+    completed: { label: 'Completed', color: 'live' },
+    failed: { label: 'Failed', color: 'failed' },
   };
 
   const typeOptions = BACKUP_TYPES.map(type => ({ value: type, label: TYPE_LABELS[type] }));
 
   const VOLUME_NAME_REGEX = /^[a-zA-Z0-9][a-zA-Z0-9_.-]*$/;
-
-  const adding = ref(false);
 
   const schema = z
     .object({
@@ -140,12 +135,13 @@
     },
   );
 
-  const openAdd = () => {
-    form.reset();
-    form.values.databaseId = databaseOptions.value[0]?.value ?? '';
-    form.values.serverId = serverOptions.value[0]?.value ?? '';
-    adding.value = true;
-  };
+  watch(
+    () => form.values.type,
+    () => {
+      form.values.databaseId = databaseOptions.value[0]?.value ?? '';
+      form.values.serverId = serverOptions.value[0]?.value ?? '';
+    },
+  );
 
   const handleCreate = form.submit(async values => {
     const body: CreateBackupBody =
@@ -161,7 +157,9 @@
           : { type: 'configuration' };
 
     await backupsApi.create(body);
-    adding.value = false;
+    form.reset();
+    form.values.databaseId = databaseOptions.value[0]?.value ?? '';
+    form.values.serverId = serverOptions.value[0]?.value ?? '';
     await refresh();
   });
 
@@ -226,40 +224,36 @@
       removing.value = false;
     }
   };
+
+  watchEffect(() => {
+    useNavbar().set({ title: 'Backups', context: current.value?.name });
+  });
 </script>
 
 <template>
   <Content>
-    <Header title="Backups" description="Databases, volumes and configuration exports.">
-      <template #right>
-        <Button
-          v-if="current && canManage && !adding"
-          theme="primary"
-          class="my-auto"
-          @click="openAdd"
-        >
-          <Icon name="proicons:add" size="18" />
-          New backup
-        </Button>
-      </template>
-    </Header>
+    <EmptyState
+      v-if="!current"
+      variant="action"
+      title="Select an organization"
+      description="Choose or create an organization in the sidebar selector to manage backups."
+    />
 
-    <Card v-if="!current" title="Select an organization">
-      <p class="text-sm text-content-muted">
-        Choose or create an organization in the sidebar selector to manage backups.
-      </p>
-    </Card>
+    <div v-else class="flex max-w-215 flex-col gap-4.5">
+      <Card v-if="canManage" title="New backup" rows>
+        <template #right>
+          <Segmented v-model="form.values.type" :options="typeOptions" />
+        </template>
 
-    <div v-else class="flex flex-col gap-6">
-      <Card v-if="adding" title="New backup">
-        <form class="flex flex-col gap-4" @submit.prevent="handleCreate">
-          <Select v-model="form.values.type" label="Type" :options="typeOptions" />
+        <form class="flex flex-col" @submit.prevent="handleCreate">
+          <Select
+            v-if="form.values.type === 'database'"
+            v-model="form.values.databaseId"
+            label="Database"
+            :options="databaseOptions"
+          />
 
-          <div v-if="form.values.type === 'database'" class="grid gap-4 sm:grid-cols-2">
-            <Select v-model="form.values.databaseId" label="Database" :options="databaseOptions" />
-          </div>
-
-          <div v-else-if="form.values.type === 'volume'" class="grid gap-4 sm:grid-cols-2">
+          <template v-else-if="form.values.type === 'volume'">
             <Select v-model="form.values.serverId" label="Server" :options="serverOptions" />
             <Input
               v-model="form.values.volumeName"
@@ -269,26 +263,34 @@
             />
             <Select
               v-model="form.values.applicationId"
-              label="Application (optional)"
+              label="Application"
               :options="applicationOptions"
             />
-          </div>
+          </template>
 
-          <p v-else class="text-sm text-content-muted">
+          <p v-else class="px-4.25 py-3.5 text-[13px] text-ink-2">
             Exports the organization's configuration — no application data.
           </p>
 
-          <Alert v-if="form.values.type === 'database' && !databaseOptions.length" theme="warning">
+          <Alert
+            v-if="form.values.type === 'database' && !databaseOptions.length"
+            theme="warning"
+            class="mx-4.25 mt-3"
+          >
             No databases available.
           </Alert>
-          <Alert v-if="form.values.type === 'volume' && !serverOptions.length" theme="warning">
+          <Alert
+            v-if="form.values.type === 'volume' && !serverOptions.length"
+            theme="warning"
+            class="mx-4.25 mt-3"
+          >
             No servers available.
           </Alert>
 
-          <div class="flex justify-end gap-2">
-            <Button theme="ghost" type="button" @click="adding = false">Cancel</Button>
+          <div class="flex justify-end px-4.25 py-3.25">
             <Button
               theme="primary"
+              size="sm"
               type="submit"
               :disabled="
                 form.loading.value ||
@@ -297,82 +299,80 @@
               "
             >
               <Icon v-if="form.loading.value" name="svg-spinners:tadpole" size="16" />
-              Start backup
+              Create backup
             </Button>
           </div>
         </form>
       </Card>
 
-      <Card v-if="status === 'pending'" title="Backups">
-        <p class="text-sm text-content-muted">Loading…</p>
-      </Card>
-
-      <div
-        v-else-if="!backups.length"
-        class="flex flex-col items-center gap-3 rounded-xl border border-dashed border-field-border bg-surface-sunken px-6 py-12 text-center"
-      >
-        <Icon name="lucide:archive" class="size-8 text-content-dim" />
-        <div>
-          <h3 class="text-content-strong">No backups yet</h3>
-          <p class="mt-1 text-sm text-content-muted">
-            Create a backup of a database, volume or the configuration.
-          </p>
-        </div>
+      <div v-if="status === 'pending'" class="flex flex-col gap-2">
+        <Skeleton v-for="index in 3" :key="index" class="h-14 rounded-card" />
       </div>
 
-      <div v-else class="flex flex-col gap-3">
-        <div
+      <EmptyState
+        v-else-if="!backups.length"
+        title="No backups yet"
+        description="Create a backup of a database, volume or the configuration."
+      />
+
+      <Card v-else content-class="p-0">
+        <Row
           v-for="backup in backups"
           :key="backup.id"
-          class="flex flex-wrap items-center gap-4 rounded-xl border border-surface-border bg-surface-raised p-4 shadow-soft backdrop-blur-sm"
+          as="div"
+          class="grid-cols-[1.2fr_0.7fr_0.6fr_auto]"
         >
-          <div class="min-w-0 flex-1">
-            <div class="flex flex-wrap items-center gap-2">
-              <h3 class="truncate text-content-strong">{{ backup.label }}</h3>
-              <Tag>{{ TYPE_LABELS[backup.type] }}</Tag>
-              <Tag :color="STATUS[backup.status].color">{{ STATUS[backup.status].label }}</Tag>
-              <Tag v-if="backup.restoreStatus === 'running'" color="yellow">Restoring</Tag>
-            </div>
-            <p class="mt-1 truncate text-xs text-content-muted">
-              {{ formatBytes(backup.sizeBytes) }} · {{ formatDuration(backup.durationMs) }}
-            </p>
-            <p v-if="backup.error" class="mt-1 truncate text-xs text-danger">{{ backup.error }}</p>
-            <p v-if="backup.restoreError" class="mt-1 truncate text-xs text-danger">
-              Restore failed: {{ backup.restoreError }}
-            </p>
+          <div class="min-w-0 flex flex-wrap items-center gap-2">
+            <span class="truncate font-mono text-[13.5px] text-ink">{{ backup.label }}</span>
+            <Tag>{{ TYPE_LABELS[backup.type] }}</Tag>
+            <Tag :color="STATUS[backup.status].color">{{ STATUS[backup.status].label }}</Tag>
+            <Tag v-if="backup.restoreStatus === 'running'" color="attn">Restoring</Tag>
           </div>
 
-          <div class="flex flex-wrap items-center gap-2">
+          <div class="truncate text-caption text-ink-2">
+            {{ formatBytes(backup.sizeBytes) }} · {{ formatDuration(backup.durationMs) }}
+          </div>
+
+          <div class="truncate text-caption text-failed">
+            <template v-if="backup.error">{{ backup.error }}</template>
+            <template v-else-if="backup.restoreError">
+              Restore failed: {{ backup.restoreError }}
+            </template>
+          </div>
+
+          <div class="flex flex-wrap items-center justify-end gap-1.5">
             <Button
               v-if="backup.status === 'completed'"
-              theme="ghost"
+              theme="quiet"
+              size="xs"
               :disabled="busy === `${backup.id}:download`"
               @click="handleDownload(backup)"
             >
-              <Icon v-if="busy === `${backup.id}:download`" name="svg-spinners:tadpole" size="16" />
+              <Icon v-if="busy === `${backup.id}:download`" name="svg-spinners:tadpole" size="14" />
               Download
             </Button>
             <Button
               v-if="canManage && backup.status === 'completed' && backup.type !== 'configuration'"
               theme="secondary"
+              size="xs"
               :disabled="backup.restoreStatus === 'running' || busy === `${backup.id}:restore`"
               @click="handleRestore(backup)"
             >
-              <Icon v-if="busy === `${backup.id}:restore`" name="svg-spinners:tadpole" size="16" />
+              <Icon v-if="busy === `${backup.id}:restore`" name="svg-spinners:tadpole" size="14" />
               Restore
             </Button>
             <button
               v-if="canManage"
               type="button"
               title="Remove backup"
-              class="cursor-pointer rounded-lg p-2 text-content-muted transition-colors hover:bg-surface-hover hover:text-danger"
+              class="cursor-pointer rounded-control p-1.5 text-ink-2 hover:bg-inset hover:text-failed"
               @click="openRemove(backup)"
             >
               <Icon name="lucide:trash-2" class="size-4" />
             </button>
           </div>
-        </div>
-      </div>
+        </Row>
+      </Card>
     </div>
 
     <Confirm

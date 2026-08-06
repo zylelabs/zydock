@@ -15,15 +15,10 @@ const uniqueSlug = (name: string) =>
 
 export const findOrganizationById = (id: string) => organizationModel.findById(id);
 
-export const createOrganization = async (
-  name: string,
-  ownerId: string,
-  branding?: OrganizationBranding,
-) => {
+export const createOrganization = async (name: string, ownerId: string) => {
   const organization = await organizationModel.create({
     name,
     slug: await uniqueSlug(name),
-    branding: branding ?? {},
   });
 
   await createMembership(String(organization._id), ownerId, 'owner');
@@ -46,11 +41,5 @@ export const serializeOrganization = (organization: Organization, role?: Organiz
   name: organization.name,
   slug: organization.slug,
   role,
-  branding: {
-    logo: organization.branding?.logo,
-    favicon: organization.branding?.favicon,
-    primaryColor: organization.branding?.primaryColor,
-    secondaryColor: organization.branding?.secondaryColor,
-  },
   createdAt: organization.createdAt,
 });

@@ -61,25 +61,19 @@
   };
 
   const formatWhen = (value?: string) => (value ? new Date(value).toLocaleString('en-US') : '—');
+
+  watchEffect(() => {
+    useNavbar().set({ title: 'Users', context: 'Account' });
+  });
 </script>
 
 <template>
   <Content>
-    <NuxtLink
-      to="/account"
-      class="mb-4 inline-flex items-center gap-1 text-sm text-content-muted transition-colors hover:text-content-strong"
-    >
-      <Icon name="lucide:chevron-left" class="size-4" />
-      Account
-    </NuxtLink>
-
-    <Header title="Users" description="Platform-wide user administration." />
-
     <Card v-if="!isSuperuser" title="Access restricted">
-      <p class="text-sm text-content-muted">Only a superuser account can manage users.</p>
+      <p class="text-[13px] text-ink-2">Only a superuser account can manage users.</p>
     </Card>
 
-    <div v-else class="flex flex-col gap-6">
+    <div v-else class="flex flex-col gap-4.5">
       <div class="flex flex-wrap gap-4">
         <div class="flex-1">
           <Input v-model="search" label="Search" placeholder="name or email" />
@@ -89,33 +83,38 @@
         </div>
       </div>
 
-      <Card title="Users">
-        <p v-if="!users.length" class="text-sm text-content-muted">No users match this filter.</p>
+      <Card content-class="p-0">
+        <EmptyState
+          v-if="!users.length"
+          variant="prompt"
+          description="No users match this filter."
+          class="m-2.5"
+        />
 
-        <ul v-else class="flex flex-col divide-y divide-surface-line">
-          <li v-for="user in users" :key="user.id" class="flex items-center gap-3 py-3">
-            <div class="min-w-0 flex-1">
-              <p class="truncate text-sm font-medium text-content-strong">
-                {{ user.name }}
-                <span v-if="isSelf(user)" class="text-xs text-content-muted">(you)</span>
-                <Tag v-if="user.superuser" color="blue" class="ml-1">superuser</Tag>
-              </p>
-              <p class="truncate text-xs text-content-muted">
-                {{ user.email }} · last login {{ formatWhen(user.lastLoginAt) }}
-              </p>
-            </div>
-            <Tag :color="user.status === 'active' ? 'green' : 'yellow'">{{ user.status }}</Tag>
-            <Button
-              v-if="!isSelf(user)"
-              theme="ghost"
-              :disabled="busy === user.id"
-              @click="toggleStatus(user)"
-            >
-              <Icon v-if="busy === user.id" name="svg-spinners:tadpole" size="16" />
-              {{ user.status === 'active' ? 'Disable' : 'Enable' }}
-            </Button>
-          </li>
-        </ul>
+        <Row v-for="user in users" :key="user.id" as="div" class="flex items-center gap-3.5">
+          <Avatar :name="user.name || user.email" />
+          <div class="min-w-0 flex-1">
+            <p class="truncate text-[13.5px] text-ink">
+              {{ user.name }}
+              <span v-if="isSelf(user)" class="text-caption text-ink-2">(you)</span>
+              <Tag v-if="user.superuser" color="live" class="ml-1">superuser</Tag>
+            </p>
+            <p class="truncate text-caption text-ink-2">
+              {{ user.email }} · last login {{ formatWhen(user.lastLoginAt) }}
+            </p>
+          </div>
+          <Tag :color="user.status === 'active' ? 'live' : 'attn'">{{ user.status }}</Tag>
+          <Button
+            v-if="!isSelf(user)"
+            theme="secondary"
+            size="xs"
+            :disabled="busy === user.id"
+            @click="toggleStatus(user)"
+          >
+            <Icon v-if="busy === user.id" name="svg-spinners:tadpole" size="14" />
+            {{ user.status === 'active' ? 'Disable' : 'Enable' }}
+          </Button>
+        </Row>
       </Card>
     </div>
   </Content>

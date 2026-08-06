@@ -89,7 +89,7 @@
       <div v-if="open">
         <div
           aria-hidden="true"
-          class="z-50 fixed w-full h-full top-0 left-0 bg-black/60 backdrop-blur-sm"
+          class="z-50 fixed w-full h-full top-0 left-0 bg-ink/50"
           @click="handleCloseModal"
         ></div>
 

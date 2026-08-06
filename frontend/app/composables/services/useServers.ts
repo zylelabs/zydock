@@ -1,7 +1,20 @@
 import type { Paginated } from '../useApi';
+import type { Status } from '~/components/elements/StatusDot.vue';
 
 export type ServerStatus =
   'pending' | 'validating' | 'provisioning' | 'online' | 'offline' | 'failed';
+
+export const serverStatusDot = (status: ServerStatus): Status => {
+  if (status === 'online') {
+    return 'live';
+  }
+
+  if (status === 'offline' || status === 'failed') {
+    return 'failed';
+  }
+
+  return 'attn';
+};
 
 export type ServerType = 'ssh' | 'local';
 

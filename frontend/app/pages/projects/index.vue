@@ -1,26 +1,66 @@
 <script setup lang="ts">
   import { z } from 'zod';
+  import { useApplications } from '~/composables/services/useApplications';
   import { useOrganizations } from '~/composables/services/useOrganizations';
-  import { useProjects } from '~/composables/services/useProjects';
+  import { useProjects, type Environment } from '~/composables/services/useProjects';
+
+  useHead({ title: 'Projects' });
 
   const toast = useToast();
   const session = useSessionStore();
   const { current } = useOrganizations();
-  const { list, create } = useProjects();
+  const { list: listProjects, create, listEnvironments } = useProjects();
+  const { list: listApplications } = useApplications();
 
   const canManage = computed(() => ['owner', 'admin'].includes(current.value?.role ?? ''));
 
-  const empty = { items: [], total: 0, page: 1, size: 0, pages: 0 };
+  const load = async () => {
+    const [projects, applications] = await Promise.all([listProjects(), listApplications()]);
+
+    const environmentLists = await Promise.all(
+      projects.items.map(project => listEnvironments(project.id)),
+    );
+
+    const appCountByProject = new Map<string, number>();
+
+    for (const application of applications.items) {
+      appCountByProject.set(
+        application.projectId,
+        (appCountByProject.get(application.projectId) ?? 0) + 1,
+      );
+    }
+
+    return {
+      items: projects.items,
+      appCount: appCountByProject,
+      envCount: new Map(
+        projects.items.map((project, index) => [
+          project.id,
+          environmentLists[index]?.total ??
+            (environmentLists[index]?.items as Environment[])?.length ??
+            0,
+        ]),
+      ),
+    };
+  };
+
+  const empty = {
+    items: [],
+    appCount: new Map<string, number>(),
+    envCount: new Map<string, number>(),
+  };
 
   const { data, refresh } = await useAsyncData(
     'projects',
-    () => (session.organizationId ? list() : Promise.resolve(empty)),
+    () => (session.organizationId ? load() : Promise.resolve(empty)),
     { server: false, watch: [() => session.organizationId], default: () => empty },
   );
 
   const projects = computed(() => data.value?.items ?? []);
 
-  const creating = ref(false);
+  const countLabel = (count: number, noun: string) => `${count} ${count === 1 ? noun : `${noun}s`}`;
+
+  const showCreate = ref(false);
 
   const form = useSchemaForm(
     z.object({
@@ -34,83 +74,92 @@
     },
   );
 
-  const openCreate = () => {
-    form.reset();
-    creating.value = true;
-  };
-
   const handleCreate = form.submit(async values => {
     const { project } = await create(values.name, values.description || undefined);
 
-    creating.value = false;
+    showCreate.value = false;
     await refresh();
     await navigateTo(`/projects/${project.id}`);
+  });
+
+  watchEffect(() => {
+    useNavbar().set({
+      title: 'Projects',
+      context: current.value?.name,
+      action:
+        current.value && canManage.value
+          ? {
+              label: 'New project',
+              icon: 'proicons:add',
+              onClick: () => {
+                form.reset();
+                showCreate.value = !showCreate.value;
+              },
+            }
+          : undefined,
+    });
   });
 </script>
 
 <template>
   <Content>
-    <Header title="Projects" description="They group environments and applications.">
-      <template #right>
-        <Button v-if="current && canManage" theme="primary" class="my-auto" @click="openCreate">
-          <Icon name="proicons:add" size="18" />
-          New project
-        </Button>
-      </template>
-    </Header>
-    <div v-if="projects.length" class="grid gap-3 sm:grid-cols-2 lg:grid-cols-3">
-      <NuxtLink
-        v-for="project in projects"
-        :key="project.id"
-        :to="`/projects/${project.id}`"
-        class="rounded-xl border border-surface-border bg-surface-raised p-4 shadow-soft backdrop-blur-sm transition-colors hover:border-field-border hover:bg-surface-hover focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-primary-300"
-      >
-        <div class="flex items-center gap-2">
-          <Icon name="lucide:folder-git-2" class="size-5 shrink-0 text-primary-400" />
-          <h3 class="min-w-0 truncate">{{ project.name }}</h3>
-        </div>
-        <p class="mt-1 line-clamp-2 text-sm text-content-muted">
-          {{ project.description || 'No description.' }}
-        </p>
-      </NuxtLink>
-    </div>
-    <div
-      v-else
-      class="flex flex-col items-center gap-3 rounded-xl border border-dashed border-field-border bg-surface-sunken px-6 py-12 text-center"
-    >
-      <Icon name="lucide:folder-git-2" class="size-8 text-content-dim" />
-      <div>
-        <h3 class="text-content-strong">No projects yet</h3>
-        <p class="mt-1 text-sm text-content-muted">
-          Create a project to organize your applications.
-        </p>
-      </div>
-      <Button v-if="current && canManage" theme="primary" class="mt-1" @click="openCreate">
-        <Icon name="proicons:add" size="18" />
-        New project
-      </Button>
-    </div>
+    <EmptyState
+      v-if="!current"
+      variant="action"
+      title="Select an organization"
+      description="Choose or create an organization in the sidebar selector to see its projects."
+    />
 
-    <Modal :open="creating" @on-close-modal="creating = false">
-      <Card title="New project" class="w-md max-w-full" close-button @on-close="creating = false">
-        <form class="flex flex-col gap-4" @submit.prevent="handleCreate">
-          <Input
-            v-model="form.values.name"
-            label="Name"
-            placeholder="my-project"
-            :call-error="form.errors.value.name"
-          />
-          <Input v-model="form.values.description" label="Description (optional)" />
-
-          <div class="flex justify-end gap-2">
-            <Button theme="ghost" type="button" @click="creating = false">Cancel</Button>
-            <Button theme="primary" type="submit" :disabled="form.loading.value">
+    <div v-else class="flex flex-col gap-4">
+      <Card v-if="showCreate" title="New project" class="max-w-155">
+        <template #footer>
+          <div class="flex w-full items-center justify-between gap-3">
+            <p class="text-caption text-ink-2">
+              A first environment named production is created with it.
+            </p>
+            <Button theme="primary" size="sm" :disabled="form.loading.value" @click="handleCreate">
               <Icon v-if="form.loading.value" name="svg-spinners:tadpole" size="16" />
               Create
             </Button>
           </div>
-        </form>
+        </template>
+
+        <div class="flex flex-col gap-1.5">
+          <Input
+            v-model="form.values.name"
+            label="Name"
+            placeholder="Payments"
+            :call-error="form.errors.value.name"
+          />
+          <Input v-model="form.values.description" label="Description" placeholder="Optional" />
+        </div>
       </Card>
-    </Modal>
+
+      <EmptyState
+        v-if="!projects.length"
+        variant="prompt"
+        description="No projects yet. Create one to start grouping environments and applications."
+      />
+
+      <div v-else class="grid grid-cols-[repeat(auto-fill,minmax(300px,1fr))] gap-4">
+        <NuxtLink
+          v-for="project in projects"
+          :key="project.id"
+          :to="`/projects/${project.id}`"
+          class="flex flex-col gap-3 rounded-card border border-edge bg-card p-4.5 transition-colors hover:border-edge-strong"
+        >
+          <div class="text-[15px] font-semibold tracking-[-0.01em] text-ink">
+            {{ project.name }}
+          </div>
+          <p class="flex-1 text-[13px] leading-normal text-pretty text-ink-2">
+            {{ project.description || 'No description.' }}
+          </p>
+          <div class="flex gap-3.5 border-t border-hairline pt-2.75 text-caption text-ink-3">
+            <span>{{ countLabel(data?.appCount.get(project.id) ?? 0, 'application') }}</span>
+            <span>{{ countLabel(data?.envCount.get(project.id) ?? 0, 'environment') }}</span>
+          </div>
+        </NuxtLink>
+      </div>
+    </div>
   </Content>
 </template>

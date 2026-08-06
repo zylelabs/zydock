@@ -5,6 +5,8 @@
     layout: 'blank',
   });
 
+  useHead({ title: 'Reset password' });
+
   const api = useApi();
   const toast = useToast();
   const route = useRoute();
@@ -49,45 +51,56 @@
 </script>
 
 <template>
-  <div class="flex min-h-screen flex-col items-center justify-center gap-8 p-6">
-    <div class="flex items-center gap-3 select-none">
-      <img src="@/assets/img/logo.svg" width="42" />
-      <div class="border-l border-white/25 pl-3 my-auto flex flex-col">
-        <div class="text-lg/tight text-white uppercase font-montserrat tracking-wider">ZyDock</div>
-      </div>
-    </div>
-    <Card title="Reset password" description="Choose a new password for your account.">
-      <Alert v-if="done" theme="success">
-        Password reset. You can now
-        <NuxtLink to="/auth/login" class="underline">sign in</NuxtLink>.
-      </Alert>
+  <div>
+    <h1 class="text-[25px] font-semibold tracking-tight text-ink">
+      {{
+        done ? 'Password updated' : !token ? 'This link no longer works' : 'Choose a new password'
+      }}
+    </h1>
+    <p v-if="!done && token" class="mt-1.75 mb-5.5 text-body text-pretty text-ink-2">
+      Signing in elsewhere is unaffected until you revoke those sessions.
+    </p>
 
-      <Alert v-else-if="!token" theme="error">
-        Invalid or incomplete link. Request a new one at
-        <NuxtLink to="/auth/forgot-password" class="underline">reset password</NuxtLink>.
-      </Alert>
+    <Alert v-if="done" class="mt-5.5" theme="success">
+      Password reset. You can now
+      <NuxtLink to="/auth/login" class="underline">sign in</NuxtLink>.
+    </Alert>
 
-      <form v-else class="flex flex-col gap-4" @submit.prevent="handleSubmit">
+    <Alert v-else-if="!token" class="mt-5.5" theme="error">
+      Invalid or incomplete link. Request a new one at
+      <NuxtLink to="/auth/forgot-password" class="underline">reset password</NuxtLink>.
+    </Alert>
+
+    <form v-else @submit.prevent="handleSubmit">
+      <Card rows>
         <Input
           v-model="form.values.password"
+          stacked
           label="New password"
           type="password"
           placeholder="••••••••"
           :disabled="form.loading.value"
+          :call-error="form.errors.value.password"
         />
         <Input
           v-model="form.values.confirm"
-          label="Confirm password"
+          stacked
+          label="Confirm"
           type="password"
           placeholder="••••••••"
           :disabled="form.loading.value"
+          :call-error="form.errors.value.confirm"
         />
-        <Button class="btn-primary" :disabled="form.loading.value">Reset password</Button>
-      </form>
+      </Card>
 
-      <p v-if="!done" class="mt-4 text-center text-sm text-content-muted">
-        <NuxtLink to="/auth/login" class="text-primary hover:underline">Back to sign in</NuxtLink>
-      </p>
-    </Card>
+      <Button theme="primary" type="submit" class="mt-4 w-full" :disabled="form.loading.value">
+        <Icon v-if="form.loading.value" name="svg-spinners:tadpole" size="16" />
+        Save password
+      </Button>
+    </form>
+
+    <div v-if="!done" class="mt-4.5 flex flex-wrap gap-4 text-[13px]">
+      <NuxtLink to="/auth/login" class="text-accent hover:underline">Back to sign in</NuxtLink>
+    </div>
   </div>
 </template>

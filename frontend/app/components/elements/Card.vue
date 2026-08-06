@@ -5,11 +5,14 @@
     headerClass?: string;
     /**
      * Class applied to the content..
-     * @default "p-4"
+     * @default "p-4.25"
      */
     contentClass?: string;
-    mode?: 'transparent';
-    noBackground?: boolean;
+    /**
+     * Content is a list of grouped rows (`Row`, `Input`, `Select`): drops the content padding and
+     * lets each row carry its own, so the dividers run from edge to edge.
+     */
+    rows?: boolean;
     titleCenter?: boolean;
     closeButton?: boolean;
   }>();
@@ -20,30 +23,18 @@
 </script>
 
 <template>
-  <div
-    class="z-10"
-    :class="{
-      'bg-surface-raised backdrop-blur-sm border border-surface-border rounded-xl shadow-soft':
-        mode !== 'transparent',
-    }"
-  >
+  <div class="overflow-hidden rounded-card border border-edge bg-card shadow-raised">
     <div
       v-if="title"
-      class="py-5 px-1 font-medium flex flex-col gap-3 sm:flex-row sm:items-center"
-      :class="[
-        mode !== 'transparent' &&
-          !noBackground &&
-          'px-5 border-b border-surface-line bg-surface-sunken rounded-t-xl',
-        titleCenter && 'text-center',
-        headerClass,
-      ]"
+      class="flex flex-col gap-3 border-b border-hairline px-4.25 py-3.25 sm:flex-row sm:items-center"
+      :class="[titleCenter && 'text-center', headerClass]"
     >
       <div class="min-w-0">
-        <div class="text-lg sm:text-xl text-content-strong">
+        <div class="text-[13px] font-semibold text-ink">
           {{ title }}
         </div>
 
-        <div v-if="description" class="text-sm text-content-muted">
+        <div v-if="description" class="text-caption text-ink-2">
           {{ description }}
         </div>
       </div>
@@ -55,7 +46,7 @@
       <button
         v-if="closeButton"
         type="button"
-        class="ml-auto mb-auto rounded-lg p-1 text-content-muted transition-colors cursor-pointer select-none hover:bg-surface-hover hover:text-content-strong"
+        class="ml-auto mb-auto cursor-pointer rounded-control p-1 text-ink-2 transition-colors select-none hover:bg-inset hover:text-ink"
         aria-label="Fechar"
         @click="emit('onClose')"
       >
@@ -65,19 +56,17 @@
       <slot name="header" />
     </div>
 
-    <div class="p-5" :class="contentClass">
+    <div
+      :data-rows="rows || undefined"
+      :class="[rows ? 'p-0' : 'p-4.25 has-[>[data-row]]:p-0', contentClass]"
+    >
       <slot />
     </div>
 
     <div
       v-if="slots.footer"
-      class="p-5 flex"
-      :class="[
-        mode !== 'transparent' &&
-          !noBackground &&
-          'px-5 border-t border-surface-line bg-surface-sunken rounded-b-xl',
-        titleCenter && 'text-center',
-      ]"
+      class="flex border-t border-hairline px-4.25 py-3.25"
+      :class="titleCenter && 'text-center'"
     >
       <slot name="footer" />
     </div>

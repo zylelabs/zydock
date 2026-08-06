@@ -53,7 +53,7 @@ post(
     const auth = c.get('auth');
     const body = c.req.valid('json' as never) as CreateOrganizationDTO;
 
-    const organization = await createOrganization(body.name, auth.sub, body.branding);
+    const organization = await createOrganization(body.name, auth.sub);
 
     return c.json({ organization: serializeOrganization(organization, 'owner') }, 201);
   },
@@ -95,10 +95,6 @@ patch(
 
     if (body.name !== undefined) {
       update.name = body.name;
-    }
-
-    for (const [key, value] of Object.entries(body.branding ?? {})) {
-      update[`branding.${key}`] = value;
     }
 
     const result = await organizationModel.updateOne({ _id: organizationId }, { $set: update });

@@ -6,9 +6,9 @@
   <Transition name="fade-only-leave" appear>
     <div
       v-show="page.hasLoadingPage"
-      class="flex items-center justify-center absolute z-50 w-full h-full top-0 left-0 bg-gradient"
+      class="flex items-center justify-center absolute z-50 w-full h-full top-0 left-0 bg-page"
     >
-      <Icon name="svg-spinners:pulse-rings-multiple" class="text-white" size="3em" />
+      <Icon name="svg-spinners:pulse-rings-multiple" class="text-accent" size="3em" />
     </div>
   </Transition>
 </template>

@@ -2,19 +2,11 @@ import { defineStore } from 'pinia';
 
 export type OrganizationRole = 'owner' | 'admin' | 'member';
 
-export interface OrganizationBranding {
-  logo?: string;
-  favicon?: string;
-  primaryColor?: string;
-  secondaryColor?: string;
-}
-
 export interface Organization {
   id: string;
   name: string;
   slug: string;
   role?: OrganizationRole;
-  branding: OrganizationBranding;
   createdAt: string;
 }
 

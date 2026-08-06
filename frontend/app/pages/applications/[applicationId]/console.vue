@@ -1,14 +1,14 @@
 <script setup lang="ts">
   import { useApplications } from '~/composables/services/useApplications';
   import { useDeployments } from '~/composables/services/useDeployments';
-
-  useHead({ title: 'Console' });
+  import { useServers } from '~/composables/services/useServers';
 
   const route = useRoute();
   const session = useSessionStore();
 
   const applications = useApplications();
   const deployments = useDeployments();
+  const servers = useServers();
 
   const applicationId = computed(() => String(route.params.applicationId));
 
@@ -25,37 +25,42 @@
       ]);
 
       const containerId = deps.items.find(deployment => deployment.containerId)?.containerId;
+      const server = await servers.get(app.application.serverId);
 
-      return { serverId: app.application.serverId, containerId };
+      return {
+        name: app.application.name,
+        serverId: app.application.serverId,
+        serverName: server.server.name,
+        containerId,
+      };
     },
     { server: false, watch: [() => session.organizationId, applicationId] },
   );
+
+  useHead(() => ({ title: `Console · ${data.value?.name ?? 'Application'}` }));
+
+  watchEffect(() => {
+    useNavbar().set({ title: 'Console', context: data.value?.name });
+  });
 </script>
 
 <template>
   <Content>
-    <NuxtLink
-      :to="`/applications/${applicationId}`"
-      class="mb-4 inline-flex items-center gap-1 text-sm text-content-muted transition-colors hover:text-content-strong"
-    >
-      <Icon name="lucide:chevron-left" class="size-4" />
-      Application
-    </NuxtLink>
+    <div v-if="data?.containerId" class="flex flex-col gap-2.5">
+      <Terminal :server-id="data.serverId" :container-id="data.containerId" host-class="min-h-85" />
+      <p class="text-caption text-ink-2">
+        Session runs inside the container on {{ data.serverName }}. It closes when you leave the
+        page.
+      </p>
+    </div>
 
-    <Header title="Console" />
-
-    <Terminal
-      v-if="data?.containerId"
-      :server-id="data.serverId"
-      :container-id="data.containerId"
+    <EmptyState
+      v-else-if="data"
+      variant="action"
+      title="No running container"
+      description="Run a successful deployment to open a console on the application's container."
     />
 
-    <Card v-else-if="data" title="No running container">
-      <p class="text-sm text-content-muted">
-        Run a successful deployment to open a console on the application's container.
-      </p>
-    </Card>
-
-    <p v-else class="text-sm text-content-muted">Loading…</p>
+    <p v-else class="text-caption text-ink-2">Loading…</p>
   </Content>
 </template>

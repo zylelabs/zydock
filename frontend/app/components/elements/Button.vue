@@ -1,34 +1,48 @@
 <script setup lang="ts">
   import { mergeClasses } from '~/utils';
 
-  type ButtonTheme = 'primary' | 'secondary' | 'danger' | 'accent' | 'ghost';
+  type ButtonTheme = 'primary' | 'secondary' | 'quiet' | 'destructive';
+  type LegacyButtonTheme = 'danger' | 'accent' | 'ghost';
+  type ButtonSize = 'md' | 'sm' | 'xs';
 
   const props = defineProps<{
     to?: string;
     class?: string;
     disabled?: boolean;
     type?: 'submit' | 'button' | 'reset';
-    theme?: ButtonTheme;
+    theme?: ButtonTheme | LegacyButtonTheme;
+    size?: ButtonSize;
   }>();
 
-  const base =
-    'inline-flex items-center justify-center gap-2 rounded-md px-3 py-1.5 text-sm font-medium cursor-pointer transition-colors focus-visible:outline-2 focus-visible:outline-offset-2 disabled:cursor-default disabled:opacity-60';
-
-  const themes: Record<ButtonTheme, string> = {
-    primary:
-      'bg-primary text-white ring-0 hover:bg-primary-600 active:bg-primary-700 disabled:hover:bg-primary focus-visible:outline-primary-300',
-    secondary:
-      'bg-surface-raised text-content-strong ring-1 ring-inset ring-field-border hover:bg-surface-hover disabled:hover:bg-surface-raised focus-visible:outline-primary-300',
-    danger:
-      'bg-red-600 text-white ring-0 hover:bg-red-700 active:bg-red-800 disabled:hover:bg-red-600 focus-visible:outline-red-300',
-    accent:
-      'bg-accent-300 text-surface ring-0 hover:bg-accent-400 active:bg-accent-500 disabled:hover:bg-accent-300 focus-visible:outline-accent-200',
-    ghost:
-      'bg-transparent text-content-muted ring-0 hover:bg-surface-hover hover:text-content-strong disabled:hover:bg-transparent focus-visible:outline-primary-300',
+  const legacyThemes: Record<LegacyButtonTheme, ButtonTheme> = {
+    danger: 'destructive',
+    accent: 'quiet',
+    ghost: 'quiet',
   };
 
+  const base =
+    'inline-flex items-center justify-center gap-2 font-medium cursor-pointer transition-colors focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-accent disabled:cursor-not-allowed disabled:opacity-50';
+
+  const themes: Record<ButtonTheme, string> = {
+    primary: 'bg-ink text-page hover:opacity-90',
+    secondary: 'border border-edge-strong bg-card hover:bg-inset',
+    quiet: 'text-ink-2 hover:text-ink',
+    destructive: 'border border-failed/40 bg-card text-failed hover:bg-failed/5',
+  };
+
+  const sizes: Record<ButtonSize, string> = {
+    md: 'rounded-[10px] px-5 py-[11px] text-[14.5px]',
+    sm: 'rounded-[9px] px-3.5 py-[7px] text-[13px]',
+    xs: 'rounded-control px-[11px] py-[5px] text-xs',
+  };
+
+  const resolvedTheme = computed<ButtonTheme>(
+    () =>
+      legacyThemes[props.theme as LegacyButtonTheme] ?? (props.theme as ButtonTheme) ?? 'secondary',
+  );
+
   const buttonClass = computed(() =>
-    mergeClasses(base, themes[props.theme ?? 'secondary'], props.class),
+    mergeClasses(base, themes[resolvedTheme.value], sizes[props.size ?? 'md'], props.class),
   );
 </script>
 

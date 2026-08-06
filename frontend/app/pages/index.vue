@@ -1,13 +1,14 @@
 <script setup lang="ts">
   import { useApplications, type Application } from '~/composables/services/useApplications';
   import {
+    deploymentStatusDot,
     useDeployments,
     type Deployment,
-    type DeploymentStatus,
   } from '~/composables/services/useDeployments';
+  import { useMetrics, type SystemMetrics } from '~/composables/services/useMetrics';
   import { useOrganizations } from '~/composables/services/useOrganizations';
   import { useProjects } from '~/composables/services/useProjects';
-  import { useServers, type Server, type ServerStatus } from '~/composables/services/useServers';
+  import { serverStatusDot, useServers, type Server } from '~/composables/services/useServers';
   import { formatDuration } from '~/utils';
 
   useHead({ title: 'Overview' });
@@ -19,6 +20,7 @@
   const { list: listProjects } = useProjects();
   const { list: listApplications } = useApplications();
   const { list: listDeployments } = useDeployments();
+  const { serverMetrics } = useMetrics();
 
   const empty = {
     servers: [] as Server[],
@@ -28,6 +30,7 @@
     applicationTotal: 0,
     deployments: [] as Deployment[],
     deploymentTotal: 0,
+    metricsByServer: new Map<string, SystemMetrics>(),
   };
 
   const load = async () => {
@@ -38,6 +41,18 @@
       listDeployments(),
     ]);
 
+    const metricsByServer = new Map<string, SystemMetrics>();
+
+    await Promise.all(
+      servers.items.map(async server => {
+        try {
+          metricsByServer.set(server.id, await serverMetrics(server.id));
+        } catch {
+          // metrics unavailable for an offline or unreachable server
+        }
+      }),
+    );
+
     return {
       servers: servers.items,
       serverTotal: servers.total,
@@ -46,6 +61,7 @@
       applicationTotal: applications.total,
       deployments: deployments.items,
       deploymentTotal: deployments.total,
+      metricsByServer,
     };
   };
 
@@ -56,6 +72,18 @@
   );
 
   const overview = computed(() => data.value ?? empty);
+
+  const hasLoadedOnce = ref(false);
+
+  watch(
+    status,
+    value => {
+      if (value !== 'pending') {
+        hasLoadedOnce.value = true;
+      }
+    },
+    { immediate: true },
+  );
 
   const hasResources = computed(
     () =>
@@ -73,9 +101,48 @@
       overview.value.applications.filter(application => application.status === 'running').length,
   );
 
+  const deploymentsLast24h = computed(() => {
+    const since = Date.now() - 24 * 60 * 60 * 1000;
+
+    return overview.value.deployments.filter(
+      deployment => new Date(deployment.createdAt).getTime() >= since,
+    );
+  });
+
   const deploymentsSucceeded = computed(
-    () => overview.value.deployments.filter(deployment => deployment.status === 'succeeded').length,
+    () => deploymentsLast24h.value.filter(deployment => deployment.status === 'succeeded').length,
   );
+
+  const stats = computed(() => [
+    {
+      label: 'Servers',
+      value: String(overview.value.serverTotal),
+      note: `${serversOnline.value} online`,
+    },
+    { label: 'Projects', value: String(overview.value.projectTotal) },
+    {
+      label: 'Applications',
+      value: String(overview.value.applicationTotal),
+      note: `${applicationsRunning.value} running`,
+    },
+    {
+      label: 'Deploys · 24h',
+      value: String(deploymentsLast24h.value.length),
+      note: `${deploymentsSucceeded.value} succeeded`,
+    },
+  ]);
+
+  const percent = (used = 0, total = 0) => (total ? Math.round((used / total) * 100) : 0);
+
+  const serverLoad = (server: Server) => {
+    const metrics = overview.value.metricsByServer.get(server.id);
+
+    if (!metrics) {
+      return null;
+    }
+
+    return `${Math.round(metrics.cpuPercent ?? 0)}% · ${percent(metrics.memoryUsedMb, metrics.memoryTotalMb)}%`;
+  };
 
   const applicationNames = computed(
     () =>
@@ -87,173 +154,125 @@
 
   const recentDeployments = computed(() => overview.value.deployments.slice(0, 5));
 
-  const SERVER_STATUS: Record<ServerStatus, { label: string; color: string }> = {
-    pending: { label: 'Pending', color: 'default' },
-    validating: { label: 'Validating', color: 'blue' },
-    provisioning: { label: 'Provisioning', color: 'blue' },
-    online: { label: 'Online', color: 'green' },
-    offline: { label: 'Offline', color: 'yellow' },
-    failed: { label: 'Failed', color: 'red' },
-  };
-
-  const DEPLOYMENT_STATUS: Record<DeploymentStatus, { label: string; color: string }> = {
-    queued: { label: 'Queued', color: 'default' },
-    running: { label: 'Running', color: 'blue' },
-    succeeded: { label: 'Succeeded', color: 'green' },
-    failed: { label: 'Failed', color: 'red' },
-  };
-
   const formatWhen = (value?: string) => (value ? new Date(value).toLocaleString('en-US') : '—');
+
+  const { set: setNavbar } = useNavbar({ title: 'Overview' });
+
+  watchEffect(() => {
+    setNavbar({
+      title: 'Overview',
+      context: current.value?.name,
+      action: current.value
+        ? {
+            label: 'Refresh',
+            icon: 'lucide:refresh-cw',
+            theme: 'secondary',
+            loading: status.value === 'pending',
+            onClick: () => refresh(),
+          }
+        : undefined,
+    });
+  });
 </script>
 
 <template>
   <Content>
-    <Header title="Overview" description="Summary of the current organization.">
-      <template #right>
-        <Button
-          v-if="current"
-          theme="secondary"
-          class="my-auto"
-          :disabled="status === 'pending'"
-          @click="refresh()"
-        >
-          <Icon v-if="status === 'pending'" name="svg-spinners:tadpole" size="16" />
-          <Icon v-else name="lucide:refresh-cw" size="16" />
-          Refresh
-        </Button>
-      </template>
-    </Header>
+    <EmptyState
+      v-if="!current"
+      variant="action"
+      title="Select an organization"
+      description="Choose or create an organization in the sidebar selector to see its summary."
+    />
 
-    <Card v-if="!current" title="Select an organization">
-      <p class="text-sm text-content-muted">
-        Choose or create an organization in the sidebar selector to see its summary.
-      </p>
-    </Card>
-
-    <Card v-else-if="status === 'pending'" title="Overview">
-      <p class="text-sm text-content-muted">Loading…</p>
-    </Card>
-
-    <div
-      v-else-if="!hasResources"
-      class="flex flex-col items-center gap-3 rounded-xl border border-dashed border-field-border bg-surface-sunken px-6 py-12 text-center"
-    >
-      <Icon name="lucide:layout-dashboard" class="size-8 text-content-dim" />
-      <div>
-        <h3 class="text-content-strong">Nothing here yet</h3>
-        <p class="mt-1 text-sm text-content-muted">
-          Add a server and create a project to start deploying applications.
-        </p>
+    <div v-else-if="status === 'pending' && !hasLoadedOnce" class="flex flex-col gap-5">
+      <div class="grid gap-3.5 sm:grid-cols-2 lg:grid-cols-4">
+        <Skeleton v-for="index in 4" :key="index" class="h-21" />
       </div>
-      <div class="mt-1 flex gap-2">
-        <Button theme="secondary" to="/servers">
-          <Icon name="lucide:server" size="18" />
-          Servers
-        </Button>
-        <Button theme="primary" to="/projects">
-          <Icon name="proicons:add" size="18" />
-          Projects
-        </Button>
-      </div>
+      <Skeleton class="h-64" />
     </div>
 
-    <div v-else class="flex flex-col gap-6">
-      <div class="grid gap-4 sm:grid-cols-2 lg:grid-cols-4">
-        <div
-          class="rounded-xl border border-surface-border bg-surface-raised p-4 shadow-soft backdrop-blur-sm"
-        >
-          <p class="text-sm text-content-muted">Servers</p>
-          <p class="mt-1 text-2xl font-semibold text-content-strong">
-            {{ overview.serverTotal }}
-          </p>
-          <p class="mt-1 text-xs text-content-muted">{{ serversOnline }} online</p>
-        </div>
+    <EmptyState
+      v-else-if="!hasResources"
+      variant="action"
+      centered
+      title="Nothing running yet."
+      description="Register a machine first, then point a repository at it. The two steps take about four minutes together."
+    >
+      <Button theme="primary" to="/servers">Add a server</Button>
+      <Button theme="secondary" to="/projects">Create a project</Button>
+    </EmptyState>
 
-        <div
-          class="rounded-xl border border-surface-border bg-surface-raised p-4 shadow-soft backdrop-blur-sm"
-        >
-          <p class="text-sm text-content-muted">Projects</p>
-          <p class="mt-1 text-2xl font-semibold text-content-strong">
-            {{ overview.projectTotal }}
-          </p>
-        </div>
-
-        <div
-          class="rounded-xl border border-surface-border bg-surface-raised p-4 shadow-soft backdrop-blur-sm"
-        >
-          <p class="text-sm text-content-muted">Applications</p>
-          <p class="mt-1 text-2xl font-semibold text-content-strong">
-            {{ overview.applicationTotal }}
-          </p>
-          <p class="mt-1 text-xs text-content-muted">{{ applicationsRunning }} running</p>
-        </div>
-
-        <div
-          class="rounded-xl border border-surface-border bg-surface-raised p-4 shadow-soft backdrop-blur-sm"
-        >
-          <p class="text-sm text-content-muted">Deploys</p>
-          <p class="mt-1 text-2xl font-semibold text-content-strong">
-            {{ overview.deploymentTotal }}
-          </p>
-          <p class="mt-1 text-xs text-content-muted">
-            {{ deploymentsSucceeded }} succeeded in the last {{ overview.deployments.length }}
-          </p>
-        </div>
+    <div v-else class="flex flex-col gap-5">
+      <div class="grid gap-3.5 sm:grid-cols-2 lg:grid-cols-4">
+        <Metric
+          v-for="stat in stats"
+          :key="stat.label"
+          :label="stat.label"
+          :value="stat.value"
+          :note="stat.note"
+        />
       </div>
 
-      <div class="grid gap-6 lg:grid-cols-2">
-        <Card title="Recent deployments">
-          <p v-if="!recentDeployments.length" class="text-sm text-content-muted">
+      <div class="grid gap-4.5 lg:grid-cols-[1.5fr_1fr]">
+        <Card title="Recent deployments" content-class="p-0">
+          <p
+            v-if="!recentDeployments.length"
+            class="px-4.5 py-6 text-center text-caption text-ink-2"
+          >
             No deployments yet.
           </p>
 
-          <ul v-else class="flex flex-col divide-y divide-surface-line">
-            <li v-for="deployment in recentDeployments" :key="deployment.id">
-              <NuxtLink
-                :to="`/applications/${deployment.applicationId}/deployments/${deployment.id}`"
-                class="-mx-2 flex flex-wrap items-center gap-3 rounded-lg px-2 py-3 transition-colors hover:bg-surface-hover"
-              >
-                <Tag :color="DEPLOYMENT_STATUS[deployment.status].color">
-                  {{ DEPLOYMENT_STATUS[deployment.status].label }}
-                </Tag>
-                <div class="min-w-0 flex-1">
-                  <p class="truncate text-sm text-content-strong">
-                    {{ applicationName(deployment.applicationId) }}
-                  </p>
-                  <p class="text-xs text-content-muted">
-                    {{ deployment.trigger }} · {{ formatWhen(deployment.createdAt) }}
-                  </p>
+          <template v-else>
+            <Row
+              v-for="deployment in recentDeployments"
+              :key="deployment.id"
+              :to="`/applications/${deployment.applicationId}/deployments/${deployment.id}`"
+              class="grid-cols-[auto_1fr_auto_auto]"
+            >
+              <StatusDot :status="deploymentStatusDot(deployment.status)" />
+              <div class="min-w-0">
+                <div class="truncate text-[13.5px] font-medium text-ink">
+                  {{ applicationName(deployment.applicationId) }}
                 </div>
-                <span class="shrink-0 text-xs text-content-muted">
-                  {{ formatDuration(deployment.durationMs) }}
-                </span>
-              </NuxtLink>
-            </li>
-          </ul>
+                <div class="truncate text-caption text-ink-2">
+                  {{ deployment.trigger }} · {{ formatWhen(deployment.createdAt) }}
+                </div>
+              </div>
+              <div v-if="deployment.commit" class="font-mono text-caption text-ink-2">
+                {{ deployment.commit.sha.slice(0, 7) }}
+              </div>
+              <div class="text-caption text-ink-2">{{ formatDuration(deployment.durationMs) }}</div>
+            </Row>
+          </template>
         </Card>
 
-        <Card title="Servers">
-          <p v-if="!overview.servers.length" class="text-sm text-content-muted">No servers yet.</p>
+        <Card title="Servers" content-class="p-0">
+          <p
+            v-if="!overview.servers.length"
+            class="px-4.5 py-6 text-center text-caption text-ink-2"
+          >
+            No servers yet.
+          </p>
 
-          <ul v-else class="flex flex-col divide-y divide-surface-line">
-            <li v-for="server in overview.servers" :key="server.id">
-              <NuxtLink
-                :to="`/servers/${server.id}`"
-                class="-mx-2 flex flex-wrap items-center gap-3 rounded-lg px-2 py-3 transition-colors hover:bg-surface-hover"
-              >
-                <Tag :color="SERVER_STATUS[server.status].color">
-                  {{ SERVER_STATUS[server.status].label }}
-                </Tag>
-                <div class="min-w-0 flex-1">
-                  <p class="truncate text-sm text-content-strong">{{ server.name }}</p>
-                  <p class="truncate text-xs text-content-muted">
-                    {{ server.type === 'local' ? 'Local machine' : server.ssh.host }}
-                  </p>
+          <template v-else>
+            <Row
+              v-for="server in overview.servers"
+              :key="server.id"
+              :to="`/servers/${server.id}`"
+              class="grid-cols-[auto_1fr_auto]"
+            >
+              <StatusDot :status="serverStatusDot(server.status)" />
+              <div class="min-w-0">
+                <div class="truncate text-[13.5px] font-medium text-ink">{{ server.name }}</div>
+                <div class="truncate font-mono text-caption text-ink-2">
+                  {{ server.type === 'local' ? 'Local machine' : server.ssh.host }}
                 </div>
-                <Tag v-if="server.online" color="green">agent</Tag>
-              </NuxtLink>
-            </li>
-          </ul>
+              </div>
+              <div v-if="serverLoad(server)" class="text-caption text-ink-2">
+                {{ serverLoad(server) }}
+              </div>
+            </Row>
+          </template>
         </Card>
       </div>
     </div>

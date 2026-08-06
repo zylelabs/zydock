@@ -3,5 +3,5 @@
 </script>
 
 <template>
-  <div class="animate-pulse bg-gray-200" :class="rounded"></div>
+  <div class="animate-pulse bg-hairline" :class="rounded"></div>
 </template>

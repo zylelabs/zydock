@@ -35,41 +35,6 @@
     pageStore.addLoadingPage('delay');
     pageStore.addLoadingPage('user');
 
-    // try {
-    //   const me = await $fetch<IMeResponse>('/api/proxy/auth/me', {
-    //     query: { api: 'auth' },
-    //   });
-
-    //   if (me) {
-    //     user.email = me.email;
-    //     user.name = me.name;
-    //     user.organizations = me.organizations;
-
-    //     if (me.organizations && me.organizations.length > 0) {
-    //       const features: Features = [];
-
-    //       await Promise.all(
-    //         me.organizations.map(async (org: IOrganization) => {
-    //           const response = await $fetch<any>(`/api/proxy/analysis/organizations/${org.id}`);
-
-    //           if (response.features) {
-    //             features.push(...response.features);
-    //           }
-    //         }),
-    //       );
-
-    //       user.features = features;
-    //     }
-    //   }
-    // } finally {
-    //   pageStore.removeLoadingPage('user');
-
-    //   setTimeout(() => {
-    //     pageStore.removeLoadingPage('delay');
-    //     scrollToTop();
-    //   }, 500);
-    // }
-
     setTimeout(() => {
       pageStore.removeLoadingPage('user');
       pageStore.removeLoadingPage('delay');
@@ -78,37 +43,31 @@
 </script>
 
 <template>
-  <Background />
   <LoadingPage />
 
-  <div v-if="pageStore.hasLoadingPage" class="bg-surface absolute w-full h-full top-0 left-0" />
+  <div v-if="pageStore.hasLoadingPage" class="absolute top-0 left-0 h-full w-full bg-page" />
 
-  <div v-else class="fixed inset-0 flex h-screen flex-col overflow-hidden bg-background">
-    <!-- <ProductNavbar /> -->
+  <div v-else class="fixed inset-0 flex h-screen overflow-hidden bg-page text-ink">
+    <Sidebar />
 
-    <div class="flex min-h-0 flex-1">
-      <Sidebar />
+    <Transition name="fade">
+      <div v-if="isOpen" class="fixed inset-0 z-30 bg-ink/40 lg:hidden" @click="close"></div>
+    </Transition>
 
-      <div class="flex w-full min-w-0 flex-1 flex-col">
-        <Transition name="fade">
-          <div
-            v-if="isOpen"
-            class="fixed inset-0 top-12 z-30 bg-black/40 lg:hidden"
-            @click="close"
-          ></div>
-        </Transition>
+    <div class="flex w-full min-w-0 flex-1 flex-col">
+      <Header
+        :title="navbar.title"
+        :context="navbar.context"
+        :loading="navbar.loading"
+        :action="navbar.action"
+      />
 
-        <Navbar :title="navbar.title" :breadcrumb="navbar.breadcrumb" :loading="navbar.loading" />
-
-        <div
-          id="scroll-container"
-          ref="scrollContainer"
-          class="w-full min-h-0 flex-1 overflow-y-auto"
-        >
-          <div class="">
-            <slot />
-          </div>
-        </div>
+      <div
+        id="scroll-container"
+        ref="scrollContainer"
+        class="w-full min-h-0 flex-1 overflow-y-auto"
+      >
+        <slot />
       </div>
     </div>
   </div>
