@@ -6,6 +6,10 @@ import { openAPIDoc } from 'hono-route-docs';
 import config from './config';
 import { startHeartbeat, stopHeartbeat } from './modules/agent/heartbeat.service';
 import { startHealthMonitor, stopHealthMonitor } from './modules/agent/monitor.service';
+import {
+  startAccessAggregation,
+  stopAccessAggregation,
+} from './modules/proxy/proxy.aggregate.service';
 import routes from './modules/routes';
 import { logError, logInfo } from './utils/logger';
 
@@ -16,6 +20,7 @@ let isShuttingDown = false;
 const cleanup = () => {
   stopHeartbeat();
   stopHealthMonitor();
+  stopAccessAggregation();
 };
 
 const setupShutdownHandlers = () => {
@@ -84,6 +89,7 @@ export const createApp = () => {
 
   startHeartbeat();
   startHealthMonitor();
+  startAccessAggregation();
   setupShutdownHandlers();
 
   if (config.mode === 'dev') {

@@ -32,6 +32,37 @@ export type CertificateStatus = {
   expiresAt?: string;
 };
 
+export type AccessLogEntry = {
+  at: string;
+  host: string;
+  method: string;
+  path: string;
+  status: number;
+  durationMs: number;
+  remoteIp: string;
+  userAgent?: string;
+  size: number;
+};
+
+export type AccessLogPage = {
+  items: AccessLogEntry[];
+  total: number;
+  page: number;
+  size: number;
+  pages: number;
+};
+
+export type AccessQuery = {
+  host?: string;
+  since?: string;
+  tail?: number;
+  status?: number;
+  page?: number;
+  size?: number;
+};
+
+export type AccessStreamQuery = Omit<AccessQuery, 'page' | 'size'> & { signal?: AbortSignal };
+
 export type ReverseProxyProvider = {
   upsertRoute: (spec: RouteSpec) => Promise<void>;
   removeRoute: (routeId: string) => Promise<void>;
@@ -41,6 +72,8 @@ export type ReverseProxyProvider = {
   getCertificateStatus: (domain: string) => Promise<CertificateStatus>;
   renewCertificate: (domain: string) => Promise<void>;
   reload: () => Promise<void>;
+  listAccess: (query: AccessQuery) => Promise<AccessLogPage>;
+  streamAccess: (query: AccessStreamQuery) => AsyncIterable<AccessLogEntry>;
 };
 
 export type ReverseProxyProviderFactory = (

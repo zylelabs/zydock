@@ -1,0 +1,150 @@
+<script setup lang="ts">
+  import AccessLogTable from '~/components/proxy/AccessLogTable.vue';
+  import AccessStatsCharts from '~/components/proxy/AccessStatsCharts.vue';
+  import AccessSummary from '~/components/proxy/AccessSummary.vue';
+  import AccessTopHosts from '~/components/proxy/AccessTopHosts.vue';
+  import { useAccessLogFeed } from '~/composables/useAccessLogFeed';
+  import { useApplications, type Application } from '~/composables/services/useApplications';
+  import {
+    useProxyAccess,
+    type AccessLogEntry,
+    type AccessStatsHost,
+    type AccessStatsPoint,
+  } from '~/composables/services/useProxyAccess';
+  import { useServers } from '~/composables/services/useServers';
+
+  const route = useRoute();
+  const session = useSessionStore();
+
+  const serversApi = useServers();
+  const applicationsApi = useApplications();
+  const proxyAccessApi = useProxyAccess();
+
+  const serverId = computed(() => String(route.params.serverId));
+  const serverName = ref('');
+  const isSuperuser = computed(() => Boolean(session.user?.superuser));
+
+  useHead(() => ({ title: `Access · ${serverName.value || 'Server'}` }));
+
+  const { set: setNavbar } = useNavbar();
+
+  watchEffect(() => {
+    setNavbar({ title: 'Access', context: serverName.value });
+  });
+
+  const { items, loading, error, filtered, live, load } = useAccessLogFeed(filters =>
+    proxyAccessApi.serverAccess(serverId.value, filters),
+  );
+
+  const applications = ref<Application[]>([]);
+
+  const filters = reactive({ host: '', applicationId: '', status: '' });
+
+  const applicationOptions = computed(() => [
+    { value: '', label: 'All applications' },
+    ...applications.value.map(application => ({ value: application.id, label: application.name })),
+  ]);
+
+  const visibleItems = computed(() =>
+    filters.applicationId
+      ? items.value.filter(entry => entry.applicationId === filters.applicationId)
+      : items.value,
+  );
+
+  const runLoad = () =>
+    load({
+      host: filters.host || undefined,
+      status: filters.status ? Number(filters.status) : undefined,
+    });
+
+  watch([() => filters.host, () => filters.status], runLoad);
+
+  const handleHostClick = (entry: AccessLogEntry) => {
+    if (entry.applicationId) {
+      navigateTo(`/applications/${entry.applicationId}/access`);
+    }
+  };
+
+  const statsSeries = ref<AccessStatsPoint[]>([]);
+  const topHosts = ref<AccessStatsHost[]>([]);
+  const statsLoading = ref(true);
+
+  const loadStats = async () => {
+    statsLoading.value = true;
+
+    try {
+      const stats = await proxyAccessApi.serverAccessStats(serverId.value);
+
+      statsSeries.value = stats.series;
+      topHosts.value = stats.topHosts;
+    } finally {
+      statsLoading.value = false;
+    }
+  };
+
+  onMounted(async () => {
+    if (!session.organizationId) {
+      return;
+    }
+
+    const [{ server }, applicationList] = await Promise.all([
+      serversApi.get(serverId.value),
+      applicationsApi.list({ serverId: serverId.value }),
+    ]);
+
+    serverName.value = server.name;
+    applications.value = applicationList.items;
+
+    await Promise.all([runLoad(), loadStats()]);
+  });
+</script>
+
+<template>
+  <Content>
+    <div class="flex flex-col gap-4.5">
+      <Alert v-if="filtered && !isSuperuser" theme="warning">
+        This view is filtered to your organization's hosts. Only a superuser sees every host on this
+        server.
+      </Alert>
+
+      <AccessSummary :items="visibleItems" />
+
+      <AccessStatsCharts :series="statsSeries" :loading="statsLoading" />
+
+      <AccessTopHosts :hosts="topHosts" />
+
+      <Alert v-if="error" theme="error">{{ error }}</Alert>
+
+      <AccessLogTable
+        v-model:live="live"
+        :items="visibleItems"
+        :loading="loading"
+        show-application
+        clickable-host
+        empty-label="No requests reached this server's proxy yet."
+        @host-click="handleHostClick"
+      >
+        <template #filters>
+          <input
+            v-model="filters.host"
+            placeholder="Filter by host"
+            class="w-44 rounded-control border border-edge bg-card px-3 py-1.5 text-[13px] text-ink outline-none placeholder:text-ink-3 focus:border-edge-strong"
+          />
+          <Select
+            v-model="filters.applicationId"
+            :options="applicationOptions"
+            class="w-48"
+            boxed
+            bare
+          />
+          <input
+            v-model="filters.status"
+            type="number"
+            placeholder="Status"
+            class="w-24 rounded-control border border-edge bg-card px-3 py-1.5 text-[13px] text-ink outline-none placeholder:text-ink-3 focus:border-edge-strong"
+          />
+        </template>
+      </AccessLogTable>
+    </div>
+  </Content>
+</template>

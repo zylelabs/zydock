@@ -129,6 +129,7 @@ export default {
   },
   proxy: {
     network: readString('PROXY_NETWORK', 'zydock'),
+    accessRetentionHours: readNumber('PROXY_ACCESS_RETENTION_HOURS', 168),
   },
   metrics: {
     retentionHours: readNumber('METRICS_RETENTION_HOURS', 168),

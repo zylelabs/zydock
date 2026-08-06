@@ -22,6 +22,12 @@ const routeSpecOf = (domain: Domain, application: Application): RouteSpec => ({
 export const findDomain = (organizationId: string, domainId: string) =>
   domainModel.findOne({ _id: domainId, organizationId });
 
+export const listDomainsOfApplication = (applicationId: string) =>
+  domainModel.find({ applicationId });
+
+export const findDomainsByHostnames = (hostnames: string[]) =>
+  domainModel.find({ hostname: { $in: hostnames } });
+
 const resolveProxyOfServer = async (serverId: string): Promise<ReverseProxyProvider> => {
   const server = await findServerById(serverId);
 
@@ -66,7 +72,7 @@ export const applyApplicationDomains = async (
   application: Application,
   connection: { serverId: string; endpoint: string; token: string },
 ) => {
-  const domains = await domainModel.find({ applicationId: application._id });
+  const domains = await listDomainsOfApplication(String(application._id));
 
   if (domains.length === 0) {
     return [];

@@ -24,6 +24,9 @@ import inviteRoute from './organizations/invite.route';
 import membershipRoute from './organizations/membership.route';
 import organizationsRoute from './organizations/organizations.route';
 import gitSourcesRoute from './git-sources/git-sources.route';
+import proxyAccessAggregateIngestRoute from './proxy/access-aggregate.route';
+import applicationProxyAccessRoute from './proxy/application-access.route';
+import serverProxyAccessRoute from './proxy/server-access.route';
 import environmentRoute from './projects/environment.route';
 import projectsRoute from './projects/projects.route';
 import queueRoute from './queue/queue.route';
@@ -55,6 +58,7 @@ route('/organizations/:organizationId/servers/:serverId/images', imagesRoute);
 route('/organizations/:organizationId/servers/:serverId/networks', networksRoute);
 route('/organizations/:organizationId/servers/:serverId/volumes', volumesRoute);
 route('/organizations/:organizationId/servers/:serverId/metrics', serverMetricsRoute);
+route('/organizations/:organizationId/servers/:serverId/proxy', serverProxyAccessRoute);
 route('/organizations/:organizationId/git-sources', gitSourcesRoute);
 route('/organizations/:organizationId/projects', projectsRoute);
 route('/organizations/:organizationId/projects/:projectId/environments', environmentRoute);
@@ -63,6 +67,10 @@ route('/organizations/:organizationId/applications/:applicationId/logs', applica
 route(
   '/organizations/:organizationId/applications/:applicationId/metrics',
   applicationMetricsRoute,
+);
+route(
+  '/organizations/:organizationId/applications/:applicationId/proxy',
+  applicationProxyAccessRoute,
 );
 route('/organizations/:organizationId/deployments', deploymentsRoute);
 route('/organizations/:organizationId/deployments/:deploymentId/logs', deploymentLogsRoute);
@@ -74,6 +82,7 @@ route('/organizations/:organizationId/backups', backupsRoute);
 route('/queue', queueRoute);
 
 route('/agent', heartbeatRoute);
+route('/agent', proxyAccessAggregateIngestRoute);
 route('/webhooks', webhookRoute);
 route('/webhooks', gitSourceWebhookRoute);
 

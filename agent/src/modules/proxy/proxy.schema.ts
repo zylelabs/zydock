@@ -49,3 +49,23 @@ export const routeSpecSchema = z
   });
 
 export type RouteSpecDTO = z.infer<typeof routeSpecSchema>;
+
+export const caddyAccessLogSchema = z.object({
+  logger: z.literal('http.log.access'),
+  ts: z.number(),
+  status: z.number().int(),
+  size: z.number().int(),
+  duration: z.number(),
+  request: z.object({
+    host: z.string(),
+    uri: z.string(),
+    method: z.string(),
+    remote_ip: z.string(),
+    headers: z
+      .object({ 'User-Agent': z.array(z.string()).optional() })
+      .partial()
+      .optional(),
+  }),
+});
+
+export type CaddyAccessLogEntry = z.infer<typeof caddyAccessLogSchema>;
