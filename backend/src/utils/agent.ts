@@ -1,4 +1,5 @@
 import config from '../config';
+import { describeConnectionFailure } from './network';
 
 export type AgentConnection = {
   serverId: string;
@@ -144,10 +145,12 @@ export const createAgentClient = (connection: AgentConnection) => {
         signal: streamed ? signal : AbortSignal.timeout(config.agent.requestTimeoutMs),
       });
     } catch (error) {
-      const reason = error instanceof Error ? error.message : String(error);
+      if (isAbortError(error)) {
+        throw error;
+      }
 
       throw new Error(
-        `Agent of server ${connection.serverId} did not answer ${method} ${path}: ${reason}`,
+        `Agent of server ${connection.serverId} did not answer ${method} ${path}: ${await describeConnectionFailure(url.toString(), error)}`,
       );
     }
 
