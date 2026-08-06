@@ -30,6 +30,7 @@ services:
       CORS_ORIGIN: http://localhost:3000
       LOCAL_AGENT_TOKEN: dev-local-agent-token-change-me
       LOCAL_AGENT_HOST: agent
+      SUPERUSER_EMAILS: admin@zydock.io
     volumes:
       - ./backend:/app
       - backend-node-modules:/app/node_modules

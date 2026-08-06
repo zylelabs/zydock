@@ -1,5 +1,9 @@
-import { createAgentClient } from '../../utils/agent';
+import { createAgentClient, isAbortError, readAgentEvents, searchParams } from '../../utils/agent';
 import type {
+  AccessLogEntry,
+  AccessLogPage,
+  AccessQuery,
+  AccessStreamQuery,
   CertificateStatus,
   ReverseProxyConnection,
   ReverseProxyProvider,
@@ -41,5 +45,44 @@ export const createRemoteReverseProxyProvider = (
       discard(`/proxy/certificates/${domainPath(domain)}/renew`, { method: 'POST' }),
 
     reload: () => discard('/proxy/reload', { method: 'POST' }),
+
+    listAccess: (query: AccessQuery) =>
+      json<AccessLogPage>('/proxy/access', {
+        query: searchParams({
+          host: query.host,
+          since: query.since,
+          tail: query.tail,
+          status: query.status,
+          page: query.page,
+          size: query.size,
+        }),
+      }),
+
+    streamAccess: (query: AccessStreamQuery) => ({
+      async *[Symbol.asyncIterator]() {
+        const response = await send('/proxy/access/stream', {
+          query: searchParams({
+            host: query.host,
+            since: query.since,
+            tail: query.tail,
+            status: query.status,
+          }),
+          streamed: true,
+          signal: query.signal,
+        });
+
+        try {
+          for await (const entry of readAgentEvents(response)) {
+            if (entry.event === 'log') {
+              yield JSON.parse(entry.data) as AccessLogEntry;
+            }
+          }
+        } catch (error) {
+          if (!isAbortError(error)) {
+            throw error;
+          }
+        }
+      },
+    }),
   };
 };

@@ -60,5 +60,7 @@ export default {
     adminUrl: readString('CADDY_ADMIN_URL', 'http://127.0.0.1:2019'),
     httpsHost: readString('PROXY_HTTPS_HOST', '127.0.0.1'),
     httpsPort: readNumber('PROXY_HTTPS_PORT', 443),
+    containerService: readString('PROXY_CONTAINER_SERVICE', 'caddy'),
+    accessAggregateIntervalSeconds: readNumber('PROXY_ACCESS_AGGREGATE_INTERVAL_SECONDS', 30),
   },
 };

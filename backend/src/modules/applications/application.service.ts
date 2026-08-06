@@ -34,6 +34,9 @@ export const decryptVariables = (variables: ApplicationVariable[]) =>
 export const findApplication = (organizationId: string, applicationId: string) =>
   applicationModel.findOne({ _id: applicationId, organizationId });
 
+export const findApplicationNames = (applicationIds: string[]) =>
+  applicationModel.find({ _id: { $in: applicationIds } }).select('name');
+
 export const findApplicationWithSecrets = (organizationId: string, applicationId: string) =>
   applicationModel
     .findOne({ _id: applicationId, organizationId })

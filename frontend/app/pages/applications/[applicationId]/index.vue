@@ -217,6 +217,9 @@
       <Button theme="secondary" size="sm" :to="`/applications/${application.id}/logs`">
         Logs
       </Button>
+      <Button theme="secondary" size="sm" :to="`/applications/${application.id}/access`">
+        Access
+      </Button>
       <Button theme="secondary" size="sm" :to="`/applications/${application.id}/console`">
         Console
       </Button>

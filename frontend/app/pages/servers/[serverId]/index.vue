@@ -2,7 +2,6 @@
   import DockerPanel from '~/components/servers/DockerPanel.vue';
   import EditServerPanel from '~/components/servers/EditServerPanel.vue';
   import ProvisioningCard from '~/components/servers/ProvisioningCard.vue';
-  import ProxyLogCard from '~/components/servers/ProxyLogCard.vue';
   import { useMetrics, type SystemMetrics } from '~/composables/services/useMetrics';
   import { useOrganizations } from '~/composables/services/useOrganizations';
   import {
@@ -169,6 +168,8 @@
 
         <div class="flex-1" />
 
+        <Button theme="secondary" size="sm" :to="`/servers/${serverId}/access`"> Access </Button>
+
         <template v-if="canManage">
           <Button theme="secondary" size="sm" @click="editing = true"> Edit </Button>
           <Button
@@ -226,8 +227,6 @@
             </p>
           </template>
         </Card>
-
-        <ProxyLogCard :server-id="serverId" />
 
         <DockerPanel :server-id="serverId" :can-manage="canManage" />
 
