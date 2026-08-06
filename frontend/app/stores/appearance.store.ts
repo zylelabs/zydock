@@ -7,7 +7,9 @@ interface IAppearanceStore {
 }
 
 export const useAppearanceStore = defineStore('appearance', {
-  state: (): IAppearanceStore => ({ mode: 'system' }),
+  state: (): IAppearanceStore => ({
+    mode: 'system',
+  }),
   actions: {
     setMode(mode: AppearanceMode) {
       this.mode = mode;
