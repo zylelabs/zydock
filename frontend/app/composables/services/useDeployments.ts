@@ -46,7 +46,7 @@ export interface Deployment {
 }
 
 export interface DeploymentDetail extends Deployment {
-  buildLog: string[];
+  log: string[];
 }
 
 export type DeploymentFilter = { applicationId?: string; status?: DeploymentStatus };

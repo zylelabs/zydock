@@ -45,7 +45,7 @@ const deploymentSchema = new Schema(
     imageTag: { type: String, trim: true },
     containerId: { type: String, trim: true },
     steps: { type: [stepSchema], default: [] },
-    buildLog: { type: [String], default: [] },
+    log: { type: [String], default: [] },
     startedAt: { type: Date },
     finishedAt: { type: Date },
     durationMs: { type: Number },

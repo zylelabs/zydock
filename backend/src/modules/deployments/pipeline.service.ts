@@ -1,7 +1,16 @@
 import config from '../../config';
-import { resolveContainerProvider, type ContainerSpec } from '../../providers/container';
+import {
+  resolveContainerProvider,
+  type ContainerSpec,
+  type ImageInfo,
+} from '../../providers/container';
 import { resolveGitProvider } from '../../providers/git';
-import { createAgentClient, type AgentConnection } from '../../utils/agent';
+import {
+  createAgentClient,
+  isAbortError,
+  readAgentEvents,
+  type AgentConnection,
+} from '../../utils/agent';
 import { logError, logInfo } from '../../utils/logger';
 import applicationModel from '../applications/application.model';
 import {
@@ -16,7 +25,7 @@ import deploymentModel from './deployment.model';
 import type { DeploymentStep } from './deployment.schema';
 import { APPLICATION_LABEL, AUTOHEAL_LABEL, containerNameOf, DEPLOYMENT_LABEL } from './naming';
 import {
-  appendBuildLog,
+  appendLog,
   createDeployment,
   finishDeployment,
   markRunning,
@@ -27,6 +36,44 @@ import {
 export const DEPLOY_JOB = 'deployment.run';
 
 const HEALTHCHECK_POLL_MS = 2000;
+const LOG_FLUSH_DELAY_MS = 75;
+
+const makeLogPublisher = (deploymentId: string, step: DeploymentStep) => {
+  let pending: string[] = [];
+  let timer: ReturnType<typeof setTimeout> | null = null;
+
+  const flush = () => {
+    timer = null;
+
+    if (!pending.length) {
+      return;
+    }
+
+    const lines = pending;
+
+    pending = [];
+
+    void appendLog(deploymentId, lines);
+  };
+
+  const push = (message: string) => {
+    pending.push(`[${step}] ${message.trimEnd()}`);
+
+    if (!timer) {
+      timer = setTimeout(flush, LOG_FLUSH_DELAY_MS);
+    }
+  };
+
+  const drain = () => {
+    if (timer) {
+      clearTimeout(timer);
+    }
+
+    flush();
+  };
+
+  return { push, drain };
+};
 
 type CloneResult = {
   workspace: string;
@@ -89,18 +136,43 @@ const cloneStep = async (
   application: Application,
   deploymentId: string,
   branch: string,
-  commit?: string,
+  commit: string | undefined,
+  onLog: (message: string) => void,
 ) => {
   const git = resolveGitProvider(await resolveGitCredentials(application));
 
   const url = await git.getCloneUrl(application.git.repository);
 
-  const { json } = createAgentClient(connection);
+  const { send } = createAgentClient(connection);
 
-  return json<CloneResult>('/repositories/clone', {
+  const response = await send('/repositories/clone', {
     method: 'POST',
     body: { url, branch, workspace: deploymentId, commit },
+    streamed: true,
   });
+
+  let result: CloneResult | null = null;
+  let failure: string | null = null;
+
+  for await (const entry of readAgentEvents(response)) {
+    if (entry.event === 'log') {
+      onLog((JSON.parse(entry.data) as { message: string }).message);
+    } else if (entry.event === 'result') {
+      result = JSON.parse(entry.data) as CloneResult;
+    } else if (entry.event === 'error') {
+      failure = (JSON.parse(entry.data) as { error: string }).error;
+    }
+  }
+
+  if (failure) {
+    throw new Error(`Failed to clone the repository: ${failure}`);
+  }
+
+  if (!result) {
+    throw new Error('The agent closed the clone stream without a result');
+  }
+
+  return result;
 };
 
 const replaceContainer = async (
@@ -218,6 +290,8 @@ export const runDeployment = async (deploymentId: string) => {
 
     connection = buildAgentConnection(server);
 
+    const containers = resolveContainerProvider(connection);
+
     const isRollback = deployment.trigger === 'rollback';
 
     let image: string;
@@ -239,13 +313,22 @@ export const runDeployment = async (deploymentId: string) => {
     } else {
       startStep('clone');
 
-      const clone = await cloneStep(
-        connection,
-        application,
-        deploymentId,
-        deployment.branch,
-        deployment.commit?.sha,
-      );
+      const cloneLog = makeLogPublisher(deploymentId, 'clone');
+
+      let clone: CloneResult;
+
+      try {
+        clone = await cloneStep(
+          connection,
+          application,
+          deploymentId,
+          deployment.branch,
+          deployment.commit?.sha,
+          message => cloneLog.push(message),
+        );
+      } finally {
+        cloneLog.drain();
+      }
 
       workspace = clone.workspace;
 
@@ -262,32 +345,22 @@ export const runDeployment = async (deploymentId: string) => {
       startStep('build');
 
       image = imageTagOf(application.slug, clone.commit);
-      const containers = resolveContainerProvider(connection);
 
-      let pending: string[] = [];
+      const buildLog = makeLogPublisher(deploymentId, 'build');
 
-      const flush = async () => {
-        const lines = pending;
+      let built: ImageInfo;
 
-        pending = [];
+      try {
+        built = await containers.buildImage({
+          tag: image,
+          contextPath: `${clone.path}/${application.git.buildContext}`.replace(/\/\.$/, ''),
+          dockerfilePath: `${clone.path}/${application.git.dockerfilePath}`,
+          onLog: entry => buildLog.push(entry.message),
+        });
+      } finally {
+        buildLog.drain();
+      }
 
-        await appendBuildLog(deploymentId, lines);
-      };
-
-      const built = await containers.buildImage({
-        tag: image,
-        contextPath: `${clone.path}/${application.git.buildContext}`.replace(/\/\.$/, ''),
-        dockerfilePath: `${clone.path}/${application.git.dockerfilePath}`,
-        onLog: entry => {
-          pending.push(entry.message.trimEnd());
-
-          if (pending.length >= 20) {
-            void flush();
-          }
-        },
-      });
-
-      await flush();
       await finishStep(`${built.tag} (${Math.round(built.sizeBytes / 1024 / 1024)} MB)`);
     }
 
@@ -297,25 +370,51 @@ export const runDeployment = async (deploymentId: string) => {
 
     await finishStep(container.name);
 
-    startStep('proxy');
+    const containerLog = makeLogPublisher(deploymentId, 'container');
+    const bootLogsAbort = new AbortController();
 
-    const domains = await applyApplicationDomains(application, connection);
+    const consumeBootLogs = async () => {
+      try {
+        for await (const entry of containers.streamLogs(container.id, {
+          signal: bootLogsAbort.signal,
+        })) {
+          containerLog.push(entry.message);
+        }
+      } catch (error) {
+        if (!isAbortError(error)) {
+          logError('Failed to stream container boot logs', error, { deployment: deploymentId });
+        }
+      } finally {
+        containerLog.drain();
+      }
+    };
 
-    if (domains.length === 0) {
-      await finishStep('No domain configured for this application', 'skipped');
-    } else {
-      await finishStep(domains.map(domain => domain.hostname).join(', '));
+    const bootLogsPromise = consumeBootLogs();
+
+    try {
+      startStep('proxy');
+
+      const domains = await applyApplicationDomains(application, connection);
+
+      if (domains.length === 0) {
+        await finishStep('No domain configured for this application', 'skipped');
+      } else {
+        await finishStep(domains.map(domain => domain.hostname).join(', '));
+      }
+
+      startStep('healthcheck');
+
+      const state = await healthcheckStep(
+        connection,
+        container.id,
+        Boolean(application.healthcheck?.path),
+      );
+
+      await finishStep(state);
+    } finally {
+      bootLogsAbort.abort();
+      await bootLogsPromise;
     }
-
-    startStep('healthcheck');
-
-    const state = await healthcheckStep(
-      connection,
-      container.id,
-      Boolean(application.healthcheck?.path),
-    );
-
-    await finishStep(state);
 
     await applicationModel.updateOne(
       { _id: application._id },

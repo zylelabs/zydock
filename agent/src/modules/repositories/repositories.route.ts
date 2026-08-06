@@ -1,5 +1,6 @@
 import type { Context } from 'hono';
 import { createRouter, validator } from 'hono-route-docs';
+import { streamSSE } from 'hono/streaming';
 import { errorMessage } from '../../utils';
 import { agentAuthMiddleware } from '../agent/agent.middleware';
 import { repositoriesDocs } from './repositories.docs';
@@ -7,6 +8,8 @@ import { CloneDTO, cloneSchema, WorkspaceParam, workspaceParamSchema } from './r
 import { cloneRepository, removeWorkspace } from './repositories.service';
 
 const { router, post, delete: del } = createRouter();
+
+const CLONE_KEEPALIVE_MS = 15000;
 
 post(
   '/clone',
@@ -16,11 +19,35 @@ post(
   async (c: Context) => {
     const body = c.req.valid('json' as never) as CloneDTO;
 
-    try {
-      return c.json(await cloneRepository(body));
-    } catch (error) {
-      return c.json({ error: errorMessage(error) }, 400);
-    }
+    return streamSSE(c, async stream => {
+      let queue = Promise.resolve();
+
+      const write = (event: string, data: unknown) => {
+        queue = queue
+          .then(() =>
+            stream.aborted || stream.closed
+              ? undefined
+              : stream.writeSSE({ event, data: JSON.stringify(data) }),
+          )
+          .catch(() => undefined);
+
+        return queue;
+      };
+
+      const keepalive = setInterval(() => void write('ping', {}), CLONE_KEEPALIVE_MS);
+
+      stream.onAbort(() => clearInterval(keepalive));
+
+      try {
+        const result = await cloneRepository(body, entry => void write('log', entry));
+
+        await write('result', result);
+      } catch (error) {
+        await write('error', { error: errorMessage(error) });
+      } finally {
+        clearInterval(keepalive);
+      }
+    });
   },
 );
 

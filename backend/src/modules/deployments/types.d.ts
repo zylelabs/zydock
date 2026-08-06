@@ -24,7 +24,7 @@ interface DeploymentData {
   imageTag?: string;
   containerId?: string;
   steps: DeploymentStepResult[];
-  buildLog: string[];
+  log: string[];
   startedAt?: Date;
   finishedAt?: Date;
   durationMs?: number;

@@ -122,7 +122,7 @@ export default {
   deploy: {
     workspacePath: readString('DEPLOY_WORKSPACE_PATH', '/var/lib/zydock/builds'),
     healthcheckTimeoutSeconds: readNumber('DEPLOY_HEALTHCHECK_TIMEOUT_SECONDS', 180),
-    buildLogLines: readNumber('DEPLOY_BUILD_LOG_LINES', 500),
+    logLines: readNumber('DEPLOY_LOG_LINES', 500),
   },
   logs: {
     streamTail: readNumber('LOGS_STREAM_TAIL', 100),
