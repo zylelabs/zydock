@@ -1,0 +1,99 @@
+name: Release PR
+
+on:
+  workflow_dispatch:
+
+concurrency:
+  group: release-pr
+  cancel-in-progress: false
+
+jobs:
+  promote:
+    name: Open nightly -> main promotion PR
+    runs-on: ubuntu-latest
+    permissions:
+      actions: read # gh run list
+      contents: read
+      pull-requests: write
+    steps:
+      - uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262 # v4.4.0
+        with:
+          fetch-depth: 0
+
+      - name: Check nightly CI status
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          STATUS="$(gh run list --branch nightly --workflow ci.yml --limit 1 --json conclusion --jq '.[0].conclusion')"
+          if [ "${STATUS}" != "success" ]; then
+            echo "::error::nightly CI is not green (${STATUS:-no run found}) — refusing to open the release PR."
+            exit 1
+          fi
+
+      - name: Check for commits pending promotion
+        id: diff
+        run: |
+          git fetch origin nightly main
+          AHEAD="$(git rev-list --count origin/main..origin/nightly)"
+          if [ "${AHEAD}" -eq 0 ]; then
+            echo "::error::nightly has no commits main doesn't — nothing to promote."
+            exit 1
+          fi
+          {
+            echo "log<<EOF"
+            git log --oneline --no-decorate origin/main..origin/nightly
+            echo "EOF"
+          } >> "$GITHUB_OUTPUT"
+
+      - name: Resolve target version
+        id: target
+        run: |
+          VERSION="v$(scripts/version.sh root-version origin/nightly)"
+          echo "version=${VERSION}" >> "$GITHUB_OUTPUT"
+
+          if git rev-parse -q --verify "refs/tags/${VERSION}" >/dev/null; then
+            echo "taken=true" >> "$GITHUB_OUTPUT"
+            echo "::warning::${VERSION} is already tagged — bump the root package.json version on this PR."
+          else
+            echo "taken=false" >> "$GITHUB_OUTPUT"
+          fi
+
+      - name: Open promotion PR
+        env:
+          GH_TOKEN: ${{ github.token }}
+          LOG: ${{ steps.diff.outputs.log }}
+          VERSION: ${{ steps.target.outputs.version }}
+          TAKEN: ${{ steps.target.outputs.taken }}
+        run: |
+          EXISTING="$(gh pr list --base main --head nightly --state open --json number --jq '.[0].number')"
+          if [ -n "${EXISTING}" ]; then
+            echo "Promotion PR #${EXISTING} already open."
+            exit 0
+          fi
+
+          {
+            echo "Manual promotion of \`nightly\` to \`main\` — nightly's CI is green."
+            echo
+            echo "## Next tag"
+            echo
+            if [ "${TAKEN}" = "true" ]; then
+              echo "⚠️ \`${VERSION}\` **is already tagged.** Bump the root \`package.json\` version"
+              echo "on this branch before merging, otherwise Release Tag will refuse to run."
+            else
+              echo "\`${VERSION}\`, from the root \`package.json\`. Bump that version on this branch"
+              echo "if the release deserves a different one."
+            fi
+            echo
+            echo "Once merged, run the Release Tag workflow on main to cut it; release.yml"
+            echo "publishes the GitHub Release from the tag."
+            echo
+            echo "## Commits"
+            echo
+            echo '```'
+            echo "${LOG}"
+            echo '```'
+          } > /tmp/pr-body.md
+
+          gh pr create --base main --head nightly \
+            --title "chore(release): promote nightly to ${VERSION}" \
+            --body-file /tmp/pr-body.md
