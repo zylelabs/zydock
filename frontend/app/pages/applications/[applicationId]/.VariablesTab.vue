@@ -13,13 +13,33 @@
   const messageOf = (error: unknown, fallback: string) =>
     (error as { message?: string }).message || fallback;
 
-  const { data, refresh: refreshVariables } = await useAsyncData(
+  const {
+    data,
+    status,
+    refresh: refreshVariables,
+  } = useLazyAsyncData(
     () => `application-${props.application.id}-variables`,
     () =>
       session.organizationId
         ? applicationsApi.listVariables(props.application.id)
         : Promise.resolve({ variables: [] }),
-    { server: false, watch: [() => session.organizationId, () => props.application.id] },
+    {
+      server: false,
+      watch: [() => session.organizationId, () => props.application.id],
+      default: () => ({ variables: [] }),
+    },
+  );
+
+  const hasLoadedOnce = ref(false);
+
+  watch(
+    status,
+    value => {
+      if (value !== 'pending') {
+        hasLoadedOnce.value = true;
+      }
+    },
+    { immediate: true },
   );
 
   const variables = computed(() => data.value?.variables ?? []);
@@ -71,8 +91,12 @@
       </template>
 
       <template v-if="!editingVars">
+        <template v-if="status === 'pending' && !hasLoadedOnce">
+          <SkeletonRow v-for="index in 3" :key="index" />
+        </template>
+
         <EmptyState
-          v-if="!variables.length"
+          v-else-if="!variables.length"
           variant="prompt"
           description="No variables defined."
           class="m-2.5"

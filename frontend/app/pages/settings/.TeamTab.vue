@@ -19,10 +19,29 @@
 
   const empty = { items: [], total: 0, page: 1, size: 0, pages: 0 };
 
-  const { data: membersData, refresh: refreshMembers } = await useAsyncData(
+  const {
+    data: membersData,
+    status: membersStatus,
+    refresh: refreshMembers,
+  } = useLazyAsyncData(
     () => `settings-members-${props.organization.id}`,
     () => listMembers(),
-    { server: false, default: () => empty },
+    {
+      server: false,
+      default: () => empty,
+    },
+  );
+
+  const membersLoadedOnce = ref(false);
+
+  watch(
+    membersStatus,
+    value => {
+      if (value !== 'pending') {
+        membersLoadedOnce.value = true;
+      }
+    },
+    { immediate: true },
   );
 
   const members = computed(() => membersData.value?.items ?? []);
@@ -51,7 +70,7 @@
     }
   };
 
-  const { data: invitesData, refresh: refreshInvites } = await useAsyncData(
+  const { data: invitesData, refresh: refreshInvites } = useLazyAsyncData(
     () => `settings-invites-${props.organization.id}`,
     () => (props.canManage ? listInvites() : Promise.resolve(empty)),
     { server: false, watch: [() => props.canManage], default: () => empty },
@@ -164,49 +183,55 @@
 <template>
   <div class="flex flex-col gap-4.5">
     <Card title="Members" content-class="p-0">
-      <Row
-        v-for="member in members"
-        :key="member.userId"
-        as="div"
-        class="flex items-center gap-3.5"
-      >
-        <Avatar :name="member.name || member.email || '?'" />
-        <div class="min-w-0 flex-1">
-          <div class="truncate text-[13.5px] text-ink">
-            {{ member.name ?? member.email }}
-            <span v-if="isSelf(member)" class="text-caption text-ink-2">(you)</span>
+      <template v-if="membersStatus === 'pending' && !membersLoadedOnce">
+        <SkeletonRow v-for="index in 3" :key="index" avatar />
+      </template>
+
+      <template v-else>
+        <Row
+          v-for="member in members"
+          :key="member.userId"
+          as="div"
+          class="flex items-center gap-3.5"
+        >
+          <Avatar :name="member.name || member.email || '?'" />
+          <div class="min-w-0 flex-1">
+            <div class="truncate text-[13.5px] text-ink">
+              {{ member.name ?? member.email }}
+              <span v-if="isSelf(member)" class="text-caption text-ink-2">(you)</span>
+            </div>
+            <div class="truncate text-caption text-ink-2">{{ member.email }}</div>
           </div>
-          <div class="truncate text-caption text-ink-2">{{ member.email }}</div>
-        </div>
-        <Select
-          v-if="canManage && !(isSelf(member) && !isOwner)"
-          :model-value="member.role"
-          :options="roleOptions"
-          class="w-32"
-          boxed
-          bare
-          @update:model-value="role => changeRole(member, role as string)"
-        />
-        <Tag v-else class="capitalize">{{ member.role }}</Tag>
-        <button
-          v-if="isSelf(member)"
-          type="button"
-          title="Leave the organization"
-          class="cursor-pointer rounded-control p-1.5 text-ink-2 hover:bg-inset hover:text-failed"
-          @click="askLeave"
-        >
-          <Icon name="lucide:log-out" class="size-4" />
-        </button>
-        <button
-          v-else-if="canManage"
-          type="button"
-          title="Remove member"
-          class="cursor-pointer rounded-control p-1.5 text-ink-2 hover:bg-inset hover:text-failed"
-          @click="askRemoveMember(member)"
-        >
-          <Icon name="lucide:user-minus" class="size-4" />
-        </button>
-      </Row>
+          <Select
+            v-if="canManage && !(isSelf(member) && !isOwner)"
+            :model-value="member.role"
+            :options="roleOptions"
+            class="w-32"
+            boxed
+            bare
+            @update:model-value="role => changeRole(member, role as string)"
+          />
+          <Tag v-else class="capitalize">{{ member.role }}</Tag>
+          <button
+            v-if="isSelf(member)"
+            type="button"
+            title="Leave the organization"
+            class="cursor-pointer rounded-control p-1.5 text-ink-2 hover:bg-inset hover:text-failed"
+            @click="askLeave"
+          >
+            <Icon name="lucide:log-out" class="size-4" />
+          </button>
+          <button
+            v-else-if="canManage"
+            type="button"
+            title="Remove member"
+            class="cursor-pointer rounded-control p-1.5 text-ink-2 hover:bg-inset hover:text-failed"
+            @click="askRemoveMember(member)"
+          >
+            <Icon name="lucide:user-minus" class="size-4" />
+          </button>
+        </Row>
+      </template>
     </Card>
 
     <Card v-if="canManage" title="Invite by email">

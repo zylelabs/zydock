@@ -13,10 +13,25 @@
   const apiKeysApi = useApiKeys();
   const sessionsApi = useSessions();
 
-  const { data: profileData, refresh: refreshProfile } = await useAsyncData(
-    'account-profile',
-    () => usersApi.me(),
-    { server: false },
+  const {
+    data: profileData,
+    status: profileStatus,
+    refresh: refreshProfile,
+  } = useLazyAsyncData('account-profile', () => usersApi.me(), {
+    server: false,
+    default: () => null,
+  });
+
+  const profileLoadedOnce = ref(false);
+
+  watch(
+    profileStatus,
+    value => {
+      if (value !== 'pending') {
+        profileLoadedOnce.value = true;
+      }
+    },
+    { immediate: true },
   );
 
   const user = computed(() => profileData.value?.user ?? null);
@@ -89,10 +104,25 @@
     await refreshSessions();
   });
 
-  const { data: keysData, refresh: refreshKeys } = await useAsyncData(
-    'account-api-keys',
-    () => apiKeysApi.list(),
-    { server: false, default: () => ({ items: [], total: 0, page: 1, size: 0, pages: 0 }) },
+  const {
+    data: keysData,
+    status: keysStatus,
+    refresh: refreshKeys,
+  } = useLazyAsyncData('account-api-keys', () => apiKeysApi.list(), {
+    server: false,
+    default: () => ({ items: [], total: 0, page: 1, size: 0, pages: 0 }),
+  });
+
+  const keysLoadedOnce = ref(false);
+
+  watch(
+    keysStatus,
+    value => {
+      if (value !== 'pending') {
+        keysLoadedOnce.value = true;
+      }
+    },
+    { immediate: true },
   );
 
   const apiKeys = computed(() => keysData.value?.items ?? []);
@@ -142,10 +172,25 @@
     }
   };
 
-  const { data: sessionsData, refresh: refreshSessions } = await useAsyncData(
-    'account-sessions',
-    () => sessionsApi.list(),
-    { server: false, default: () => ({ items: [], total: 0, page: 1, size: 0, pages: 0 }) },
+  const {
+    data: sessionsData,
+    status: sessionsStatus,
+    refresh: refreshSessions,
+  } = useLazyAsyncData('account-sessions', () => sessionsApi.list(), {
+    server: false,
+    default: () => ({ items: [], total: 0, page: 1, size: 0, pages: 0 }),
+  });
+
+  const sessionsLoadedOnce = ref(false);
+
+  watch(
+    sessionsStatus,
+    value => {
+      if (value !== 'pending') {
+        sessionsLoadedOnce.value = true;
+      }
+    },
+    { immediate: true },
   );
 
   const sessions = computed(() => sessionsData.value?.items ?? []);
@@ -205,7 +250,11 @@
           </Button>
         </template>
 
-        <template v-if="!editingProfile">
+        <template v-if="profileStatus === 'pending' && !profileLoadedOnce">
+          <SkeletonRow v-for="index in 2" :key="index" />
+        </template>
+
+        <template v-else-if="!editingProfile">
           <Row as="div" class="flex items-center">
             <div class="w-33 shrink-0 text-[13px] text-ink-2">Email</div>
             <div class="truncate text-[13px] text-ink">{{ user?.email }}</div>
@@ -328,8 +377,12 @@
           </div>
         </form>
 
+        <template v-if="keysStatus === 'pending' && !keysLoadedOnce">
+          <SkeletonRow v-for="index in 2" :key="index" />
+        </template>
+
         <EmptyState
-          v-if="!apiKeys.length"
+          v-else-if="!apiKeys.length"
           variant="prompt"
           description="No API keys yet."
           class="m-2.5"
@@ -369,26 +422,32 @@
           </Button>
         </template>
 
-        <Row v-for="item in sessions" :key="item.id" as="div" class="flex items-center gap-3.5">
-          <div class="min-w-0 flex-1">
-            <p class="truncate text-[13.5px] text-ink">
-              {{ item.userAgent || 'Unknown device' }}
-              <span v-if="item.current" class="text-caption text-ink-2">(this device)</span>
-            </p>
-            <p class="truncate text-caption text-ink-2">
-              {{ item.ip || 'unknown IP' }} · last used {{ formatWhen(item.lastUsedAt) }}
-            </p>
-          </div>
-          <button
-            type="button"
-            title="Revoke"
-            :disabled="revokingSession === item.id"
-            class="cursor-pointer rounded-control p-1.5 text-ink-2 hover:bg-inset hover:text-failed disabled:opacity-60"
-            @click="revokeSession(item.id)"
-          >
-            <Icon name="lucide:log-out" class="size-4" />
-          </button>
-        </Row>
+        <template v-if="sessionsStatus === 'pending' && !sessionsLoadedOnce">
+          <SkeletonRow v-for="index in 2" :key="index" />
+        </template>
+
+        <template v-else>
+          <Row v-for="item in sessions" :key="item.id" as="div" class="flex items-center gap-3.5">
+            <div class="min-w-0 flex-1">
+              <p class="truncate text-[13.5px] text-ink">
+                {{ item.userAgent || 'Unknown device' }}
+                <span v-if="item.current" class="text-caption text-ink-2">(this device)</span>
+              </p>
+              <p class="truncate text-caption text-ink-2">
+                {{ item.ip || 'unknown IP' }} · last used {{ formatWhen(item.lastUsedAt) }}
+              </p>
+            </div>
+            <button
+              type="button"
+              title="Revoke"
+              :disabled="revokingSession === item.id"
+              class="cursor-pointer rounded-control p-1.5 text-ink-2 hover:bg-inset hover:text-failed disabled:opacity-60"
+              @click="revokeSession(item.id)"
+            >
+              <Icon name="lucide:log-out" class="size-4" />
+            </button>
+          </Row>
+        </template>
       </Card>
 
       <NuxtLink

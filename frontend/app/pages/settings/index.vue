@@ -30,7 +30,7 @@
 
   const empty = { items: [], total: 0, page: 1, size: 0, pages: 0 };
 
-  const { data: membersData } = await useAsyncData(
+  const { data: membersData } = useLazyAsyncData(
     () => `settings-member-count-${current.value?.id}`,
     () => (current.value ? listMembers() : Promise.resolve(empty)),
     { server: false, watch: [() => current.value?.id], default: () => empty },

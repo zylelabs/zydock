@@ -110,6 +110,7 @@ export type ApplicationFilter = {
   projectId?: string;
   environmentId?: string;
   serverId?: string;
+  size?: number;
 };
 
 export const useApplications = () => {

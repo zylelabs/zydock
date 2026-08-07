@@ -26,7 +26,9 @@
   const messageOf = (error: unknown, fallback: string) =>
     (error as { message?: string }).message || fallback;
 
-  const { data, refresh } = await useAsyncData(
+  const { getCachedData, markFetched } = useNavigationCache();
+
+  const { data, refresh } = useLazyAsyncData(
     () => `server-${serverId.value}`,
     async () => {
       if (!session.organizationId) {
@@ -35,9 +37,16 @@
 
       const result = await servers.get(serverId.value);
 
+      markFetched(`server-${serverId.value}`);
+
       return { server: result.server };
     },
-    { server: false, watch: [() => session.organizationId, serverId] },
+    {
+      server: false,
+      watch: [() => session.organizationId, serverId],
+      default: () => null,
+      getCachedData: key => getCachedData(key),
+    },
   );
 
   const server = computed(() => data.value?.server ?? null);
@@ -259,6 +268,19 @@
   </Content>
 
   <Content v-else>
-    <p class="py-16 text-center text-caption text-ink-2">Loading…</p>
+    <div class="mx-auto flex max-w-225 flex-col">
+      <div class="mb-4.5 flex flex-wrap items-center gap-2.5">
+        <Skeleton class="h-7 w-24 rounded-full" />
+        <div class="flex-1" />
+        <Skeleton class="h-8 w-20" />
+      </div>
+
+      <div class="flex flex-col gap-4.5">
+        <SkeletonCard :rows="3" />
+        <div class="grid gap-4 sm:grid-cols-3">
+          <SkeletonChart v-for="index in 3" :key="index" />
+        </div>
+      </div>
+    </div>
   </Content>
 </template>

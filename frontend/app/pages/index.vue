@@ -30,7 +30,6 @@
     applicationTotal: 0,
     deployments: [] as Deployment[],
     deploymentTotal: 0,
-    metricsByServer: new Map<string, SystemMetrics>(),
   };
 
   const load = async () => {
@@ -41,18 +40,6 @@
       listDeployments(),
     ]);
 
-    const metricsByServer = new Map<string, SystemMetrics>();
-
-    await Promise.all(
-      servers.items.map(async server => {
-        try {
-          metricsByServer.set(server.id, await serverMetrics(server.id));
-        } catch {
-          // metrics unavailable for an offline or unreachable server
-        }
-      }),
-    );
-
     return {
       servers: servers.items,
       serverTotal: servers.total,
@@ -61,11 +48,10 @@
       applicationTotal: applications.total,
       deployments: deployments.items,
       deploymentTotal: deployments.total,
-      metricsByServer,
     };
   };
 
-  const { data, refresh, status } = await useAsyncData(
+  const { data, refresh, status } = useLazyAsyncData(
     'overview',
     () => (session.organizationId ? load() : Promise.resolve(empty)),
     { server: false, watch: [() => session.organizationId], default: () => empty },
@@ -134,8 +120,30 @@
 
   const percent = (used = 0, total = 0) => (total ? Math.round((used / total) * 100) : 0);
 
+  const metricsByServer = reactive(new Map<string, SystemMetrics>());
+
+  const loadServerMetrics = async (serverId: string) => {
+    if (metricsByServer.has(serverId)) {
+      return;
+    }
+
+    try {
+      metricsByServer.set(serverId, await serverMetrics(serverId));
+    } catch {
+      // metrics unavailable for an offline or unreachable server
+    }
+  };
+
+  watch(
+    () => overview.value.servers,
+    servers => {
+      servers.forEach(server => loadServerMetrics(server.id));
+    },
+    { immediate: true },
+  );
+
   const serverLoad = (server: Server) => {
-    const metrics = overview.value.metricsByServer.get(server.id);
+    const metrics = metricsByServer.get(server.id);
 
     if (!metrics) {
       return null;

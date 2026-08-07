@@ -50,10 +50,35 @@
     envCount: new Map<string, number>(),
   };
 
-  const { data, refresh } = await useAsyncData(
+  const { getCachedData, markFetched } = useNavigationCache();
+
+  const { data, status, refresh } = useLazyAsyncData(
     'projects',
-    () => (session.organizationId ? load() : Promise.resolve(empty)),
-    { server: false, watch: [() => session.organizationId], default: () => empty },
+    async () => {
+      const result = session.organizationId ? await load() : empty;
+
+      markFetched('projects');
+
+      return result;
+    },
+    {
+      server: false,
+      watch: [() => session.organizationId],
+      default: () => empty,
+      getCachedData: key => getCachedData(key),
+    },
+  );
+
+  const hasLoadedOnce = ref(false);
+
+  watch(
+    status,
+    value => {
+      if (value !== 'pending') {
+        hasLoadedOnce.value = true;
+      }
+    },
+    { immediate: true },
   );
 
   const projects = computed(() => data.value?.items ?? []);
@@ -143,8 +168,15 @@
         </div>
       </Card>
 
+      <div
+        v-if="status === 'pending' && !hasLoadedOnce"
+        class="grid grid-cols-[repeat(auto-fill,minmax(300px,1fr))] gap-4"
+      >
+        <SkeletonCard v-for="index in 3" :key="index" :rows="2" />
+      </div>
+
       <EmptyState
-        v-if="!projects.length"
+        v-else-if="!projects.length"
         variant="prompt"
         description="No projects yet. Create one to start grouping environments and applications."
       />

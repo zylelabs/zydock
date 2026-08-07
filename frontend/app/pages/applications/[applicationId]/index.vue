@@ -28,7 +28,9 @@
   const messageOf = (error: unknown, fallback: string) =>
     (error as { message?: string }).message || fallback;
 
-  const { data, refresh } = await useAsyncData(
+  const { getCachedData, markFetched } = useNavigationCache();
+
+  const { data, refresh } = useLazyAsyncData(
     () => `application-${applicationId.value}`,
     async () => {
       if (!session.organizationId) {
@@ -37,23 +39,30 @@
 
       const { application } = await applicationsApi.get(applicationId.value);
 
+      markFetched(`application-${applicationId.value}`);
+
       return application;
     },
-    { server: false, watch: [() => session.organizationId, applicationId] },
+    {
+      server: false,
+      watch: [() => session.organizationId, applicationId],
+      default: () => null,
+      getCachedData: key => getCachedData(key),
+    },
   );
 
   const application = computed(() => data.value);
 
-  const { data: domainsData } = await useAsyncData(
+  const { data: domainsData } = useLazyAsyncData(
     () => `application-${applicationId.value}-primary-domain`,
     () =>
       session.organizationId
         ? domainsApi.list({ applicationId: applicationId.value })
         : Promise.resolve(null),
-    { server: false, watch: [() => session.organizationId, applicationId] },
+    { server: false, watch: [() => session.organizationId, applicationId], default: () => null },
   );
 
-  const { data: server } = await useAsyncData(
+  const { data: server } = useLazyAsyncData(
     () => `application-${applicationId.value}-server`,
     async () => {
       const serverId = application.value?.serverId;
@@ -66,7 +75,7 @@
 
       return item;
     },
-    { server: false, watch: [() => application.value?.serverId] },
+    { server: false, watch: [() => application.value?.serverId], default: () => null },
   );
 
   const applicationUrl = computed(() => {
@@ -290,6 +299,25 @@
   </Content>
 
   <Content v-else>
-    <p class="py-16 text-center text-caption text-ink-2">Loading…</p>
+    <div class="mb-4.5 flex flex-wrap items-center gap-2.5">
+      <Skeleton class="h-7 w-24 rounded-full" />
+      <div class="flex-1" />
+      <Skeleton class="h-8 w-20" />
+      <Skeleton class="h-8 w-20" />
+    </div>
+
+    <div class="mb-5 flex gap-2">
+      <Skeleton v-for="index in 4" :key="index" class="h-8 w-24" />
+    </div>
+
+    <div class="grid gap-4.5 lg:grid-cols-[1.4fr_1fr]">
+      <div class="flex flex-col gap-4.5">
+        <div class="grid gap-3.5 sm:grid-cols-3">
+          <SkeletonChart v-for="index in 3" :key="index" />
+        </div>
+        <SkeletonCard :rows="4" />
+      </div>
+      <SkeletonCard :rows="8" />
+    </div>
   </Content>
 </template>

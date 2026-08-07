@@ -21,30 +21,30 @@
   const load = async () => {
     const servers = await list();
 
-    const metricsByServer = new Map<string, SystemMetrics>();
-
-    await Promise.all(
-      servers.items.map(async server => {
-        try {
-          metricsByServer.set(server.id, await serverMetrics(server.id));
-        } catch {
-          // metrics unavailable for an offline or unreachable server
-        }
-      }),
-    );
-
-    return { items: servers.items, metricsByServer };
+    return { items: servers.items };
   };
 
   const empty = {
     items: [] as Server[],
-    metricsByServer: new Map<string, SystemMetrics>(),
   };
 
-  const { data, refresh, status } = await useAsyncData(
+  const { getCachedData, markFetched } = useNavigationCache();
+
+  const { data, refresh, status } = useLazyAsyncData(
     'servers',
-    () => (session.organizationId ? load() : Promise.resolve(empty)),
-    { server: false, watch: [() => session.organizationId], default: () => empty },
+    async () => {
+      const result = session.organizationId ? await load() : empty;
+
+      markFetched('servers');
+
+      return result;
+    },
+    {
+      server: false,
+      watch: [() => session.organizationId],
+      default: () => empty,
+      getCachedData: key => getCachedData(key),
+    },
   );
 
   const servers = computed(() => data.value?.items ?? []);
@@ -61,7 +61,34 @@
     { immediate: true },
   );
 
-  const metricsFor = (server: Server) => data.value?.metricsByServer.get(server.id) ?? null;
+  const metricsByServer = reactive(new Map<string, SystemMetrics>());
+  const metricsLoading = reactive(new Set<string>());
+
+  const loadServerMetrics = async (serverId: string) => {
+    if (metricsByServer.has(serverId) || metricsLoading.has(serverId)) {
+      return;
+    }
+
+    metricsLoading.add(serverId);
+
+    try {
+      metricsByServer.set(serverId, await serverMetrics(serverId));
+    } catch {
+      // metrics unavailable for an offline or unreachable server
+    } finally {
+      metricsLoading.delete(serverId);
+    }
+  };
+
+  watch(
+    servers,
+    items => {
+      items.forEach(server => loadServerMetrics(server.id));
+    },
+    { immediate: true },
+  );
+
+  const metricsFor = (server: Server) => metricsByServer.get(server.id) ?? null;
 
   const percent = (used = 0, total = 0) => (total ? Math.round((used / total) * 100) : 0);
 
@@ -183,7 +210,11 @@
             </div>
           </NuxtLink>
 
-          <div v-if="metricsFor(server)" class="flex flex-col gap-1.5">
+          <div v-if="metricsLoading.has(server.id)" class="flex flex-col gap-1.5">
+            <SkeletonChart :label="false" />
+            <SkeletonChart :label="false" />
+          </div>
+          <div v-else-if="metricsFor(server)" class="flex flex-col gap-1.5">
             <Gauge
               label="CPU"
               :value="`${Math.round(metricsFor(server)?.cpuPercent ?? 0)}%`"

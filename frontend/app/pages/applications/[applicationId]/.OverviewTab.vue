@@ -22,7 +22,7 @@
 
   const emptyDeployments = { items: [], total: 0, page: 1, size: 0, pages: 0 };
 
-  const { data } = await useAsyncData(
+  const { data, status: deploymentsStatus } = useLazyAsyncData(
     () => `application-${props.application.id}-deployments`,
     () =>
       session.organizationId
@@ -35,6 +35,18 @@
     },
   );
 
+  const deploymentsLoadedOnce = ref(false);
+
+  watch(
+    deploymentsStatus,
+    value => {
+      if (value !== 'pending') {
+        deploymentsLoadedOnce.value = true;
+      }
+    },
+    { immediate: true },
+  );
+
   const deploymentList = computed(() => data.value?.items ?? []);
   const runningDeployment = computed(() =>
     deploymentList.value.find(
@@ -42,7 +54,7 @@
     ),
   );
 
-  const { data: metricsData } = await useAsyncData(
+  const { data: metricsData, status: metricsStatus } = useLazyAsyncData(
     () => `application-${props.application.id}-metrics`,
     async () => {
       if (!session.organizationId) {
@@ -56,7 +68,23 @@
 
       return { metrics, deployMetrics };
     },
-    { server: false, watch: [() => session.organizationId, () => props.application.id] },
+    {
+      server: false,
+      watch: [() => session.organizationId, () => props.application.id],
+      default: () => null,
+    },
+  );
+
+  const metricsLoadedOnce = ref(false);
+
+  watch(
+    metricsStatus,
+    value => {
+      if (value !== 'pending') {
+        metricsLoadedOnce.value = true;
+      }
+    },
+    { immediate: true },
   );
 
   const metrics = computed(() => metricsData.value?.metrics ?? null);
@@ -210,7 +238,13 @@
 
     <div class="grid gap-4.5 lg:grid-cols-[1.4fr_1fr]">
       <div class="flex flex-col gap-4.5">
-        <div v-if="stats.length" class="grid gap-3.5 sm:grid-cols-3">
+        <div
+          v-if="metricsStatus === 'pending' && !metricsLoadedOnce"
+          class="grid gap-3.5 sm:grid-cols-3"
+        >
+          <SkeletonChart v-for="index in 3" :key="index" />
+        </div>
+        <div v-else-if="stats.length" class="grid gap-3.5 sm:grid-cols-3">
           <Metric
             v-for="stat in stats"
             :key="stat.label"
@@ -222,7 +256,14 @@
         </div>
 
         <Card title="Deployments" content-class="p-0">
-          <p v-if="!deploymentList.length" class="px-4.25 py-6 text-center text-caption text-ink-2">
+          <template v-if="deploymentsStatus === 'pending' && !deploymentsLoadedOnce">
+            <SkeletonRow v-for="index in 3" :key="index" />
+          </template>
+
+          <p
+            v-else-if="!deploymentList.length"
+            class="px-4.25 py-6 text-center text-caption text-ink-2"
+          >
             No deployments yet.
           </p>
 
