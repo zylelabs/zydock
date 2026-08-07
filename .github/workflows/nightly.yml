@@ -1,0 +1,56 @@
+name: Nightly
+
+on:
+  schedule:
+    - cron: "0 6 * * *"
+  workflow_dispatch:
+
+concurrency:
+  group: nightly
+  cancel-in-progress: false
+
+jobs:
+  promote:
+    name: Open dev -> nightly promotion PR
+    runs-on: ubuntu-latest
+    permissions:
+      contents: read
+      pull-requests: write
+    steps:
+      - uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262 # v4.4.0
+        with:
+          fetch-depth: 0
+
+      - name: Check dev CI status
+        id: check
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          STATUS="$(gh run list --branch dev --workflow ci.yml --limit 1 --json conclusion --jq '.[0].conclusion')"
+          if [ "${STATUS}" = "success" ]; then
+            echo "green=true" >> "$GITHUB_OUTPUT"
+          else
+            echo "green=false" >> "$GITHUB_OUTPUT"
+            echo "::warning::dev CI is not green (${STATUS:-no run found}) — skipping nightly promotion PR."
+          fi
+
+      - name: Check for commits pending promotion
+        id: diff
+        if: steps.check.outputs.green == 'true'
+        run: |
+          git fetch origin dev nightly
+          AHEAD="$(git rev-list --count origin/nightly..origin/dev)"
+          echo "pending=$([ "${AHEAD}" -gt 0 ] && echo true || echo false)" >> "$GITHUB_OUTPUT"
+
+      - name: Open promotion PR
+        if: steps.check.outputs.green == 'true' && steps.diff.outputs.pending == 'true'
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          EXISTING="$(gh pr list --base nightly --head dev --state open --json number --jq '.[0].number')"
+          if [ -n "${EXISTING}" ]; then
+            echo "Promotion PR #${EXISTING} already open."
+          else
+            gh pr create --base nightly --head dev --title "chore(nightly): promote dev" \
+              --body "Automated nightly promotion — dev's CI is green and has commits nightly doesn't. Merge to cut a new nightly build; nightly-tag.yml tags it automatically."
+          fi
