@@ -7,6 +7,10 @@ on:
         description: "Tag to create (e.g. v0.2.0). Empty = root package.json version."
         required: false
         type: string
+  workflow_run:
+    workflows: [CI]
+    branches: [main]
+    types: [completed]
 
 concurrency:
   group: release-tag
@@ -16,20 +20,27 @@ jobs:
   tag:
     name: Tag stable release
     runs-on: ubuntu-latest
+    if: github.event_name == 'workflow_dispatch' || github.event.workflow_run.conclusion == 'success'
     permissions:
       actions: read # gh run list
       contents: write
     steps:
       - name: Guard branch
         run: |
-          if [ "${GITHUB_REF_NAME}" != "main" ]; then
-            echo "::error::Release tags are cut from main only (ran on '${GITHUB_REF_NAME}')."
+          if [ "${{ github.event_name }}" = "workflow_run" ]; then
+            BRANCH="${{ github.event.workflow_run.head_branch }}"
+          else
+            BRANCH="${GITHUB_REF_NAME}"
+          fi
+          if [ "${BRANCH}" != "main" ]; then
+            echo "::error::Release tags are cut from main only (ran on '${BRANCH}')."
             exit 1
           fi
 
       - uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262 # v4.4.0
         with:
           fetch-depth: 0
+          ref: ${{ github.event_name == 'workflow_run' && github.event.workflow_run.head_sha || github.ref }}
           token: ${{ secrets.RELEASE_TOKEN || github.token }}
 
       - name: Check main CI status
@@ -67,14 +78,29 @@ jobs:
             ;;
           esac
 
-          if git rev-parse -q --verify "refs/tags/${VERSION}" >/dev/null; then
-            echo "::error::Tag ${VERSION} already exists — bump the root package.json version."
-            exit 1
-          fi
-
           echo "version=${VERSION}" >> "$GITHUB_OUTPUT"
 
+      - name: Check if tag already exists
+        id: check
+        env:
+          VERSION: ${{ steps.version.outputs.version }}
+        run: |
+          if git rev-parse -q --verify "refs/tags/${VERSION}" >/dev/null; then
+            echo "exists=true" >> "$GITHUB_OUTPUT"
+          else
+            echo "exists=false" >> "$GITHUB_OUTPUT"
+          fi
+
+      - name: Fail if tag exists (manual dispatch)
+        if: github.event_name == 'workflow_dispatch' && steps.check.outputs.exists == 'true'
+        env:
+          VERSION: ${{ steps.version.outputs.version }}
+        run: |
+          echo "::error::Tag ${VERSION} already exists — bump the root package.json version."
+          exit 1
+
       - name: Create and push tag
+        if: steps.check.outputs.exists == 'false'
         env:
           VERSION: ${{ steps.version.outputs.version }}
         run: |

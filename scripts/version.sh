@@ -88,6 +88,10 @@ nightly_tag_at_head() {
   git -C "${ROOT_DIR}" tag --points-at "${points_ref}" --list "v$(root_version "${ref}")-n.*" | sort -V | tail -n1
 }
 
+latest_nightly_tag() {
+  git -C "${ROOT_DIR}" tag --list "v$(root_version)-n.*" | sort -V | tail -n1
+}
+
 next_nightly_number() {
   local ref="${1:-}"
   local latest
@@ -112,12 +116,19 @@ next_nightly() {
 
 channel_version() {
   local stable_tag
+  local nightly_tag
 
   case "${CHANNEL}" in
   stable)
     stable_tag="$(stable_tag_at_head)"
+    if [ -z "${stable_tag}" ] &&
+      ! git -C "${ROOT_DIR}" rev-parse -q --verify "refs/tags/v$(root_version)" >/dev/null; then
+      nightly_tag="$(latest_nightly_tag)"
+      [ -n "${nightly_tag}" ] || nightly_tag="v$(root_version)-n.$(next_nightly_number)"
+      echo "${nightly_tag}"
+      return
+    fi
     [ -n "${stable_tag}" ] || stable_tag="$(latest_stable_tag)"
-    [ -n "${stable_tag}" ] || fail "channel is stable but no stable tag (vX.Y.Z) exists yet"
     echo "${stable_tag}"
     ;;
   nightly)
