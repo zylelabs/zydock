@@ -43,12 +43,14 @@ services:
     volumes:
       - /var/run/docker.sock:/var/run/docker.sock
       - /var/lib/zydock/builds:/var/lib/zydock/builds
+      - ${ZYDOCK_INSTALL_DIR:-/data/zydock}:${ZYDOCK_INSTALL_DIR:-/data/zydock}
       - caddy-admin:/var/run/caddy
     environment:
       MODE: prod
       AGENT_TOKEN: ${LOCAL_AGENT_TOKEN}
       BACKEND_URL: http://backend:8000
       WORKSPACE_PATH: /var/lib/zydock/builds
+      ZYDOCK_INSTALL_DIR: ${ZYDOCK_INSTALL_DIR:-/data/zydock}
       CADDY_ADMIN_URL: unix:/var/run/caddy/admin.sock
       PROXY_HTTPS_HOST: caddy
 

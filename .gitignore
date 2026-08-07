@@ -16,6 +16,9 @@ node_modules
 /storage
 /*/storage
 
+# Update run state, written in the install directory
+.zydock-update.json
+
 # Misc
 .DS_Store
 .fleet

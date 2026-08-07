@@ -10,6 +10,7 @@ import networksRoute from './networks/networks.route';
 import proxyAccessRoute from './proxy/proxy.access.route';
 import proxyRoute from './proxy/proxy.route';
 import repositoriesRoute from './repositories/repositories.route';
+import updatesRoute from './updates/updates.route';
 import volumesRoute from './volumes/volumes.route';
 
 const { router, route } = createRouter();
@@ -26,5 +27,6 @@ route('/proxy', proxyAccessRoute);
 route('/repositories', repositoriesRoute);
 route('/backups', backupsRoute);
 route('/commands', commandsRoute);
+route('/updates', updatesRoute);
 
 export default router;

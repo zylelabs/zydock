@@ -97,3 +97,20 @@ export type GitAppProvider = {
 };
 
 export type GitAppProviderFactory = (credentials: GitAppCredentials) => GitAppProvider;
+
+export type GitReleasesCredentials = { repository: string; baseUrl?: string };
+
+export type GitReleaseHead = {
+  ref: string;
+  version: string;
+  commit: string;
+};
+
+export type GitReleasesProvider = {
+  resolveLatestRelease: () => Promise<GitReleaseHead>;
+  resolveBranchHead: (branch: string) => Promise<GitReleaseHead>;
+};
+
+export type GitReleasesProviderFactory = (
+  credentials: GitReleasesCredentials,
+) => GitReleasesProvider;

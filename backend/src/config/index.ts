@@ -73,6 +73,9 @@ export default {
   port: readNumber('PORT', 8000),
   idleTimeoutSeconds: Math.min(readNumber('SERVER_IDLE_TIMEOUT_SECONDS', 120), 255),
   mode: readString('MODE', 'prod'),
+  version: readString('ZYDOCK_VERSION', ''),
+  commit: readString('ZYDOCK_COMMIT', ''),
+  channel: readString('ZYDOCK_CHANNEL', ''),
   logLevel: readLogLevel(),
   corsOrigin: readString('CORS_ORIGIN', 'http://localhost:3000'),
   appUrl: readString('APP_URL', 'http://localhost:3000'),
@@ -137,6 +140,9 @@ export default {
   },
   notifications: {
     retentionHours: readNumber('NOTIFICATIONS_RETENTION_HOURS', 720),
+  },
+  updates: {
+    repository: readString('ZYDOCK_REPOSITORY', 'zylelabs/zydock'),
   },
   providers: {
     container: { runtime: readString('CONTAINER_RUNTIME', 'docker') },

@@ -13,9 +13,14 @@ export const NOTIFICATION_EVENTS = [
   'deployment.started',
   'deployment.succeeded',
   'deployment.failed',
+  'update.available',
+  'update.succeeded',
+  'update.failed',
 ] as const;
 
 export type NotificationEvent = (typeof NOTIFICATION_EVENTS)[number];
+
+export type DeploymentNotificationEvent = Extract<NotificationEvent, `deployment.${string}`>;
 
 export const NOTIFICATION_STATUSES = ['pending', 'sent', 'failed'] as const;
 

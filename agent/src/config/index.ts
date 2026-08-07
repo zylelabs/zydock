@@ -56,6 +56,8 @@ export default {
   metricsCacheTtlSeconds: readNumber('METRICS_CACHE_TTL_SECONDS', 5),
   workspacePath: readString('WORKSPACE_PATH', '/var/lib/zydock/builds'),
   dockerSocketPath: readString('DOCKER_SOCKET_PATH', '/var/run/docker.sock'),
+  installPath: readString('ZYDOCK_INSTALL_DIR', '/data/zydock'),
+  updaterImage: readString('UPDATER_IMAGE', 'docker:cli'),
   proxy: {
     adminUrl: readString('CADDY_ADMIN_URL', 'http://127.0.0.1:2019'),
     httpsHost: readString('PROXY_HTTPS_HOST', '127.0.0.1'),

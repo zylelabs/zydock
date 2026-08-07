@@ -7,8 +7,11 @@ import {
   type GitHost,
   type GitProvider,
   type GitProviderFactory,
+  type GitReleasesCredentials,
+  type GitReleasesProvider,
 } from './git.contract';
 import { createGithubAppProvider } from './github-app.provider';
+import { createGithubReleasesProvider } from './github-releases.provider';
 import { createGithubProvider } from './github.provider';
 
 const factories: Partial<Record<GitHost, GitProviderFactory>> = {
@@ -35,5 +38,9 @@ export const resolveGitProvider = (credentials: GitCredentials): GitProvider => 
 
 export const resolveGitAppProvider = (credentials: GitAppCredentials): GitAppProvider =>
   createGithubAppProvider(credentials);
+
+export const resolveGitReleasesProvider = (
+  credentials: GitReleasesCredentials,
+): GitReleasesProvider => createGithubReleasesProvider(credentials);
 
 export type * from './git.contract';

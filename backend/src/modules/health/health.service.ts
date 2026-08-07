@@ -1,3 +1,4 @@
+import config from '../../config';
 import { getDatabaseStatus } from '../../config/mongodb';
 import { countClients } from '../websocket/websocket.service';
 
@@ -8,6 +9,8 @@ export const getHealthReport = () => {
 
   return {
     status: database.connected ? 'ok' : 'degraded',
+    version: config.version,
+    commit: config.commit,
     uptime: Math.floor((Date.now() - startedAt) / 1000),
     timestamp: new Date().toISOString(),
     dependencies: {
