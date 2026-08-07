@@ -38,6 +38,7 @@ export interface BackupFilter {
   status?: BackupStatus;
   databaseId?: string;
   serverId?: string;
+  size?: number;
 }
 
 export const useBackups = () => {

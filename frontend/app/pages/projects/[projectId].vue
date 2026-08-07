@@ -26,7 +26,9 @@
     });
   };
 
-  const { data, refresh } = await useAsyncData(
+  const { getCachedData, markFetched } = useNavigationCache();
+
+  const { data, status, refresh } = useLazyAsyncData(
     () => `project-${projectId.value}`,
     async () => {
       if (!session.organizationId) {
@@ -40,6 +42,8 @@
         applications.list({ projectId: projectId.value }),
       ]);
 
+      markFetched(`project-${projectId.value}`);
+
       return {
         project: project.project,
         environments: environmentList.items,
@@ -47,10 +51,27 @@
         applications: applicationList.items,
       };
     },
-    { server: false, watch: [() => session.organizationId, projectId] },
+    {
+      server: false,
+      watch: [() => session.organizationId, projectId],
+      default: () => null,
+      getCachedData: key => getCachedData(key),
+    },
   );
 
   useHead(() => ({ title: data.value?.project.name ?? 'Project' }));
+
+  const hasLoadedOnce = ref(false);
+
+  watch(
+    status,
+    value => {
+      if (value !== 'pending') {
+        hasLoadedOnce.value = true;
+      }
+    },
+    { immediate: true },
+  );
 
   const environments = computed(() => data.value?.environments ?? []);
   const serverList = computed(() => data.value?.servers ?? []);
@@ -195,7 +216,12 @@
 
 <template>
   <Content>
-    <div class="flex max-w-225 flex-col gap-4.5">
+    <div v-if="status === 'pending' && !hasLoadedOnce" class="flex max-w-225 flex-col gap-4.5">
+      <SkeletonCard :rows="3" />
+      <SkeletonCard :rows="5" />
+    </div>
+
+    <div v-else class="flex max-w-225 flex-col gap-4.5">
       <div class="flex items-start justify-between gap-3">
         <p v-if="data?.project.description" class="text-[13.5px] text-ink-2">
           {{ data.project.description }}

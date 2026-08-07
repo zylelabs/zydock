@@ -54,10 +54,23 @@
     };
   };
 
-  const { data, refresh, status } = await useAsyncData(
+  const { getCachedData, markFetched } = useNavigationCache();
+
+  const { data, refresh, status } = useLazyAsyncData(
     'backups',
-    () => (session.organizationId ? load() : Promise.resolve(empty)),
-    { server: false, watch: [() => session.organizationId], default: () => empty },
+    async () => {
+      const result = session.organizationId ? await load() : empty;
+
+      markFetched('backups');
+
+      return result;
+    },
+    {
+      server: false,
+      watch: [() => session.organizationId],
+      default: () => empty,
+      getCachedData: key => getCachedData(key),
+    },
   );
 
   const backups = computed(() => data.value?.backups ?? []);

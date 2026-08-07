@@ -29,24 +29,8 @@
       projects.items.map(project => listEnvironments(project.id)),
     );
 
-    const usedServerIds = new Set(applications.items.map(application => application.serverId));
-    const metricsByServer = new Map<string, SystemMetrics>();
-
-    await Promise.all(
-      servers.items
-        .filter(server => usedServerIds.has(server.id))
-        .map(async server => {
-          try {
-            metricsByServer.set(server.id, await serverMetrics(server.id));
-          } catch {
-            // metrics unavailable for an offline or unreachable server
-          }
-        }),
-    );
-
     return {
       applications: applications.items,
-      metricsByServer,
       projects: projects.items,
       environmentNames: new Map(
         environmentLists
@@ -68,17 +52,29 @@
 
   const empty = {
     applications: [] as Application[],
-    metricsByServer: new Map<string, SystemMetrics>(),
     projects: [] as Project[],
     environmentNames: new Map<string, string>(),
     servers: [] as Server[],
     lastDeployAt: new Map<string, string>(),
   };
 
-  const { data, status } = await useAsyncData(
+  const { getCachedData, markFetched } = useNavigationCache();
+
+  const { data, status } = useLazyAsyncData(
     'applications-list',
-    () => (session.organizationId ? load() : Promise.resolve(empty)),
-    { server: false, watch: [() => session.organizationId], default: () => empty },
+    async () => {
+      const result = session.organizationId ? await load() : empty;
+
+      markFetched('applications-list');
+
+      return result;
+    },
+    {
+      server: false,
+      watch: [() => session.organizationId],
+      default: () => empty,
+      getCachedData: key => getCachedData(key),
+    },
   );
 
   const applications = computed(() => data.value?.applications ?? []);
@@ -91,6 +87,39 @@
       if (value !== 'pending') {
         hasLoadedOnce.value = true;
       }
+    },
+    { immediate: true },
+  );
+
+  const metricsByServer = reactive(new Map<string, SystemMetrics>());
+  const metricsLoading = reactive(new Set<string>());
+
+  const loadServerMetrics = async (serverId: string) => {
+    if (metricsByServer.has(serverId) || metricsLoading.has(serverId)) {
+      return;
+    }
+
+    metricsLoading.add(serverId);
+
+    try {
+      metricsByServer.set(serverId, await serverMetrics(serverId));
+    } catch {
+      // metrics unavailable for an offline or unreachable server
+    } finally {
+      metricsLoading.delete(serverId);
+    }
+  };
+
+  watch(
+    () => data.value?.servers ?? [],
+    servers => {
+      const usedServerIds = new Set(applications.value.map(application => application.serverId));
+
+      servers
+        .filter(server => usedServerIds.has(server.id))
+        .forEach(server => {
+          loadServerMetrics(server.id);
+        });
     },
     { immediate: true },
   );
@@ -147,7 +176,7 @@
   const serverHost = (server: Server) =>
     server.type === 'local' ? `${server.agent.host}:${server.agent.port}` : (server.ssh.host ?? '');
 
-  const metricsFor = (server: Server) => data.value?.metricsByServer.get(server.id) ?? null;
+  const metricsFor = (server: Server) => metricsByServer.get(server.id) ?? null;
 
   const percent = (used = 0, total = 0) => (total ? Math.round((used / total) * 100) : 0);
 
@@ -230,7 +259,11 @@
           />
 
           <template #footer>
-            <div v-if="metricsFor(group.server)" class="grid w-full grid-cols-2 gap-3.5">
+            <div v-if="metricsLoading.has(group.server.id)" class="grid w-full grid-cols-2 gap-3.5">
+              <SkeletonChart :label="false" />
+              <SkeletonChart :label="false" />
+            </div>
+            <div v-else-if="metricsFor(group.server)" class="grid w-full grid-cols-2 gap-3.5">
               <Gauge
                 label="CPU"
                 :value="`${Math.round(metricsFor(group.server)?.cpuPercent ?? 0)}%`"

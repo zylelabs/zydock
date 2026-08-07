@@ -98,7 +98,8 @@ export const useServers = () => {
 
   const base = () => `/organizations/${session.organizationId}/servers`;
 
-  const list = () => api.get<Paginated<Server>>(base(), { query: { size: 100 } });
+  const list = (options: { size?: number } = {}) =>
+    api.get<Paginated<Server>>(base(), { query: { size: options.size ?? 100 } });
   const get = (serverId: string) => api.get<{ server: Server }>(`${base()}/${serverId}`);
 
   const validate = (ssh: SshCredentials) =>

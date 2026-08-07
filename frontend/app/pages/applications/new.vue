@@ -18,7 +18,7 @@
   const { list: listServers } = useServers();
   const { create } = useApplications();
 
-  const { data } = await useAsyncData(
+  const { data } = useLazyAsyncData(
     'wizard-context',
     async () => {
       if (!session.organizationId) {

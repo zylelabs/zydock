@@ -12,7 +12,7 @@
 
   const applicationId = computed(() => String(route.params.applicationId));
 
-  const { data } = await useAsyncData(
+  const { data } = useLazyAsyncData(
     () => `console-${applicationId.value}`,
     async () => {
       if (!session.organizationId) {
@@ -34,7 +34,7 @@
         containerId,
       };
     },
-    { server: false, watch: [() => session.organizationId, applicationId] },
+    { server: false, watch: [() => session.organizationId, applicationId], default: () => null },
   );
 
   useHead(() => ({ title: `Console · ${data.value?.name ?? 'Application'}` }));

@@ -18,7 +18,7 @@
   const search = ref('');
   const statusFilter = ref<UserAccountStatus | ''>('');
 
-  const { data, refresh } = await useAsyncData(
+  const { data, status, refresh } = useLazyAsyncData(
     'admin-users',
     async () => {
       if (!isSuperuser.value) {
@@ -33,6 +33,18 @@
       return { users: result.items };
     },
     { server: false, watch: [isSuperuser, search, statusFilter], default: () => ({ users: [] }) },
+  );
+
+  const hasLoadedOnce = ref(false);
+
+  watch(
+    status,
+    value => {
+      if (value !== 'pending') {
+        hasLoadedOnce.value = true;
+      }
+    },
+    { immediate: true },
   );
 
   const users = computed(() => data.value?.users ?? []);
@@ -86,8 +98,12 @@
       </div>
 
       <Card content-class="p-0">
+        <template v-if="status === 'pending' && !hasLoadedOnce">
+          <SkeletonRow v-for="index in 4" :key="index" avatar />
+        </template>
+
         <EmptyState
-          v-if="!users.length"
+          v-else-if="!users.length"
           variant="prompt"
           description="No users match this filter."
           class="m-2.5"

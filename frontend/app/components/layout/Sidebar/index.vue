@@ -39,10 +39,10 @@
     }
 
     const [projects, applications, servers, backups] = await Promise.all([
-      useProjects().list(),
-      useApplications().list(),
-      useServers().list(),
-      useBackups().list(),
+      useProjects().list({ size: 1 }),
+      useApplications().list({ size: 1 }),
+      useServers().list({ size: 1 }),
+      useBackups().list({ size: 1 }),
     ]).catch(() => []);
 
     projectsCount.value = projects?.total ?? null;

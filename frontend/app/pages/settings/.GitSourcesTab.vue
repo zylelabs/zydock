@@ -24,7 +24,7 @@
     refresh: refreshGitSources,
     status: gitSourcesStatus,
     error: gitSourcesLoadError,
-  } = await useAsyncData(
+  } = useLazyAsyncData(
     () => `settings-git-sources-${props.organization.id}`,
     () => listGitSources(),
     { server: false, default: () => emptyGitSources },

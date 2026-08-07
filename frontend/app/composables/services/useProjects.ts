@@ -24,7 +24,8 @@ export const useProjects = () => {
 
   const base = () => `/organizations/${session.organizationId}/projects`;
 
-  const list = () => api.get<Paginated<Project>>(base(), { query: { size: 100 } });
+  const list = (options: { size?: number } = {}) =>
+    api.get<Paginated<Project>>(base(), { query: { size: options.size ?? 100 } });
   const get = (projectId: string) => api.get<{ project: Project }>(`${base()}/${projectId}`);
   const create = (name: string, description?: string) =>
     api.post<{ project: Project }>(base(), { body: { name, description } });

@@ -17,7 +17,11 @@
 
   const emptyDomains = { items: [], total: 0, page: 1, size: 0, pages: 0 };
 
-  const { data, refresh: refreshDomains } = await useAsyncData(
+  const {
+    data,
+    status,
+    refresh: refreshDomains,
+  } = useLazyAsyncData(
     () => `application-${props.applicationId}-domains`,
     () =>
       session.organizationId
@@ -28,6 +32,18 @@
       watch: [() => session.organizationId, () => props.applicationId],
       default: () => emptyDomains,
     },
+  );
+
+  const hasLoadedOnce = ref(false);
+
+  watch(
+    status,
+    value => {
+      if (value !== 'pending') {
+        hasLoadedOnce.value = true;
+      }
+    },
+    { immediate: true },
   );
 
   const domainList = computed(() => data.value?.items ?? []);
@@ -223,8 +239,12 @@
       </div>
     </form>
 
+    <template v-if="status === 'pending' && !hasLoadedOnce">
+      <SkeletonRow v-for="index in 2" :key="index" />
+    </template>
+
     <EmptyState
-      v-if="!domainList.length && !addingDomain"
+      v-else-if="!domainList.length && !addingDomain"
       variant="prompt"
       description="No domains yet. Add one to publish this application on its own address."
       class="m-2.5"
