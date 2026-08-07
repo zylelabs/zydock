@@ -30,6 +30,12 @@ export const enqueueJob = (
     runAt: options.runAt ?? new Date(),
   });
 
+export const cancelPendingJobs = async (type: string) => {
+  const result = await jobModel.deleteMany({ type, status: 'pending' });
+
+  return result.deletedCount;
+};
+
 const nextAttemptAt = (attempts: number) =>
   new Date(Date.now() + config.queue.retryDelayMs * 2 ** (attempts - 1));
 
