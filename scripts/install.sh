@@ -212,7 +212,7 @@ until [ "$(docker compose "${COMPOSE_ARGS[@]}" ps --format '{{.Health}}' backend
 done
 
 log "Checking that the containers can reach GitHub"
-GITHUB_CHECK="$(docker compose "${COMPOSE_ARGS[@]}" exec -T backend bun -e 'try { const r = await fetch("https://api.github.com/", { signal: AbortSignal.timeout(10000) }); console.log(r.ok ? "ok" : "http"); } catch { const dns = await import("node:dns/promises"); try { await dns.lookup("api.github.com"); console.log("egress"); } catch { console.log("dns"); } }' 2>/dev/null | tr -d '\r' | tail -n1)"
+GITHUB_CHECK="$(docker compose "${COMPOSE_ARGS[@]}" exec -T backend bun -e 'try { const r = await fetch("https://api.github.com/", { signal: AbortSignal.timeout(10000) }); console.log(r.ok ? "ok" : "http"); } catch { const dns = await import("node:dns/promises"); try { await dns.lookup("api.github.com"); console.log("egress"); } catch { console.log("dns"); } }' </dev/null 2>/dev/null | tr -d '\r' | tail -n1)"
 
 case "${GITHUB_CHECK}" in
 ok) ;;
@@ -233,7 +233,7 @@ egress)
 esac
 
 log "Provisioning the superadmin account and the default organization"
-SEED_OUTPUT="$(docker compose "${COMPOSE_ARGS[@]}" exec -T backend bun run seed 2>&1)" || true
+SEED_OUTPUT="$(docker compose "${COMPOSE_ARGS[@]}" exec -T backend bun run seed </dev/null 2>&1)" || true
 echo "${SEED_OUTPUT}"
 TEMP_PASSWORD="$(echo "${SEED_OUTPUT}" | grep -o 'temporary password: [^"]*' | head -n1 | sed 's/temporary password: //' || true)"
 
