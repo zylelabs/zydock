@@ -1,0 +1,40 @@
+name: Release
+
+on:
+  push:
+    tags: ["v*"]
+
+jobs:
+  release:
+    name: Publish GitHub Release
+    runs-on: ubuntu-latest
+    permissions:
+      contents: write
+    steps:
+      - uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262 # v4.4.0
+        with:
+          fetch-depth: 0
+
+      - name: Resolve previous tag
+        id: previous
+        run: |
+          PREVIOUS="$(git tag --sort=-v:refname | grep -Fxv "${GITHUB_REF_NAME}" | head -n1)"
+          echo "tag=${PREVIOUS}" >> "$GITHUB_OUTPUT"
+
+      - name: Publish release
+        env:
+          GH_TOKEN: ${{ github.token }}
+          PREVIOUS_TAG: ${{ steps.previous.outputs.tag }}
+        run: |
+          if [ -n "${PREVIOUS_TAG}" ]; then
+            NOTES="$(git log --oneline --no-decorate "${PREVIOUS_TAG}..${GITHUB_REF_NAME}")"
+          else
+            NOTES="$(git log --oneline --no-decorate "${GITHUB_REF_NAME}")"
+          fi
+
+          PRERELEASE_ARGS=()
+          case "${GITHUB_REF_NAME}" in
+          *-*) PRERELEASE_ARGS=(--prerelease) ;;
+          esac
+
+          gh release create "${GITHUB_REF_NAME}" --title "${GITHUB_REF_NAME}" --notes "${NOTES}" "${PRERELEASE_ARGS[@]}"
