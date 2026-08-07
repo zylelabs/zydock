@@ -5,7 +5,7 @@ import { findMembership } from '../organizations/membership.service';
 import { classifyLine, filterLogs, type ClassifiedLog } from '../logs/log.filter';
 import type { LogsQuery } from '../logs/logs.schema';
 import { notifyDeploymentEvent } from '../notifications/notification.service';
-import type { NotificationEvent } from '../notifications/notification.schema';
+import type { DeploymentNotificationEvent } from '../notifications/notification.schema';
 import { logError } from '../../utils/logger';
 import { publish, registerTopicAuthorizer } from '../websocket/websocket.service';
 import deploymentModel from './deployment.model';
@@ -13,7 +13,7 @@ import type { DeploymentStep, DeploymentStepStatus, DeploymentTrigger } from './
 
 const topicOf = (deploymentId: string) => `deployment:${deploymentId}:steps`;
 
-const notify = (deploymentId: string, event: NotificationEvent) =>
+const notify = (deploymentId: string, event: DeploymentNotificationEvent) =>
   notifyDeploymentEvent(deploymentId, event).catch(error =>
     logError('Failed to emit a deployment notification', error, {
       deployment: deploymentId,

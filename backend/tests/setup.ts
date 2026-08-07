@@ -10,6 +10,9 @@ const optional: Record<string, string> = {
   LOCAL_AGENT_TOKEN: 'test-local-agent-token',
   LOCAL_AGENT_HOST: '127.0.0.1',
   SUPERUSER_EMAILS: 'seed-admin@zydock.test',
+  ZYDOCK_VERSION: 'v0.2.0-dev.1111111',
+  ZYDOCK_COMMIT: '1111111111111111111111111111111111111111',
+  ZYDOCK_CHANNEL: 'dev',
 };
 
 for (const [key, value] of Object.entries(optional)) {

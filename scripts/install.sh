@@ -4,7 +4,8 @@ set -euo pipefail
 
 ZYDOCK_INSTALL_DIR="${ZYDOCK_INSTALL_DIR:-/data/zydock}"
 ZYDOCK_REPO="${ZYDOCK_REPO:-https://github.com/zylelabs/zydock.git}"
-ZYDOCK_BRANCH="${ZYDOCK_BRANCH:-main}"
+ZYDOCK_CHANNEL="${ZYDOCK_CHANNEL:-}"
+ZYDOCK_BRANCH="${ZYDOCK_BRANCH:-}"
 ZYDOCK_DOMAIN="${ZYDOCK_DOMAIN:-}"
 ZYDOCK_HOST="${ZYDOCK_HOST:-}"
 ZYDOCK_SUPERUSER_EMAIL="${ZYDOCK_SUPERUSER_EMAIL:-}"
@@ -29,6 +30,31 @@ set_env() {
     sed -i "s|^${key}=.*|${key}=\"${value}\"|" .env
   else
     printf '%s="%s"\n' "${key}" "${value}" >>.env
+  fi
+}
+
+channel_branch() {
+  case "$1" in
+  stable) echo "main" ;;
+  nightly) echo "nightly" ;;
+  dev) echo "dev" ;;
+  *) echo "$1" ;;
+  esac
+}
+
+channel_ref() {
+  if [ "$1" != "stable" ]; then
+    echo "origin/$(channel_branch "$1")"
+    return
+  fi
+
+  local tag
+  tag="$(git tag --list 'v*' | { grep -Ev -- '-' || true; } | sort -V | tail -n1)"
+
+  if [ -n "${tag}" ]; then
+    echo "${tag}"
+  else
+    echo "origin/main"
   fi
 }
 
@@ -59,8 +85,20 @@ migrate_port_urls() {
     ;;
   esac
 
-  [ "${changed}" = true ] && log "Migrated .env off the published :3000/:8000 URLs"
+  if [ "${changed}" = true ]; then
+    log "Migrated .env off the published :3000/:8000 URLs"
+  fi
 }
+
+if [ -z "${ZYDOCK_CHANNEL}" ] && [ -n "${ZYDOCK_BRANCH}" ]; then
+  case "${ZYDOCK_BRANCH}" in
+  main) ZYDOCK_CHANNEL="stable" ;;
+  *) ZYDOCK_CHANNEL="${ZYDOCK_BRANCH}" ;;
+  esac
+fi
+
+CHANNEL="${ZYDOCK_CHANNEL:-stable}"
+BRANCH="$(channel_branch "${CHANNEL}")"
 
 [ "$(id -u)" -eq 0 ] || fail "Run as root (or with sudo)."
 command -v apt-get >/dev/null 2>&1 || fail "This installer only supports Debian/Ubuntu (needs apt-get)."
@@ -81,20 +119,22 @@ fi
 
 docker compose version >/dev/null 2>&1 || fail "Docker was installed but the 'docker compose' plugin is missing."
 
-log "Fetching Zydock into ${ZYDOCK_INSTALL_DIR}"
+log "Fetching Zydock (${CHANNEL}) into ${ZYDOCK_INSTALL_DIR}"
 
-if [ -d "${ZYDOCK_INSTALL_DIR}/.git" ]; then
-  git -C "${ZYDOCK_INSTALL_DIR}" fetch origin "${ZYDOCK_BRANCH}"
-  # This directory is a deployed instance, not a workspace: any local edit is discarded on update.
-  git -C "${ZYDOCK_INSTALL_DIR}" reset --hard "origin/${ZYDOCK_BRANCH}"
-elif [ -d "${ZYDOCK_INSTALL_DIR}" ] && [ -n "$(ls -A "${ZYDOCK_INSTALL_DIR}")" ]; then
-  fail "${ZYDOCK_INSTALL_DIR} already exists and is not a Zydock install. Remove it or set ZYDOCK_INSTALL_DIR."
-else
+if [ ! -d "${ZYDOCK_INSTALL_DIR}/.git" ]; then
+  if [ -d "${ZYDOCK_INSTALL_DIR}" ] && [ -n "$(ls -A "${ZYDOCK_INSTALL_DIR}")" ]; then
+    fail "${ZYDOCK_INSTALL_DIR} already exists and is not a Zydock install. Remove it or set ZYDOCK_INSTALL_DIR."
+  fi
+
   mkdir -p "$(dirname "${ZYDOCK_INSTALL_DIR}")"
-  git clone --branch "${ZYDOCK_BRANCH}" "${ZYDOCK_REPO}" "${ZYDOCK_INSTALL_DIR}"
+  git clone --branch "${BRANCH}" "${ZYDOCK_REPO}" "${ZYDOCK_INSTALL_DIR}"
 fi
 
 cd "${ZYDOCK_INSTALL_DIR}"
+
+git fetch --tags origin "${BRANCH}"
+# This directory is a deployed instance, not a workspace: any local edit is discarded on update.
+git reset --hard "$(channel_ref "${CHANNEL}")"
 
 if [ ! -f .env ]; then
   log "Generating secrets"
@@ -147,6 +187,13 @@ else
   migrate_port_urls
 fi
 
+export ZYDOCK_CHANNEL="${CHANNEL}"
+
+set_env ZYDOCK_VERSION "$(bash scripts/version.sh)"
+set_env ZYDOCK_COMMIT "$(bash scripts/version.sh commit)"
+set_env ZYDOCK_CHANNEL "${CHANNEL}"
+set_env ZYDOCK_INSTALL_DIR "${ZYDOCK_INSTALL_DIR}"
+
 . ./.env
 
 COMPOSE_ARGS=(-f docker-compose.prod.yml --env-file .env)
@@ -188,9 +235,10 @@ esac
 log "Provisioning the superadmin account and the default organization"
 SEED_OUTPUT="$(docker compose "${COMPOSE_ARGS[@]}" exec -T backend bun run seed 2>&1)" || true
 echo "${SEED_OUTPUT}"
-TEMP_PASSWORD="$(echo "${SEED_OUTPUT}" | grep -o 'temporary password: [^"]*' | head -n1 | sed 's/temporary password: //')"
+TEMP_PASSWORD="$(echo "${SEED_OUTPUT}" | grep -o 'temporary password: [^"]*' | head -n1 | sed 's/temporary password: //' || true)"
 
 log "Done"
+echo "Zydock ${ZYDOCK_VERSION} (channel: ${CHANNEL})"
 echo "Dashboard: ${APP_URL}"
 if [ -n "${TEMP_PASSWORD}" ]; then
   echo "Superadmin: ${SUPERUSER_EMAILS}"

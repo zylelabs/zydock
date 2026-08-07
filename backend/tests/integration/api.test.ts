@@ -50,10 +50,12 @@ afterAll(async () => {
 describe('health', () => {
   test('GET /api/health is public and ok', async () => {
     const response = await app.request('/api/health');
-    const body = (await response.json()) as { status: string };
+    const body = (await response.json()) as { status: string; version: string; commit: string };
 
     expect(response.status).toBe(200);
     expect(body.status).toBe('ok');
+    expect(body.version).toBeString();
+    expect(body.commit).toBeString();
   });
 });
 

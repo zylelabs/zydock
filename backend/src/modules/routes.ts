@@ -32,6 +32,7 @@ import projectsRoute from './projects/projects.route';
 import queueRoute from './queue/queue.route';
 import heartbeatRoute from './servers/heartbeat.route';
 import serversRoute from './servers/servers.route';
+import updatesRoute from './updates/updates.route';
 import usersRoute from './users/users.route';
 import websocketRoute from './websocket/websocket.route';
 
@@ -80,6 +81,8 @@ route('/organizations/:organizationId/notifications', notificationsRoute);
 route('/organizations/:organizationId/backups', backupsRoute);
 
 route('/queue', queueRoute);
+
+route('/updates', updatesRoute);
 
 route('/agent', heartbeatRoute);
 route('/agent', proxyAccessAggregateIngestRoute);
