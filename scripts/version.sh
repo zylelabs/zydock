@@ -9,8 +9,18 @@ fail() {
   exit 1
 }
 
+read_version() {
+  grep -m1 '"version"' | sed -E 's/.*"version": *"([^"]+)".*/\1/'
+}
+
 root_version() {
-  grep -m1 '"version"' "${ROOT_DIR}/package.json" | sed -E 's/.*"version": *"([^"]+)".*/\1/'
+  local ref="${1:-}"
+
+  if [ -n "${ref}" ]; then
+    git -C "${ROOT_DIR}" show "${ref}:package.json" | read_version
+  else
+    read_version <"${ROOT_DIR}/package.json"
+  fi
 }
 
 latest_stable_tag() {
@@ -71,8 +81,37 @@ channel_ref() {
   fi
 }
 
+nightly_tag_at_head() {
+  local ref="${1:-}"
+  local points_ref="${ref:-HEAD}"
+
+  git -C "${ROOT_DIR}" tag --points-at "${points_ref}" --list "v$(root_version "${ref}")-n.*" | sort -V | tail -n1
+}
+
+next_nightly_number() {
+  local ref="${1:-}"
+  local latest
+
+  latest="$(git -C "${ROOT_DIR}" tag --list "v$(root_version "${ref}")-n.*" |
+    sed -E 's/.*-n\.([0-9]+)$/\1/' | sort -n | tail -n1)"
+  echo "$((${latest:-0} + 1))"
+}
+
+next_nightly() {
+  local ref="${1:-}"
+  local existing
+
+  existing="$(nightly_tag_at_head "${ref}")"
+
+  if [ -n "${existing}" ]; then
+    echo "${existing}"
+  else
+    echo "v$(root_version "${ref}")-n.$(next_nightly_number "${ref}")"
+  fi
+}
+
 channel_version() {
-  local stable_tag range count
+  local stable_tag
 
   case "${CHANNEL}" in
   stable)
@@ -82,11 +121,7 @@ channel_version() {
     echo "${stable_tag}"
     ;;
   nightly)
-    stable_tag="$(latest_stable_tag)"
-    range="HEAD"
-    [ -n "${stable_tag}" ] && range="${stable_tag}..HEAD"
-    count="$(git -C "${ROOT_DIR}" rev-list --count "${range}")"
-    echo "v$(root_version)-n.${count}"
+    next_nightly
     ;;
   dev)
     echo "v$(root_version)-dev.$(commit_short)"
@@ -103,5 +138,8 @@ channel) echo "${CHANNEL}" ;;
 branch) channel_branch ;;
 ref) channel_ref ;;
 commit) commit_full ;;
-*) fail "unknown command '$1' (use: version, channel, branch, ref or commit)" ;;
+root-version) root_version "${2:-}" ;;
+stable-tag) latest_stable_tag ;;
+next-nightly) next_nightly "${2:-}" ;;
+*) fail "unknown command '$1' (use: version, channel, branch, ref, commit, root-version, stable-tag or next-nightly)" ;;
 esac

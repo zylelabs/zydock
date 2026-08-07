@@ -14,6 +14,7 @@ jobs:
     name: Open dev -> nightly promotion PR
     runs-on: ubuntu-latest
     permissions:
+      actions: read # gh run list
       contents: read
       pull-requests: write
     steps:
@@ -42,15 +43,37 @@ jobs:
           AHEAD="$(git rev-list --count origin/nightly..origin/dev)"
           echo "pending=$([ "${AHEAD}" -gt 0 ] && echo true || echo false)" >> "$GITHUB_OUTPUT"
 
+      - name: Resolve next nightly tag
+        id: version
+        if: steps.check.outputs.green == 'true' && steps.diff.outputs.pending == 'true'
+        run: |
+          echo "tag=$(scripts/version.sh next-nightly origin/dev)" >> "$GITHUB_OUTPUT"
+
       - name: Open promotion PR
         if: steps.check.outputs.green == 'true' && steps.diff.outputs.pending == 'true'
         env:
           GH_TOKEN: ${{ github.token }}
+          TAG: ${{ steps.version.outputs.tag }}
         run: |
+          {
+            echo "Automated nightly promotion — dev's CI is green and has commits nightly doesn't."
+            echo "Merge to cut a new nightly build; nightly-tag.yml tags it automatically."
+            echo
+            echo "## Next tag"
+            echo
+            echo "\`${TAG}\`. It's a label calculated at PR-open time: if another nightly tag"
+            echo "appears between now and the merge, nightly-tag.yml recalculates it."
+          } > /tmp/pr-body.md
+
           EXISTING="$(gh pr list --base nightly --head dev --state open --json number --jq '.[0].number')"
           if [ -n "${EXISTING}" ]; then
-            echo "Promotion PR #${EXISTING} already open."
-          else
-            gh pr create --base nightly --head dev --title "chore(nightly): promote dev" \
-              --body "Automated nightly promotion — dev's CI is green and has commits nightly doesn't. Merge to cut a new nightly build; nightly-tag.yml tags it automatically."
+            gh pr edit "${EXISTING}" \
+              --title "chore(nightly): promote dev to ${TAG}" \
+              --body-file /tmp/pr-body.md
+            echo "Promotion PR #${EXISTING} already open — refreshed title and body."
+            exit 0
           fi
+
+          gh pr create --base nightly --head dev \
+            --title "chore(nightly): promote dev to ${TAG}" \
+            --body-file /tmp/pr-body.md
