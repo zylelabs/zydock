@@ -5,7 +5,6 @@ on:
     branches: [main, nightly, dev]
   pull_request:
 
-# One in-flight run per ref; a new push cancels the previous.
 concurrency:
   group: ci-${{ github.ref }}
   cancel-in-progress: true
@@ -16,7 +15,6 @@ env:
 jobs:
   backend:
     name: backend (lint · test · build)
-    if: github.event_name != 'pull_request' || github.event.pull_request.draft == false
     runs-on: ubuntu-latest
     defaults:
       run:
@@ -45,7 +43,6 @@ jobs:
 
   agent:
     name: agent (lint · test · build)
-    if: github.event_name != 'pull_request' || github.event.pull_request.draft == false
     runs-on: ubuntu-latest
     defaults:
       run:
@@ -64,7 +61,6 @@ jobs:
 
   frontend:
     name: frontend (lint · test · build)
-    if: github.event_name != 'pull_request' || github.event.pull_request.draft == false
     runs-on: ubuntu-latest
     defaults:
       run:
