@@ -3,6 +3,12 @@ name: Release
 on:
   push:
     tags: ["v*"]
+  workflow_dispatch:
+    inputs:
+      tag:
+        description: "Existing tag to publish (e.g. v0.2.0)."
+        required: true
+        type: string
 
 jobs:
   release:
@@ -10,16 +16,38 @@ jobs:
     runs-on: ubuntu-latest
     permissions:
       contents: write
+    env:
+      TAG: ${{ inputs.tag || github.ref_name }}
     steps:
       - uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262 # v4.4.0
         with:
           fetch-depth: 0
+          ref: ${{ inputs.tag || github.ref_name }}
+
+      - name: Verify tag is publishable
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          if ! git rev-parse -q --verify "refs/tags/${TAG}" >/dev/null; then
+            echo "::error::Tag ${TAG} does not exist."
+            exit 1
+          fi
+          if gh release view "${TAG}" >/dev/null 2>&1; then
+            echo "::error::A release for ${TAG} already exists."
+            exit 1
+          fi
 
       - name: Resolve previous tag
         id: previous
         run: |
-          PREVIOUS="$(git tag --sort=-v:refname | grep -Fxv "${GITHUB_REF_NAME}" | head -n1)"
+          case "${TAG}" in
+          *-*) CANDIDATES="$(git tag --sort=-v:refname)" ;;
+          *) CANDIDATES="$(git tag --sort=-v:refname | { grep -Ev -- '-' || true; })" ;;
+          esac
+
+          PREVIOUS="$(printf '%s\n' "${CANDIDATES}" | { grep -Fxv "${TAG}" || true; } | head -n1)"
           echo "tag=${PREVIOUS}" >> "$GITHUB_OUTPUT"
+          echo "Comparing ${TAG} against ${PREVIOUS:-the start of history}."
 
       - name: Publish release
         env:
@@ -27,14 +55,14 @@ jobs:
           PREVIOUS_TAG: ${{ steps.previous.outputs.tag }}
         run: |
           if [ -n "${PREVIOUS_TAG}" ]; then
-            NOTES="$(git log --oneline --no-decorate "${PREVIOUS_TAG}..${GITHUB_REF_NAME}")"
+            NOTES="$(git log --oneline --no-decorate "${PREVIOUS_TAG}..${TAG}")"
           else
-            NOTES="$(git log --oneline --no-decorate "${GITHUB_REF_NAME}")"
+            NOTES="$(git log --oneline --no-decorate "${TAG}")"
           fi
 
           PRERELEASE_ARGS=()
-          case "${GITHUB_REF_NAME}" in
+          case "${TAG}" in
           *-*) PRERELEASE_ARGS=(--prerelease) ;;
           esac
 
-          gh release create "${GITHUB_REF_NAME}" --title "${GITHUB_REF_NAME}" --notes "${NOTES}" "${PRERELEASE_ARGS[@]}"
+          gh release create "${TAG}" --title "${TAG}" --notes "${NOTES}" "${PRERELEASE_ARGS[@]}"
