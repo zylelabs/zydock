@@ -1,0 +1,3 @@
+[test]
+# Sets the test environment before any module (and thus `src/config`) is imported.
+preload = ["./tests/setup.ts"]
