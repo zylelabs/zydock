@@ -14,6 +14,8 @@ const healthSchema = {
   type: 'object',
   properties: {
     status: { type: 'string', enum: ['ok', 'degraded'] },
+    version: { type: 'string' },
+    commit: { type: 'string' },
     uptime: { type: 'integer' },
     timestamp: { type: 'string', format: 'date-time' },
     dependencies: {
@@ -30,7 +32,8 @@ export const healthDocs = {
   check: {
     tags: ['Health'],
     summary: 'Health check',
-    description: 'Returns the API status, uptime and the state of its dependencies.',
+    description:
+      'Returns the API status, the installed version and commit, uptime and the state of its dependencies.',
     responses: {
       200: jsonRes('The API and all its dependencies are healthy.', healthSchema),
       503: jsonRes('At least one dependency is unavailable.', healthSchema),

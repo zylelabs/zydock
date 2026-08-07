@@ -14,6 +14,7 @@ import notificationChannelModel from './notification-channel.model';
 import notificationModel from './notification.model';
 import type {
   CreateNotificationChannelDTO,
+  DeploymentNotificationEvent,
   NotificationEvent,
   NotificationSeverityName,
   UpdateNotificationChannelDTO,
@@ -25,6 +26,9 @@ const SEVERITY_OF_EVENT: Record<NotificationEvent, NotificationSeverityName> = {
   'deployment.started': 'info',
   'deployment.succeeded': 'success',
   'deployment.failed': 'error',
+  'update.available': 'info',
+  'update.succeeded': 'success',
+  'update.failed': 'error',
 };
 
 export const findNotificationChannel = (organizationId: string, channelId: string) =>
@@ -110,20 +114,14 @@ export const testNotificationChannel = async (channel: NotificationChannel) => {
   return { delivered: Boolean(result?.delivered), error: result?.error };
 };
 
-export const emitNotification = async (
-  organizationId: string,
+const deliverToChannels = async (
+  channels: NotificationChannel[],
   event: NotificationEvent,
   message: Omit<NotificationMessage, 'severity'>,
 ) => {
-  const channels = await notificationChannelModel.find({
-    organizationId,
-    enabled: true,
-    events: event,
-  });
-
   for (const channel of channels) {
     const notification = await notificationModel.create({
-      organizationId,
+      organizationId: channel.organizationId,
       channelId: channel._id,
       event,
       subject: message.subject,
@@ -139,11 +137,32 @@ export const emitNotification = async (
   return channels.length;
 };
 
+export const emitNotification = async (
+  organizationId: string,
+  event: NotificationEvent,
+  message: Omit<NotificationMessage, 'severity'>,
+) =>
+  deliverToChannels(
+    await notificationChannelModel.find({ organizationId, enabled: true, events: event }),
+    event,
+    message,
+  );
+
+export const emitSystemNotification = async (
+  event: NotificationEvent,
+  message: Omit<NotificationMessage, 'severity'>,
+) =>
+  deliverToChannels(
+    await notificationChannelModel.find({ enabled: true, events: event }),
+    event,
+    message,
+  );
+
 const durationOf = (deployment: Deployment) =>
   deployment.durationMs ? `${Math.round(deployment.durationMs / 1000)}s` : undefined;
 
 const bodyOfDeploymentEvent = (
-  event: NotificationEvent,
+  event: DeploymentNotificationEvent,
   application: Application,
   deployment: Deployment,
 ) => {
@@ -160,13 +179,16 @@ const bodyOfDeploymentEvent = (
   return `The deploy of ${target} failed: ${deployment.error ?? 'unknown error'}`;
 };
 
-const SUBJECT_OF_EVENT: Record<NotificationEvent, string> = {
+const SUBJECT_OF_EVENT: Record<DeploymentNotificationEvent, string> = {
   'deployment.started': 'Deploy started',
   'deployment.succeeded': 'Deploy succeeded',
   'deployment.failed': 'Deploy failed',
 };
 
-export const notifyDeploymentEvent = async (deploymentId: string, event: NotificationEvent) => {
+export const notifyDeploymentEvent = async (
+  deploymentId: string,
+  event: DeploymentNotificationEvent,
+) => {
   const deployment = await deploymentModel.findById(deploymentId);
 
   if (!deployment) {

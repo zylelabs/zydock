@@ -3,6 +3,7 @@
 set -euo pipefail
 
 ZYDOCK_INSTALL_DIR="${ZYDOCK_INSTALL_DIR:-/data/zydock}"
+ZYDOCK_CHANNEL="${ZYDOCK_CHANNEL:-}"
 ZYDOCK_BRANCH="${ZYDOCK_BRANCH:-}"
 ZYDOCK_REF="${ZYDOCK_REF:-}"
 ZYDOCK_FORCE="${ZYDOCK_FORCE:-false}"
@@ -28,6 +29,15 @@ set_env() {
   else
     printf '%s="%s"\n' "${key}" "${value}" >>.env
   fi
+}
+
+env_value() {
+  local line
+  line="$(grep -m1 "^$1=" .env 2>/dev/null || true)"
+  line="${line#*=}"
+  line="${line%\"}"
+
+  printf '%s' "${line#\"}"
 }
 
 migrate_port_urls() {
@@ -57,7 +67,9 @@ migrate_port_urls() {
     ;;
   esac
 
-  [ "${changed}" = true ] && log "Migrated .env off the published :3000/:8000 URLs"
+  if [ "${changed}" = true ]; then
+    log "Migrated .env off the published :3000/:8000 URLs"
+  fi
 }
 
 [ "$(id -u)" -eq 0 ] || fail "Run as root (or with sudo)."
@@ -73,19 +85,25 @@ command -v git >/dev/null 2>&1 || fail "git is not installed."
 command -v docker >/dev/null 2>&1 || fail "Docker is not installed."
 docker compose version >/dev/null 2>&1 || fail "The 'docker compose' plugin is missing."
 
-if [ -z "${ZYDOCK_BRANCH}" ]; then
-  ZYDOCK_BRANCH="$(git rev-parse --abbrev-ref HEAD 2>/dev/null || true)"
-  [ -n "${ZYDOCK_BRANCH}" ] && [ "${ZYDOCK_BRANCH}" != "HEAD" ] || ZYDOCK_BRANCH="main"
+if [ -z "${ZYDOCK_CHANNEL}" ] && [ -z "${ZYDOCK_BRANCH}" ]; then
+  ZYDOCK_CHANNEL="$(env_value ZYDOCK_CHANNEL)"
 fi
 
-TARGET="${ZYDOCK_REF:-origin/${ZYDOCK_BRANCH}}"
+export ZYDOCK_CHANNEL ZYDOCK_BRANCH
+
+CHANNEL="$(bash scripts/version.sh channel)"
+BRANCH="$(bash scripts/version.sh branch)"
+
+export ZYDOCK_CHANNEL="${CHANNEL}"
 
 CURRENT="$(git rev-parse HEAD)"
 
-log "Fetching ${ZYDOCK_REF:-${ZYDOCK_BRANCH}}"
-git fetch --tags origin "${ZYDOCK_BRANCH}"
+log "Fetching ${ZYDOCK_REF:-${CHANNEL}}"
+git fetch --tags origin "${BRANCH}"
 
-git rev-parse --verify --quiet "${TARGET}^{commit}" >/dev/null || fail "Could not resolve '${TARGET}' after fetching. Check ZYDOCK_REF/ZYDOCK_BRANCH."
+TARGET="${ZYDOCK_REF:-$(bash scripts/version.sh ref)}"
+
+git rev-parse --verify --quiet "${TARGET}^{commit}" >/dev/null || fail "Could not resolve '${TARGET}' after fetching. Check ZYDOCK_REF/ZYDOCK_CHANNEL."
 NEXT="$(git rev-parse "${TARGET}^{commit}")"
 
 if [ "${CURRENT}" = "${NEXT}" ] && [ "${ZYDOCK_FORCE}" != "true" ]; then
@@ -105,6 +123,13 @@ git reset --hard "${NEXT}"
 
 ensure_env LOCAL_AGENT_TOKEN "$(openssl rand -hex 32)"
 migrate_port_urls
+
+export ZYDOCK_CHANNEL="${CHANNEL}"
+
+set_env ZYDOCK_VERSION "$(bash scripts/version.sh)"
+set_env ZYDOCK_COMMIT "$(bash scripts/version.sh commit)"
+set_env ZYDOCK_CHANNEL "${CHANNEL}"
+set_env ZYDOCK_INSTALL_DIR "${ZYDOCK_INSTALL_DIR}"
 
 . ./.env
 
@@ -133,6 +158,7 @@ docker image prune -f >/dev/null 2>&1 || true
 
 log "Done"
 echo "Zydock updated: $(git rev-parse --short "${CURRENT}") → $(git rev-parse --short HEAD)"
+echo "Now on ${ZYDOCK_VERSION} (channel: ${ZYDOCK_CHANNEL})"
 echo "Dashboard: ${APP_URL}"
 echo
 echo "Secrets in .env and the data volumes were kept. To roll this back:"
