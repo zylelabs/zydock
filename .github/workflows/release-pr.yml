@@ -60,7 +60,7 @@ jobs:
 
       - name: Open promotion PR
         env:
-          GH_TOKEN: ${{ github.token }}
+          GH_TOKEN: ${{ secrets.RELEASE_TOKEN || github.token }}
           LOG: ${{ steps.diff.outputs.log }}
           VERSION: ${{ steps.target.outputs.version }}
           TAKEN: ${{ steps.target.outputs.taken }}

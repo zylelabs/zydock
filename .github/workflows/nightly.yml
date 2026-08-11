@@ -52,7 +52,7 @@ jobs:
       - name: Open promotion PR
         if: steps.check.outputs.green == 'true' && steps.diff.outputs.pending == 'true'
         env:
-          GH_TOKEN: ${{ github.token }}
+          GH_TOKEN: ${{ secrets.RELEASE_TOKEN || github.token }}
           TAG: ${{ steps.version.outputs.tag }}
         run: |
           {
