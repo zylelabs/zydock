@@ -25,7 +25,7 @@
     default: () => null,
   });
 
-  const buildVersion = `${useRuntimeConfig().public.version}`;
+  const buildVersion = `v${useRuntimeConfig().public.version}`;
   const version = computed(() => installedVersionLabel(health.value) || buildVersion);
   const { current } = useOrganizations();
   const role = computed(() => current.value?.role);
