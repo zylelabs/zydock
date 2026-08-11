@@ -180,7 +180,9 @@
     }
 
     await patchSettings(
-      { channel: pendingChannel.value, branch: pendingBranch.value },
+      pendingChannel.value === 'branch'
+        ? { channel: 'branch', branch: pendingBranch.value }
+        : { channel: pendingChannel.value },
       'Could not change the update channel.',
     );
     confirmChannelOpen.value = false;
