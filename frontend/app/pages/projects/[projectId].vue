@@ -205,6 +205,7 @@
     setNavbar({
       title: data.value?.project.name ?? 'Project',
       context: 'Projects',
+      back: '/projects',
       action: {
         label: 'New application',
         icon: 'proicons:add',
