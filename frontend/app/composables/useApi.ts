@@ -43,6 +43,7 @@ export const renewSession = async () => {
     $fetch('/api/proxy/auth/refresh', {
       method: 'POST',
       body: { refreshToken: session.refreshToken },
+      skipAuth: true,
     }) as Promise<ISessionTokens>
   )
     .then(tokens => {

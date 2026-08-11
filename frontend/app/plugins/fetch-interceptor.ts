@@ -37,15 +37,19 @@ export default defineNuxtPlugin(() => {
 
       options.headers = headers;
     },
-    async onResponseError({ response }) {
-      if (response?.status === 401) {
-        if (import.meta.client) {
-          localStorage.clear();
+    async onResponseError({ options, response }) {
+      if (response?.status !== 401 || options.skipAuth || import.meta.server) {
+        return;
+      }
 
-          if (!isPublicRoute()) {
-            router.push('/auth/login');
-          }
-        }
+      if (await renewSession()) {
+        return;
+      }
+
+      session.clear();
+
+      if (!isPublicRoute()) {
+        router.push('/auth/login');
       }
     },
   });
