@@ -42,7 +42,11 @@
   const { set: setNavbar } = useNavbar();
 
   watchEffect(() => {
-    setNavbar({ title: 'Console', context: data.value?.name });
+    setNavbar({
+      title: 'Console',
+      context: data.value?.name,
+      back: `/applications/${applicationId.value}`,
+    });
   });
 </script>
 

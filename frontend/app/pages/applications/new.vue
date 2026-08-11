@@ -365,6 +365,7 @@
     setNavbar({
       title: 'New application',
       context: `Projects · ${projectName.value}`,
+      back: form.values.projectId ? `/projects/${form.values.projectId}` : '/applications',
     });
   });
 </script>

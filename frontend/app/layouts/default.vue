@@ -58,6 +58,7 @@
       <Header
         :title="navbar.title"
         :context="navbar.context"
+        :back="navbar.back"
         :loading="navbar.loading"
         :action="navbar.action"
       />

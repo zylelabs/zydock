@@ -54,7 +54,11 @@
   const { set: setNavbar } = useNavbar();
 
   watchEffect(() => {
-    setNavbar({ title: 'Deploy', context: applicationName.value });
+    setNavbar({
+      title: 'Deploy',
+      context: applicationName.value,
+      back: `/applications/${applicationId.value}`,
+    });
   });
 
   const load = async () => {

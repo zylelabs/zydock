@@ -29,7 +29,7 @@
   const { set: setNavbar } = useNavbar();
 
   watchEffect(() => {
-    setNavbar({ title: 'Access', context: serverName.value });
+    setNavbar({ title: 'Access', context: serverName.value, back: `/servers/${serverId.value}` });
   });
 
   const { items, loading, error, filtered, live, load } = useAccessLogFeed(filters =>

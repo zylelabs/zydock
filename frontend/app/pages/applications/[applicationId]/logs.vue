@@ -17,7 +17,11 @@
   const { set: setNavbar } = useNavbar();
 
   watchEffect(() => {
-    setNavbar({ title: 'Logs', context: applicationName.value });
+    setNavbar({
+      title: 'Logs',
+      context: applicationName.value,
+      back: `/applications/${applicationId.value}`,
+    });
   });
 
   const filters = reactive({ search: '', stream: '', level: '' });

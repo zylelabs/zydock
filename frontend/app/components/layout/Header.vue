@@ -4,6 +4,7 @@
   defineProps<{
     title?: string;
     context?: string;
+    back?: string;
     loading?: boolean;
     action?: NavbarAction;
   }>();
@@ -11,6 +12,17 @@
 
 <template>
   <header class="flex h-15 shrink-0 items-center gap-4 border-b border-edge px-7">
+    <Button
+      v-if="back"
+      :to="back"
+      theme="secondary"
+      size="sm"
+      class="size-8.5 shrink-0 rounded-md px-0 text-ink-2 hover:text-ink"
+      aria-label="Back"
+    >
+      <Icon name="lucide:arrow-left" size="16" />
+    </Button>
+
     <div class="min-w-0">
       <div v-if="context" class="truncate text-[11.5px] text-ink-3">{{ context }}</div>
       <div class="truncate text-heading text-ink">{{ title }}</div>

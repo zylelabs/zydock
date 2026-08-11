@@ -105,14 +105,18 @@
   useHead(() => ({ title: application.value?.name ?? 'Application' }));
 
   const navbarContext = ref('Applications');
+  const navbarBack = ref('/applications');
 
   watch(
     application,
     async current => {
       if (!current) {
         navbarContext.value = 'Applications';
+        navbarBack.value = '/applications';
         return;
       }
+
+      navbarBack.value = `/projects/${current.projectId}`;
 
       const [{ project }, environments] = await Promise.all([
         projectsApi.get(current.projectId),
@@ -195,6 +199,7 @@
     setNavbar({
       title: application.value?.name ?? 'Application',
       context: navbarContext.value,
+      back: navbarBack.value,
     });
   });
 </script>

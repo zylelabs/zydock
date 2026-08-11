@@ -65,7 +65,7 @@
   const { set: setNavbar } = useNavbar();
 
   watchEffect(() => {
-    setNavbar({ title: server.value?.name ?? 'Server', context: 'Servers' });
+    setNavbar({ title: server.value?.name ?? 'Server', context: 'Servers', back: '/servers' });
   });
 
   const percent = (used = 0, total = 0) => (total ? Math.round((used / total) * 100) : 0);
