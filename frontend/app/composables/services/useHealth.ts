@@ -8,7 +8,7 @@ export interface HealthReport {
 
 export const installedVersionLabel = (installed?: { version?: string; commit?: string } | null) => {
   if (installed?.version) {
-    return `v${installed.version}`;
+    return installed.version;
   }
 
   if (installed?.commit) {
