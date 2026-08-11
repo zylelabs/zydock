@@ -5,6 +5,7 @@
   import { useBackups } from '~/composables/services/useBackups';
   import { applicationStatusDot, useApplications } from '~/composables/services/useApplications';
   import { useOrganizations } from '~/composables/services/useOrganizations';
+  import { installedVersionLabel, useHealth } from '~/composables/services/useHealth';
   import type { AppearanceMode } from '~/stores/appearance.store';
 
   type NavItem = {
@@ -19,7 +20,13 @@
   const { isOpen, close } = useSidebar();
   const { mode, setMode } = useAppearance();
 
-  const version = useRuntimeConfig().public.version;
+  const { data: health } = useLazyAsyncData('platform-health', () => useHealth().get(), {
+    server: false,
+    default: () => null,
+  });
+
+  const buildVersion = `v${useRuntimeConfig().public.version}`;
+  const version = computed(() => installedVersionLabel(health.value) || buildVersion);
   const { current } = useOrganizations();
   const role = computed(() => current.value?.role);
 
@@ -144,7 +151,7 @@
     <div class="flex items-center gap-2.5 px-1.5 py-1">
       <Logo class="size-6.5 shrink-0" />
       <div class="flex-1 text-[15px] font-semibold tracking-[-0.01em] text-ink">Zydock</div>
-      <div class="font-mono text-[11px] text-ink-3">v{{ version }}</div>
+      <div class="font-mono text-[11px] text-ink-3">{{ version }}</div>
     </div>
 
     <OrganizationSwitcher />
