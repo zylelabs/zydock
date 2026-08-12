@@ -46,6 +46,28 @@ export const assertServiceExists = (parsed: ParsedCompose, service: string, fiel
   }
 };
 
+export const assertDatabaseCredentialsAreDeclared = (manifest: TemplateManifest) => {
+  const declared = new Set([
+    ...manifest.inputs.map(input => input.key),
+    ...manifest.secrets.map(secret => secret.key),
+  ]);
+
+  for (const database of manifest.databases) {
+    for (const [field, ref] of Object.entries(database.credentials)) {
+      if (!ref || ref.value !== undefined || !ref.key) {
+        continue;
+      }
+
+      if (!declared.has(ref.key)) {
+        throw new Error(
+          `databases[].credentials.${field} references "${ref.key}", which is not declared in ` +
+            `"inputs" or "secrets"`,
+        );
+      }
+    }
+  }
+};
+
 const loadTemplate = (id: string): Template => {
   const dir = join(CATALOG_ROOT, id);
   const manifest = parseTemplateManifest(
@@ -72,6 +94,7 @@ const loadTemplate = (id: string): Template => {
   }
 
   assertVariablesAreDeclared(manifest, composeContent);
+  assertDatabaseCredentialsAreDeclared(manifest);
   validateComposeSecurity(parsed);
 
   if (manifest.icon) {

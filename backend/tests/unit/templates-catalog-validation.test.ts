@@ -1,6 +1,7 @@
 import { describe, expect, test } from 'bun:test';
 import { parseComposeDocument } from '../../src/modules/compose/compose.service';
 import {
+  assertDatabaseCredentialsAreDeclared,
   assertServiceExists,
   assertVariablesAreDeclared,
 } from '../../src/modules/templates/catalog.service';
@@ -61,6 +62,58 @@ describe('assertVariablesAreDeclared', () => {
         'services:\n  app:\n    environment:\n      TZ: ${TIMEZONE}\n',
       ),
     ).toThrow(/"\$\{TIMEZONE\}".*not declared/);
+  });
+});
+
+describe('assertDatabaseCredentialsAreDeclared', () => {
+  test('accepts a password credential referencing a declared secret', () => {
+    expect(() =>
+      assertDatabaseCredentialsAreDeclared(
+        manifest({
+          databases: [
+            {
+              service: 'db',
+              engine: 'postgresql',
+              credentials: { password: { key: 'DB_PASSWORD' } },
+            },
+          ],
+          secrets: [{ key: 'DB_PASSWORD', generate: 'password' }],
+        }),
+      ),
+    ).not.toThrow();
+  });
+
+  test('accepts a literal credential value without declaring it', () => {
+    expect(() =>
+      assertDatabaseCredentialsAreDeclared(
+        manifest({
+          databases: [
+            {
+              service: 'db',
+              engine: 'postgresql',
+              credentials: { username: { value: 'postgres' }, password: { key: 'DB_PASSWORD' } },
+            },
+          ],
+          secrets: [{ key: 'DB_PASSWORD', generate: 'password' }],
+        }),
+      ),
+    ).not.toThrow();
+  });
+
+  test('rejects a credential key that is not declared in inputs or secrets', () => {
+    expect(() =>
+      assertDatabaseCredentialsAreDeclared(
+        manifest({
+          databases: [
+            {
+              service: 'db',
+              engine: 'postgresql',
+              credentials: { password: { key: 'DB_PASSWORD' } },
+            },
+          ],
+        }),
+      ),
+    ).toThrow(/credentials\.password.*"DB_PASSWORD".*not declared/);
   });
 });
 

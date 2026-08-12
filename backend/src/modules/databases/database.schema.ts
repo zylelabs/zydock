@@ -4,6 +4,10 @@ import { organizationIdParamSchema } from '../organizations/membership.schema';
 
 export type DatabaseEngineName = (typeof DATABASE_ENGINES)[number];
 
+export const DATABASE_SOURCES = ['managed', 'compose'] as const;
+
+export type DatabaseSource = (typeof DATABASE_SOURCES)[number];
+
 export const DATABASE_INSTANCE_STATUSES = [
   'provisioning',
   'running',

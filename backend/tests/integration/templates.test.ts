@@ -1,7 +1,10 @@
 import { afterAll, beforeAll, describe, expect, test } from 'bun:test';
 import { createApp } from '../../src/app-server';
 import { connectDatabase, disconnectDatabase } from '../../src/config/mongodb';
+import { removeApplication } from '../../src/modules/applications/application.service';
 import applicationModel from '../../src/modules/applications/application.model';
+import databaseModel from '../../src/modules/databases/database.model';
+import { composeContainerNameOf } from '../../src/modules/deployments/naming';
 import { findEnvironmentOfOrganization } from '../../src/modules/projects/environment.service';
 import { createMembership } from '../../src/modules/organizations/membership.service';
 import { runDeployment } from '../../src/modules/deployments/pipeline.service';
@@ -207,7 +210,17 @@ describe('POST /templates/:templateId/deploy', () => {
       origin: 'official',
       dockerCompose: 'docker-compose.yml',
       expose: { service: 'app', port: 80, domain: true },
-      databases: [{ service: 'db', engine: 'postgresql' }],
+      databases: [
+        {
+          service: 'db',
+          engine: 'postgresql',
+          credentials: {
+            username: { value: 'postgres' },
+            password: { key: 'POSTGRES_PASSWORD' },
+            database: { value: 'postgres' },
+          },
+        },
+      ],
       inputs: [],
       secrets: [{ key: 'POSTGRES_PASSWORD', generate: 'password' }],
       deprecated: false,
@@ -258,6 +271,52 @@ describe('POST /templates/:templateId/deploy', () => {
     expect(password?.secret).toBe(true);
     expect(password?.value.length).toBeGreaterThan(0);
     expect(slugVariable?.secret).toBe(false);
+
+    const registered = await databaseModel.findOne({ 'link.applicationId': application._id });
+
+    expect(registered).not.toBeNull();
+    expect(registered!.source).toBe('compose');
+    expect(registered!.engine).toBe('postgresql');
+    expect(registered!.containerName).toBe(composeContainerNameOf(application.slug, 'db'));
+
+    const list = await json(
+      `/organizations/${organizationId}/databases?serverId=${getLocalServerId()}`,
+      'GET',
+      undefined,
+      token,
+    );
+    const listBody = (await list.json()) as { items: { id: string; source: string }[] };
+
+    expect(listBody.items.some(item => item.id === String(registered!._id))).toBe(true);
+    expect(listBody.items.find(item => item.id === String(registered!._id))?.source).toBe(
+      'compose',
+    );
+
+    const credentials = await json(
+      `/organizations/${organizationId}/databases/${registered!._id}/credentials`,
+      'GET',
+      undefined,
+      token,
+    );
+    const credentialsBody = (await credentials.json()) as {
+      credentials: {
+        host: string;
+        port: number;
+        username: string;
+        database: string;
+        password: string;
+      };
+    };
+
+    expect(credentials.status).toBe(200);
+    expect(credentialsBody.credentials.host).toBe(composeContainerNameOf(application.slug, 'db'));
+    expect(credentialsBody.credentials.port).toBe(5432);
+    expect(credentialsBody.credentials.username).toBe('postgres');
+    expect(credentialsBody.credentials.password).toBe(password!.value);
+
+    await removeApplication(String(application._id));
+
+    expect(await databaseModel.findOne({ 'link.applicationId': application._id })).toBeNull();
   });
 
   test('rejects a template deploy from a member without admin rights', async () => {
@@ -459,7 +518,17 @@ describe('template secrets never leak', () => {
       origin: 'official',
       dockerCompose: 'docker-compose.yml',
       expose: { service: 'app', port: 80, domain: true },
-      databases: [{ service: 'db', engine: 'postgresql' }],
+      databases: [
+        {
+          service: 'db',
+          engine: 'postgresql',
+          credentials: {
+            username: { value: 'postgres' },
+            password: { key: 'POSTGRES_PASSWORD' },
+            database: { value: 'postgres' },
+          },
+        },
+      ],
       inputs: [],
       secrets: [
         { key: 'POSTGRES_PASSWORD', generate: 'password' },
