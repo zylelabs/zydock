@@ -1,3 +1,4 @@
+import type { DatabaseCredentials } from '../../providers/database';
 import { resolveContainerProvider } from '../../providers/container';
 import { resolveDatabaseProvider, type DatabaseStatus } from '../../providers/database';
 import { volumeNameOf } from '../../providers/database/container.provider';
@@ -6,10 +7,23 @@ import { resolveStorageProvider } from '../../providers/storage';
 import { generateUniqueSlug } from '../../utils';
 import { decryptSecret, encryptSecret } from '../../utils/crypto';
 import { logError } from '../../utils/logger';
+import { decryptVariables, findApplicationWithSecrets } from '../applications/application.service';
+import { composeContainerNameOf } from '../deployments/naming';
 import { buildAgentConnection } from '../servers/server.service';
 import databaseModel from './database.model';
 import type { CreateDatabaseDTO, DatabaseEngineName } from './database.schema';
 import { DEFAULT_VERSIONS } from './database.schema';
+
+const ENGINE_DEFAULT_USERNAME: Record<DatabaseEngineName, string> = {
+  postgresql: 'postgres',
+  mysql: 'root',
+  mongodb: 'root',
+  redis: 'default',
+};
+
+const ENGINE_DEFAULT_DATABASE: Partial<Record<DatabaseEngineName, string>> = {
+  postgresql: 'postgres',
+};
 
 const uniqueSlug = (serverId: string, name: string) =>
   generateUniqueSlug(name, 'database', async slug =>
@@ -113,6 +127,12 @@ export const destroyDatabase = async (
   server: Server,
   removeData: boolean,
 ) => {
+  if (database.source === 'compose') {
+    await databaseModel.deleteOne({ _id: database._id });
+
+    return;
+  }
+
   const provider = providerOf(server, database.engine);
   const containers = resolveContainerProvider(buildAgentConnection(server));
 
@@ -133,31 +153,171 @@ export const destroyDatabase = async (
 
 export const dumpExtensionOf = (engine: DatabaseEngineName) => ENGINES[engine].extension;
 
-const backupSpecOf = (database: ManagedDatabase, storageKey: string) => {
+const resolveCredentialRef = (
+  ref: DatabaseCredentialRef | undefined,
+  variables: Array<{ key: string; value: string }>,
+): string | undefined => {
+  if (!ref) {
+    return undefined;
+  }
+
+  if (ref.value !== undefined) {
+    return ref.value;
+  }
+
+  return ref.key ? variables.find(variable => variable.key === ref.key)?.value : undefined;
+};
+
+export const resolveComposeCredentials = async (
+  database: ManagedDatabase,
+): Promise<DatabaseCredentials> => {
+  if (database.source !== 'compose' || !database.link) {
+    throw new Error('This database is not linked to a compose application');
+  }
+
+  const application = await findApplicationWithSecrets(
+    String(database.organizationId),
+    database.link.applicationId,
+  );
+
+  if (!application) {
+    throw new Error('The application this database is linked to no longer exists');
+  }
+
+  const variables = decryptVariables(application.variables);
+  const password = resolveCredentialRef(database.link.password, variables);
+
+  if (password === undefined) {
+    throw new Error(
+      `Variable "${database.link.password.key}" was not found in "${application.name}"'s .env`,
+    );
+  }
+
+  const engine: DatabaseEngineName = database.engine;
+  const host =
+    database.containerName ?? composeContainerNameOf(application.slug, database.link.service);
+  const port = ENGINES[engine].port;
+  const username =
+    resolveCredentialRef(database.link.username, variables) ?? ENGINE_DEFAULT_USERNAME[engine];
+  const databaseName =
+    resolveCredentialRef(database.link.database, variables) ??
+    ENGINE_DEFAULT_DATABASE[engine] ??
+    username;
+
+  return {
+    host,
+    port,
+    username,
+    database: databaseName,
+    password,
+    connectionUri: ENGINES[engine].connectionUri({
+      username,
+      password,
+      host,
+      port,
+      database: databaseName,
+    }),
+  };
+};
+
+const backupSpecOf = async (database: ManagedDatabase, storageKey: string) => {
   if (!database.containerId) {
     throw new Error('This database has no container yet');
   }
 
-  return { containerId: database.containerId, credentials: readCredentials(database), storageKey };
+  return {
+    containerId: database.containerId,
+    credentials: await readCredentials(database),
+    storageKey,
+  };
 };
 
-export const backupDatabase = (database: ManagedDatabase, server: Server, storageKey: string) =>
-  providerOf(server, database.engine).backup(backupSpecOf(database, storageKey));
+export const backupDatabase = async (
+  database: ManagedDatabase,
+  server: Server,
+  storageKey: string,
+) => providerOf(server, database.engine).backup(await backupSpecOf(database, storageKey));
 
-export const restoreDatabase = (database: ManagedDatabase, server: Server, storageKey: string) =>
-  providerOf(server, database.engine).restore(backupSpecOf(database, storageKey));
+export const restoreDatabase = async (
+  database: ManagedDatabase,
+  server: Server,
+  storageKey: string,
+) => providerOf(server, database.engine).restore(await backupSpecOf(database, storageKey));
 
-export const readCredentials = (database: ManagedDatabase) => ({
-  host: database.credentials.host,
-  port: database.credentials.port,
-  username: database.credentials.username,
-  database: database.credentials.database,
-  password: decryptSecret(database.credentials.password),
-  connectionUri: decryptSecret(database.credentials.connectionUri),
-});
+export const readCredentials = async (database: ManagedDatabase): Promise<DatabaseCredentials> => {
+  if (database.source === 'compose') {
+    return resolveComposeCredentials(database);
+  }
+
+  const credentials = database.credentials!;
+
+  return {
+    host: credentials.host,
+    port: credentials.port,
+    username: credentials.username,
+    database: credentials.database,
+    password: decryptSecret(credentials.password),
+    connectionUri: decryptSecret(credentials.connectionUri),
+  };
+};
+
+export const registerComposeDatabases = async (
+  application: Application,
+  databases: TemplateDatabase[],
+) => {
+  for (const entry of databases) {
+    const slug = `${application.slug}-${entry.service}`;
+    const containerName = composeContainerNameOf(application.slug, entry.service);
+
+    await databaseModel.create({
+      organizationId: application.organizationId,
+      serverId: application.serverId,
+      name: `${application.name} (${entry.service})`,
+      slug,
+      engine: entry.engine,
+      status: 'provisioning',
+      source: 'compose',
+      containerId: containerName,
+      containerName,
+      link: {
+        applicationId: application._id,
+        service: entry.service,
+        username: entry.credentials.username,
+        password: entry.credentials.password,
+        database: entry.credentials.database,
+      },
+    });
+  }
+};
+
+export const unlinkDatabasesOfApplications = (applicationIds: string[]) =>
+  databaseModel.deleteMany({ 'link.applicationId': { $in: applicationIds } });
 
 export const listDatabasesOfOrganization = (organizationId: string) =>
   databaseModel.find({ organizationId }).sort({ createdAt: 1 });
+
+const connectionOf = (database: ManagedDatabase) => {
+  if (database.source === 'managed') {
+    const credentials = database.credentials!;
+
+    return {
+      host: credentials.host,
+      port: credentials.port,
+      username: credentials.username,
+      database: credentials.database,
+    };
+  }
+
+  const link = database.link!;
+  const engine: DatabaseEngineName = database.engine;
+
+  return {
+    host: database.containerName ?? '',
+    port: ENGINES[engine].port,
+    username: link.username?.value ?? ENGINE_DEFAULT_USERNAME[engine],
+    database: link.database?.value ?? ENGINE_DEFAULT_DATABASE[engine] ?? '',
+  };
+};
 
 export const serializeDatabase = (database: ManagedDatabase) => ({
   id: String(database._id),
@@ -168,13 +328,12 @@ export const serializeDatabase = (database: ManagedDatabase) => ({
   engine: database.engine,
   version: database.version,
   status: database.status,
+  source: database.source,
   containerId: database.containerId,
-  connection: {
-    host: database.credentials.host,
-    port: database.credentials.port,
-    username: database.credentials.username,
-    database: database.credentials.database,
-  },
+  application: database.link
+    ? { id: String(database.link.applicationId), service: database.link.service }
+    : undefined,
+  connection: connectionOf(database),
   lastError: database.lastError,
   createdAt: database.createdAt,
   updatedAt: database.updatedAt,

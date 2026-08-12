@@ -18,9 +18,21 @@ interface TemplateExpose {
   domain: boolean;
 }
 
+interface TemplateCredentialRef {
+  key?: string;
+  value?: string;
+}
+
+interface TemplateDatabaseCredentials {
+  username?: TemplateCredentialRef;
+  password: TemplateCredentialRef;
+  database?: TemplateCredentialRef;
+}
+
 interface TemplateDatabase {
   service: string;
   engine: import('./template.schema').TemplateDatabaseEngine;
+  credentials: TemplateDatabaseCredentials;
 }
 
 interface TemplateManifest {

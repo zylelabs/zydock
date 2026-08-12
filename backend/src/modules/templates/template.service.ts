@@ -9,6 +9,7 @@ import {
 import type { CreateApplicationDTO } from '../applications/application.schema';
 import { findHostPortConflict } from '../applications/port-guard.service';
 import { parseComposeDocument, publishedPortsOf } from '../compose/compose.service';
+import { registerComposeDatabases } from '../databases/database.service';
 import { enqueueDeployment } from '../deployments/pipeline.service';
 import { allTemplates } from './catalog.service';
 import { parseEnvContent, renderTemplate, type RenderTemplateContext } from './render.service';
@@ -187,6 +188,8 @@ export const deployTemplateApplication = async (params: {
       slug,
       origin: { templateId: template.id, templateVersion: template.version, inputs: body.inputs },
     });
+
+    await registerComposeDatabases(application, template.databases);
 
     const deployment = body.deployNow
       ? await enqueueDeployment({ application, trigger: 'manual', triggeredBy })

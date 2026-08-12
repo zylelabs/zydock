@@ -7,17 +7,32 @@ interface DatabaseCredentialsData {
   connectionUri: string;
 }
 
+interface DatabaseCredentialRef {
+  key?: string;
+  value?: string;
+}
+
+interface DatabaseComposeLink {
+  applicationId: string;
+  service: string;
+  username?: DatabaseCredentialRef;
+  password: DatabaseCredentialRef;
+  database?: DatabaseCredentialRef;
+}
+
 interface DatabaseData {
   organizationId: string;
   serverId: string;
   name: string;
   slug: string;
   engine: DatabaseEngineName;
-  version: string;
+  version?: string;
   status: DatabaseInstanceStatus;
+  source: import('./database.schema').DatabaseSource;
   containerId?: string;
   containerName?: string;
-  credentials: DatabaseCredentialsData;
+  credentials?: DatabaseCredentialsData;
+  link?: DatabaseComposeLink;
   lastError?: string;
 }
 

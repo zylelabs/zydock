@@ -129,7 +129,7 @@ get(
       return c.json({ error: 'Database not found' }, 404);
     }
 
-    return c.json({ credentials: readCredentials(database) });
+    return c.json({ credentials: await readCredentials(database) });
   },
 );
 

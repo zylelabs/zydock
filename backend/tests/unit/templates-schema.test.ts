@@ -82,4 +82,54 @@ describe('parseTemplateManifest', () => {
 
     expect(manifest.deprecated).toBe(true);
   });
+
+  test('rejects a database entry without a password credential', () => {
+    const raw = {
+      ...validManifest(),
+      databases: [{ service: 'db', engine: 'postgresql' }],
+    };
+
+    expect(() => parseTemplateManifest(raw)).toThrow(/credentials/);
+  });
+
+  test('accepts a database entry with a password credential referencing a secret key', () => {
+    const raw = {
+      ...validManifest(),
+      databases: [
+        {
+          service: 'db',
+          engine: 'postgresql',
+          credentials: { password: { key: 'DB_PASSWORD' } },
+        },
+      ],
+      secrets: [{ key: 'DB_PASSWORD', generate: 'password' }],
+    };
+
+    const manifest = parseTemplateManifest(raw);
+
+    expect(manifest.databases[0]?.credentials.password).toEqual({ key: 'DB_PASSWORD' });
+  });
+
+  test('accepts a literal value for username and database credentials', () => {
+    const raw = {
+      ...validManifest(),
+      databases: [
+        {
+          service: 'db',
+          engine: 'postgresql',
+          credentials: {
+            username: { value: 'postgres' },
+            password: { key: 'DB_PASSWORD' },
+            database: { value: 'postgres' },
+          },
+        },
+      ],
+      secrets: [{ key: 'DB_PASSWORD', generate: 'password' }],
+    };
+
+    const manifest = parseTemplateManifest(raw);
+
+    expect(manifest.databases[0]?.credentials.username).toEqual({ value: 'postgres' });
+    expect(manifest.databases[0]?.credentials.database).toEqual({ value: 'postgres' });
+  });
 });

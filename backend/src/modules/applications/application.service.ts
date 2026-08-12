@@ -2,6 +2,7 @@ import { generateUniqueSlug } from '../../utils';
 import { decryptSecret, encryptSecret } from '../../utils/crypto';
 import type { GitCredentials } from '../../providers/git';
 import type { AuthPayload } from '../auth/auth.middleware';
+import { unlinkDatabasesOfApplications } from '../databases/database.service';
 import { removeDeploymentsOfApplications } from '../deployments/deployment.service';
 import { composeContainerNameOf, containerNameOf } from '../deployments/naming';
 import { removeDomainsOfApplications } from '../domains/domain.service';
@@ -192,6 +193,7 @@ const removeApplicationsWhere = async (filter: Record<string, unknown>) => {
 
   await removeDomainsOfApplications(applicationIds);
   await removeDeploymentsOfApplications(applicationIds);
+  await unlinkDatabasesOfApplications(applicationIds);
   await applicationModel.deleteMany(filter);
 };
 

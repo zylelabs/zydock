@@ -62,9 +62,21 @@ const templateExposeSchema = z.object({
   domain: z.boolean().default(true),
 });
 
+const templateCredentialRefSchema = z.union([
+  z.object({ key: templateKeySchema }),
+  z.object({ value: z.string().trim().min(1).max(200) }),
+]);
+
+const templateDatabaseCredentialsSchema = z.object({
+  username: templateCredentialRefSchema.optional(),
+  password: templateCredentialRefSchema,
+  database: templateCredentialRefSchema.optional(),
+});
+
 const templateDatabaseSchema = z.object({
   service: serviceNameSchema,
   engine: z.enum(TEMPLATE_DATABASE_ENGINES),
+  credentials: templateDatabaseCredentialsSchema,
 });
 
 const rawTemplateSchema = z.object({
