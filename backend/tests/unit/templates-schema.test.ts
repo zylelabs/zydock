@@ -132,4 +132,99 @@ describe('parseTemplateManifest', () => {
     expect(manifest.databases[0]?.credentials.username).toEqual({ value: 'postgres' });
     expect(manifest.databases[0]?.credentials.database).toEqual({ value: 'postgres' });
   });
+
+  test('accepts a "versions" block with a default present in "available"', () => {
+    const raw = {
+      ...validManifest(),
+      versions: {
+        key: 'APP_VERSION',
+        default: '2',
+        available: [{ value: '2', label: '2.x (stable)' }, { value: '1' }],
+      },
+    };
+
+    const manifest = parseTemplateManifest(raw);
+
+    expect(manifest.versions).toEqual({
+      key: 'APP_VERSION',
+      default: '2',
+      available: [{ value: '2', label: '2.x (stable)' }, { value: '1' }],
+    });
+  });
+
+  test('"versions" is undefined when the template does not declare it', () => {
+    const manifest = parseTemplateManifest(validManifest());
+
+    expect(manifest.versions).toBeUndefined();
+  });
+
+  test('rejects "versions.default" outside of "versions.available"', () => {
+    const raw = {
+      ...validManifest(),
+      versions: { key: 'APP_VERSION', default: '3', available: [{ value: '2' }, { value: '1' }] },
+    };
+
+    expect(() => parseTemplateManifest(raw)).toThrow(/versions\.default.*"available/);
+  });
+
+  test('rejects "latest" as a "versions.available" value', () => {
+    const raw = {
+      ...validManifest(),
+      versions: { key: 'APP_VERSION', default: 'latest', available: [{ value: 'latest' }] },
+    };
+
+    expect(() => parseTemplateManifest(raw)).toThrow(/latest.*not allowed/);
+  });
+
+  test('rejects duplicate "versions.available[].value" entries', () => {
+    const raw = {
+      ...validManifest(),
+      versions: {
+        key: 'APP_VERSION',
+        default: '2',
+        available: [{ value: '2' }, { value: '2' }],
+      },
+    };
+
+    expect(() => parseTemplateManifest(raw)).toThrow(/available.*unique/);
+  });
+
+  test('rejects "versions.key" colliding with an "inputs" key', () => {
+    const raw = {
+      ...validManifest(),
+      inputs: [{ key: 'APP_VERSION', label: 'Version', type: 'text', required: false }],
+      versions: { key: 'APP_VERSION', default: '1', available: [{ value: '1' }] },
+    };
+
+    expect(() => parseTemplateManifest(raw)).toThrow(/versions\.key.*collides/);
+  });
+
+  test('rejects "versions.key" colliding with a "secrets" key', () => {
+    const raw = {
+      ...validManifest(),
+      secrets: [{ key: 'APP_VERSION', generate: 'hex32' }],
+      versions: { key: 'APP_VERSION', default: '1', available: [{ value: '1' }] },
+    };
+
+    expect(() => parseTemplateManifest(raw)).toThrow(/versions\.key.*collides/);
+  });
+
+  test('rejects "versions.key" with the reserved ZYDOCK_ prefix', () => {
+    const raw = {
+      ...validManifest(),
+      versions: { key: 'ZYDOCK_APP_VERSION', default: '1', available: [{ value: '1' }] },
+    };
+
+    expect(() => parseTemplateManifest(raw)).toThrow(/reserved/);
+  });
+
+  test('rejects "versions.available" with more than 30 entries', () => {
+    const available = Array.from({ length: 31 }, (_, index) => ({ value: String(index + 1) }));
+    const raw = {
+      ...validManifest(),
+      versions: { key: 'APP_VERSION', default: '1', available },
+    };
+
+    expect(() => parseTemplateManifest(raw)).toThrow();
+  });
 });

@@ -1,5 +1,6 @@
 import type { Paginated } from '../useApi';
 import type { Status } from '~/components/elements/StatusDot.vue';
+import type { Template } from './useTemplates';
 
 export type ApplicationStatus = 'created' | 'deploying' | 'running' | 'stopped' | 'failed';
 
@@ -91,12 +92,45 @@ export interface ApplicationOrigin {
   templateId: string;
   templateVersion: number;
   inputs: Record<string, string>;
+  composeHash?: string;
+}
+
+export type TemplateStatus = 'up-to-date' | 'update-available' | 'deprecated' | 'unknown';
+
+export interface ApplicationVersion {
+  key: string;
+  current: string;
 }
 
 export interface ApplicationService {
   service: string;
   containerName: string;
   exposed: boolean;
+}
+
+export type ComposeDiffLineType = 'context' | 'added' | 'removed';
+
+export interface ComposeDiffLine {
+  type: ComposeDiffLineType;
+  content: string;
+}
+
+export interface TemplateUpdatePreview {
+  status: TemplateStatus;
+  installedVersion: number;
+  availableVersion?: number;
+  manuallyEdited: boolean;
+  composeDiff?: ComposeDiffLine[];
+  variables?: { added: string[]; removed: string[] };
+  expose?: {
+    changed: boolean;
+    current: ApplicationComposeExpose;
+    next: ApplicationComposeExpose & { domain: boolean };
+  };
+  databases?: {
+    added: { service: string; engine: string }[];
+    removed: { service: string; engine: string }[];
+  };
 }
 
 export interface Application {
@@ -120,6 +154,8 @@ export interface Application {
   resources?: ApplicationResources;
   restartPolicy: string;
   origin?: ApplicationOrigin;
+  version?: ApplicationVersion;
+  templateStatus?: TemplateStatus;
   lastError?: string;
   createdAt: string;
   updatedAt: string;
@@ -147,6 +183,64 @@ export type ApplicationFilter = {
   environmentId?: string;
   serverId?: string;
   size?: number;
+};
+
+export interface ApplicationVersionOption {
+  value: string;
+  label?: string;
+}
+
+export const isVersionDowngrade = (
+  available: ApplicationVersionOption[],
+  current: string,
+  next: string,
+): boolean => {
+  const currentIndex = available.findIndex(option => option.value === current);
+  const nextIndex = available.findIndex(option => option.value === next);
+
+  if (currentIndex === -1 || nextIndex === -1) {
+    return false;
+  }
+
+  return nextIndex > currentIndex;
+};
+
+export type ApplicationVersionStatus =
+  | { editable: false; reason: string }
+  | { editable: true; key: string; current: string; options: ApplicationVersionOption[] };
+
+export const applicationVersionStatus = (
+  application: Application,
+  template: Template | null,
+): ApplicationVersionStatus => {
+  if (!application.origin?.templateId) {
+    return {
+      editable: false,
+      reason: 'This application was not created from a marketplace template.',
+    };
+  }
+
+  if (!template) {
+    return {
+      editable: false,
+      reason: 'The template used to create this application is no longer in the catalog.',
+    };
+  }
+
+  if (!template.versions) {
+    return { editable: false, reason: 'This template does not declare selectable versions.' };
+  }
+
+  if (!application.version) {
+    return { editable: false, reason: 'The running version could not be determined.' };
+  }
+
+  return {
+    editable: true,
+    key: template.versions.key,
+    current: application.version.current,
+    options: template.versions.available,
+  };
 };
 
 export const useApplications = () => {
@@ -180,6 +274,25 @@ export const useApplications = () => {
       body: { deploymentId },
     });
 
+  const changeVersion = (applicationId: string, body: { version: string; deployNow?: boolean }) =>
+    api.post<{ application: Application; deployment?: { id: string } }>(
+      `${base()}/${applicationId}/version`,
+      { body },
+    );
+
+  const templateUpdatePreview = (applicationId: string) =>
+    api.get<TemplateUpdatePreview>(`${base()}/${applicationId}/template-update`);
+
+  const applyTemplateUpdate = (
+    applicationId: string,
+    body: { confirmOverwrite?: boolean; deployNow?: boolean; inputs?: Record<string, string> },
+  ) =>
+    api.post<{
+      application: Application;
+      deployment?: { id: string };
+      versionFellBackToDefault: boolean;
+    }>(`${base()}/${applicationId}/template-update`, { body });
+
   const restart = (applicationId: string) =>
     api.post<{ application: Application }>(`${base()}/${applicationId}/restart`);
   const stop = (applicationId: string) =>
@@ -205,6 +318,9 @@ export const useApplications = () => {
     replaceVariables,
     deploy,
     rollback,
+    changeVersion,
+    templateUpdatePreview,
+    applyTemplateUpdate,
     restart,
     stop,
     start,

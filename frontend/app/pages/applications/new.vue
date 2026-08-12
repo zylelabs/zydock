@@ -126,11 +126,21 @@
 
   const selectedTemplate = ref<Template | null>(null);
   const templateInputValues = reactive<Record<string, string>>({});
+  const templateVersion = ref('');
+
+  const templateVersionOptions = computed(
+    () =>
+      selectedTemplate.value?.versions?.available.map(entry => ({
+        value: entry.value,
+        label: entry.label ?? entry.value,
+      })) ?? [],
+  );
 
   const handleSelectTemplate = (template: Template) => {
     selectedTemplate.value = template;
     form.values.templateId = template.id;
     form.values.resourceMode = 'template';
+    templateVersion.value = template.versions?.default ?? '';
 
     for (const key of Object.keys(templateInputValues)) {
       Reflect.deleteProperty(templateInputValues, key);
@@ -435,6 +445,7 @@
         inputs: Object.fromEntries(
           Object.entries(templateInputValues).filter(([, value]) => value.trim()),
         ),
+        version: templateVersion.value || undefined,
         deployNow: true,
       });
 
@@ -526,10 +537,16 @@
     if (form.values.sourceMode === 'resources' && form.values.resourceMode === 'template') {
       const template = selectedTemplate.value;
 
+      const versionLabel = template?.versions
+        ? (template.versions.available.find(entry => entry.value === templateVersion.value)
+            ?.label ?? templateVersion.value)
+        : null;
+
       return [
         { label: 'Source', value: 'Marketplace template' },
         { label: 'Template', value: template?.name ?? '—' },
         { label: 'Category', value: template?.category ?? '—' },
+        ...(versionLabel ? [{ label: 'Version', value: versionLabel }] : []),
         {
           label: 'Services',
           value:
@@ -722,33 +739,20 @@
 
             <template v-if="form.values.sourceMode === 'resources'">
               <template v-if="form.values.resourceMode === 'template'">
-                <template v-for="input in selectedTemplate?.inputs ?? []" :key="input.key">
-                  <Switch
-                    v-if="input.type === 'boolean'"
-                    :model-value="templateInputValues[input.key] === 'true'"
-                    class="px-4.25 py-3"
-                    @update:model-value="value => (templateInputValues[input.key] = String(value))"
-                  />
-                  <Select
-                    v-else-if="input.type === 'select'"
-                    v-model="templateInputValues[input.key]"
-                    :label="input.label"
-                    :options="
-                      (input.options ?? []).map(option => ({ value: option, label: option }))
-                    "
-                    boxed
-                    :call-error="templateInputError(input.key)"
-                  />
-                  <Input
-                    v-else
-                    v-model="templateInputValues[input.key]"
-                    :label="input.label"
-                    :password="input.type === 'password'"
-                    mono
-                    boxed
-                    :call-error="templateInputError(input.key)"
-                  />
-                </template>
+                <Select
+                  v-if="selectedTemplate?.versions"
+                  v-model="templateVersion"
+                  label="Version"
+                  :options="templateVersionOptions"
+                  boxed
+                />
+
+                <TemplateInputFields
+                  :inputs="selectedTemplate?.inputs ?? []"
+                  :values="templateInputValues"
+                  :errors="templateInputError"
+                  @update:value="(key, value) => (templateInputValues[key] = value)"
+                />
               </template>
 
               <template v-else>

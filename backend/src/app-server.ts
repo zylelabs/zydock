@@ -14,6 +14,7 @@ import { startWorker, stopWorker } from './modules/queue/queue.service';
 import { ensureDashboardRoutes } from './modules/servers/dashboard-route.service';
 import { ensureLocalServer } from './modules/servers/local-server.service';
 import { syncAgentBundles } from './modules/servers/provisioning.service';
+import { allTemplates } from './modules/templates/catalog.service';
 import { bootstrapUpdates } from './modules/updates/update.service';
 import { logError, logInfo } from './utils/logger';
 
@@ -125,6 +126,8 @@ const loadRoutes = (app: Hono<AppEnv>) => {
 };
 
 export const createApp = () => {
+  allTemplates();
+
   const app = new Hono<AppEnv>();
 
   loadMiddlewares(app);

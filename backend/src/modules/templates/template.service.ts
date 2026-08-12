@@ -1,16 +1,24 @@
-import { randomBytes, randomUUID } from 'node:crypto';
+import { createHash, randomBytes, randomUUID } from 'node:crypto';
 import { errorMessage } from '../../utils';
 import {
   createApplication,
+  decryptVariables,
   removeApplication,
   uniqueSlug,
+  updateTemplateApplication,
   updateVariableValue,
 } from '../applications/application.service';
 import type { CreateApplicationDTO } from '../applications/application.schema';
 import { findHostPortConflict } from '../applications/port-guard.service';
+import { validateComposeSecurity } from '../compose/compose.schema';
 import { parseComposeDocument, publishedPortsOf } from '../compose/compose.service';
-import { registerComposeDatabases } from '../databases/database.service';
+import {
+  findDatabasesOfApplication,
+  registerComposeDatabases,
+  unlinkComposeDatabasesOfServices,
+} from '../databases/database.service';
 import { enqueueDeployment } from '../deployments/pipeline.service';
+import { findServerById } from '../servers/server.service';
 import { allTemplates } from './catalog.service';
 import { parseEnvContent, renderTemplate, type RenderTemplateContext } from './render.service';
 import type {
@@ -82,6 +90,7 @@ export const serializeTemplate = (template: Template) => ({
   databases: template.databases,
   inputs: template.inputs,
   secrets: template.secrets.map(secret => ({ key: secret.key, generate: secret.generate })),
+  versions: template.versions,
 });
 
 const PASSWORD_ALPHABET = 'ABCDEFGHJKLMNPQRSTUVWXYZabcdefghijkmnopqrstuvwxyz23456789';
@@ -120,6 +129,399 @@ export const regenerateTemplateSecret = async (application: Application, key: st
   await updateVariableValue(String(application._id), key, value);
 };
 
+export const changeApplicationVersion = async (application: Application, version: string) => {
+  if (application.source !== 'compose' || !application.origin?.templateId) {
+    throw new Error('This application was not created from a template');
+  }
+
+  const template = findTemplateById(application.origin.templateId);
+
+  if (!template) {
+    throw new Error('The template this application was created from is no longer in the catalog');
+  }
+
+  if (!template.versions) {
+    throw new Error('This template has no selectable versions');
+  }
+
+  const isValid = template.versions.available.some(entry => entry.value === version);
+
+  if (!isValid) {
+    const options = template.versions.available.map(entry => entry.value).join(', ');
+
+    throw new Error(`"version" must be one of: ${options}`);
+  }
+
+  const current = decryptVariables(application.variables).find(
+    variable => variable.key === template.versions!.key,
+  );
+
+  if (current?.value === version) {
+    throw new Error('The application is already running this version');
+  }
+
+  await updateVariableValue(String(application._id), template.versions.key, version);
+};
+
+export const composeHashOf = (content: string): string =>
+  createHash('sha256').update(content).digest('hex');
+
+export const TEMPLATE_STATUSES = [
+  'up-to-date',
+  'update-available',
+  'deprecated',
+  'unknown',
+] as const;
+
+export type TemplateStatus = (typeof TEMPLATE_STATUSES)[number];
+
+export const templateStatusOf = (application: Application): TemplateStatus | undefined => {
+  if (application.source !== 'compose' || !application.origin?.templateId) {
+    return undefined;
+  }
+
+  const template = findTemplateById(application.origin.templateId);
+
+  if (!template) {
+    return 'unknown';
+  }
+
+  if (template.deprecated) {
+    return 'deprecated';
+  }
+
+  return template.version > application.origin.templateVersion ? 'update-available' : 'up-to-date';
+};
+
+export type ComposeDiffLine = { type: 'context' | 'added' | 'removed'; content: string };
+
+const diffComposeLines = (before: string[], after: string[]): ComposeDiffLine[] => {
+  const lengths: number[][] = Array.from({ length: before.length + 1 }, () =>
+    new Array<number>(after.length + 1).fill(0),
+  );
+
+  for (let i = before.length - 1; i >= 0; i -= 1) {
+    for (let j = after.length - 1; j >= 0; j -= 1) {
+      lengths[i]![j] =
+        before[i] === after[j]
+          ? lengths[i + 1]![j + 1]! + 1
+          : Math.max(lengths[i + 1]![j]!, lengths[i]![j + 1]!);
+    }
+  }
+
+  const result: ComposeDiffLine[] = [];
+  let i = 0;
+  let j = 0;
+
+  while (i < before.length && j < after.length) {
+    if (before[i] === after[j]) {
+      result.push({ type: 'context', content: before[i]! });
+      i += 1;
+      j += 1;
+    } else if (lengths[i + 1]![j]! >= lengths[i]![j + 1]!) {
+      result.push({ type: 'removed', content: before[i]! });
+      i += 1;
+    } else {
+      result.push({ type: 'added', content: after[j]! });
+      j += 1;
+    }
+  }
+
+  while (i < before.length) {
+    result.push({ type: 'removed', content: before[i]! });
+    i += 1;
+  }
+
+  while (j < after.length) {
+    result.push({ type: 'added', content: after[j]! });
+    j += 1;
+  }
+
+  return result;
+};
+
+export const diffComposeContent = (before: string, after: string): ComposeDiffLine[] =>
+  diffComposeLines(before.split('\n'), after.split('\n'));
+
+export type TemplateUpdatePreview = {
+  status: TemplateStatus;
+  installedVersion: number;
+  availableVersion?: number;
+  manuallyEdited: boolean;
+  composeDiff?: ComposeDiffLine[];
+  variables?: { added: string[]; removed: string[] };
+  expose?: { changed: boolean; current: ApplicationComposeExpose; next: TemplateExpose };
+  databases?: {
+    added: { service: string; engine: string }[];
+    removed: { service: string; engine: string }[];
+  };
+};
+
+export const composeIsManuallyEdited = (application: Application): boolean => {
+  if (application.source !== 'compose' || !application.origin?.templateId) {
+    return false;
+  }
+
+  const composeContent = application.compose?.content ?? '';
+
+  return application.origin.composeHash
+    ? composeHashOf(composeContent) !== application.origin.composeHash
+    : true;
+};
+
+export const buildTemplateUpdatePreview = async (
+  application: Application,
+): Promise<TemplateUpdatePreview> => {
+  if (application.source !== 'compose' || !application.origin?.templateId) {
+    throw new Error('This application was not created from a template');
+  }
+
+  const composeContent = application.compose?.content ?? '';
+
+  const preview: TemplateUpdatePreview = {
+    status: templateStatusOf(application)!,
+    installedVersion: application.origin.templateVersion,
+    manuallyEdited: composeIsManuallyEdited(application),
+  };
+
+  const template = findTemplateById(application.origin.templateId);
+
+  if (!template) {
+    return preview;
+  }
+
+  preview.availableVersion = template.version;
+  preview.composeDiff = diffComposeContent(composeContent, template.dockerComposeContent);
+
+  const declaredKeys = new Set([
+    ...template.inputs.map(input => input.key),
+    ...template.secrets.map(secret => secret.key),
+  ]);
+  const existingKeys = new Set(
+    application.variables
+      .map(variable => variable.key)
+      .filter(key => key !== template.versions?.key && !key.startsWith('ZYDOCK_')),
+  );
+
+  preview.variables = {
+    added: [...declaredKeys].filter(key => !existingKeys.has(key)),
+    removed: [...existingKeys].filter(key => !declaredKeys.has(key)),
+  };
+
+  preview.expose = {
+    changed:
+      application.compose?.expose.service !== template.expose.service ||
+      application.compose?.expose.port !== template.expose.port,
+    current: application.compose?.expose ?? { service: '', port: 0 },
+    next: template.expose,
+  };
+
+  const registered = await findDatabasesOfApplication(String(application._id));
+  const registeredServices = new Map(
+    registered.map(database => [database.link!.service, database.engine]),
+  );
+  const templateServices = new Set(template.databases.map(database => database.service));
+
+  preview.databases = {
+    added: template.databases
+      .filter(database => !registeredServices.has(database.service))
+      .map(database => ({ service: database.service, engine: database.engine })),
+    removed: [...registeredServices.entries()]
+      .filter(([service]) => !templateServices.has(service))
+      .map(([service, engine]) => ({ service, engine })),
+  };
+
+  return preview;
+};
+
+export const applyTemplateUpdate = async (
+  application: Application,
+  inputs: Record<string, string>,
+): Promise<{ versionFellBackToDefault: boolean }> => {
+  if (application.source !== 'compose' || !application.origin?.templateId) {
+    throw new Error('This application was not created from a template');
+  }
+
+  const template = findTemplateById(application.origin.templateId);
+
+  if (!template) {
+    throw new Error('The template this application was created from is no longer in the catalog');
+  }
+
+  if (template.deprecated) {
+    throw new Error('This template was taken off the marketplace and no longer offers updates');
+  }
+
+  if (template.version === application.origin.templateVersion) {
+    throw new Error('This application is already on the latest template version');
+  }
+
+  const secretKeys = new Set(template.secrets.map(secret => secret.key));
+
+  for (const key of Object.keys(inputs)) {
+    if (secretKeys.has(key)) {
+      throw new Error(`"${key}" is generated by the server and cannot be provided as an input`);
+    }
+
+    if (template.versions?.key === key) {
+      throw new Error(`"${key}" is the version selector and cannot be provided as an input`);
+    }
+  }
+
+  const declaredKeys = new Set([
+    ...template.inputs.map(input => input.key),
+    ...secretKeys,
+    ...(template.versions ? [template.versions.key] : []),
+  ]);
+
+  const existingByKey = new Map(
+    decryptVariables(application.variables).map(variable => [variable.key, variable.value]),
+  );
+
+  const preservedAnswers = Object.fromEntries(
+    [...existingByKey.entries()].filter(([key]) => declaredKeys.has(key)),
+  );
+
+  const defaults = Object.fromEntries(
+    template.inputs
+      .filter(
+        input =>
+          input.default !== undefined &&
+          preservedAnswers[input.key] === undefined &&
+          inputs[input.key] === undefined,
+      )
+      .map(input => [input.key, String(input.default)]),
+  );
+
+  const values = { ...defaults, ...preservedAnswers, ...inputs };
+
+  const missingRequiredInputs = template.inputs
+    .filter(input => input.required && values[input.key] === undefined)
+    .map(input => input.key);
+
+  if (missingRequiredInputs.length > 0) {
+    throw new Error(`Missing required input(s): ${missingRequiredInputs.join(', ')}`);
+  }
+
+  const currentVersion = template.versions ? existingByKey.get(template.versions.key) : undefined;
+  const versionStillValid = Boolean(
+    template.versions?.available.some(entry => entry.value === currentVersion),
+  );
+  const versionFellBackToDefault = Boolean(template.versions) && !versionStillValid;
+  const versionAnswer = template.versions
+    ? { [template.versions.key]: versionStillValid ? currentVersion! : template.versions.default }
+    : {};
+
+  const newSecretValues = Object.fromEntries(
+    template.secrets
+      .filter(secret => existingByKey.get(secret.key) === undefined)
+      .map(secret => [secret.key, generateSecretValue(secret.generate)]),
+  );
+
+  const answers = { ...preservedAnswers, ...inputs, ...newSecretValues, ...versionAnswer };
+
+  const server = await findServerById(String(application.serverId));
+
+  if (!server) {
+    throw new Error('The server this application runs on no longer exists');
+  }
+
+  const context: RenderTemplateContext = {
+    applicationSlug: application.slug,
+    serverHost: server.agent.host ?? server.ssh.host,
+  };
+
+  const { composeYaml, env } = renderTemplate(template, answers, context);
+
+  const parsed = parseComposeDocument(composeYaml);
+
+  validateComposeSecurity(parsed);
+
+  const conflict = await findHostPortConflict(
+    String(application.serverId),
+    publishedPortsOf(parsed),
+    String(application._id),
+  );
+
+  if (conflict) {
+    throw new Error(`Host port ${conflict.port} is already in use by ${conflict.owner}`);
+  }
+
+  const variables = parseEnvContent(env).map(({ key, value }) => ({
+    key,
+    value,
+    secret: secretKeys.has(key),
+  }));
+
+  const inputKeys = new Set(template.inputs.map(input => input.key));
+  const originInputs = Object.fromEntries(
+    Object.entries(values).filter(([key]) => inputKeys.has(key)),
+  );
+
+  const registered = await findDatabasesOfApplication(String(application._id));
+  const registeredServices = new Set(registered.map(database => database.link!.service));
+  const templateServices = new Set(template.databases.map(database => database.service));
+
+  const databasesToAdd = template.databases.filter(
+    database => !registeredServices.has(database.service),
+  );
+  const servicesToRemove = [...registeredServices].filter(
+    service => !templateServices.has(service),
+  );
+
+  try {
+    if (databasesToAdd.length > 0) {
+      await registerComposeDatabases(application, databasesToAdd);
+    }
+
+    await updateTemplateApplication(String(application._id), {
+      compose: {
+        content: composeYaml,
+        expose: { service: template.expose.service, port: template.expose.port },
+      },
+      variables,
+      origin: {
+        templateId: template.id,
+        templateVersion: template.version,
+        inputs: originInputs,
+        composeHash: composeHashOf(composeYaml),
+      },
+    });
+
+    if (servicesToRemove.length > 0) {
+      await unlinkComposeDatabasesOfServices(String(application._id), servicesToRemove);
+    }
+  } catch (error) {
+    if (databasesToAdd.length > 0) {
+      await unlinkComposeDatabasesOfServices(
+        String(application._id),
+        databasesToAdd.map(database => database.service),
+      ).catch(() => {});
+    }
+
+    throw error instanceof Error ? error : new Error(String(error));
+  }
+
+  return { versionFellBackToDefault };
+};
+
+const resolveVersion = (template: Template, requested?: string): string | undefined => {
+  if (!template.versions) {
+    return undefined;
+  }
+
+  const value = requested ?? template.versions.default;
+  const isValid = template.versions.available.some(entry => entry.value === value);
+
+  if (!isValid) {
+    const options = template.versions.available.map(entry => entry.value).join(', ');
+
+    throw new Error(`"version" must be one of: ${options}`);
+  }
+
+  return value;
+};
+
 export const deployTemplateApplication = async (params: {
   template: Template;
   organizationId: string;
@@ -136,11 +538,20 @@ export const deployTemplateApplication = async (params: {
     if (secretKeys.has(key)) {
       throw new Error(`"${key}" is generated by the server and cannot be provided as an input`);
     }
+
+    if (template.versions?.key === key) {
+      throw new Error(`"${key}" is the version selector and cannot be provided as an input`);
+    }
   }
+
+  const version = resolveVersion(template, body.version);
 
   const secretValues = Object.fromEntries(
     template.secrets.map(secret => [secret.key, generateSecretValue(secret.generate)]),
   );
+
+  const versionAnswer =
+    version !== undefined && template.versions ? { [template.versions.key]: version } : {};
 
   const slug = await uniqueSlug(body.environmentId, body.name);
 
@@ -151,7 +562,7 @@ export const deployTemplateApplication = async (params: {
 
   const { composeYaml, env } = renderTemplate(
     template,
-    { ...body.inputs, ...secretValues },
+    { ...body.inputs, ...versionAnswer, ...secretValues },
     context,
   );
 
@@ -186,7 +597,12 @@ export const deployTemplateApplication = async (params: {
   try {
     application = await createApplication(organizationId, projectId, applicationBody, {
       slug,
-      origin: { templateId: template.id, templateVersion: template.version, inputs: body.inputs },
+      origin: {
+        templateId: template.id,
+        templateVersion: template.version,
+        inputs: body.inputs,
+        composeHash: composeHashOf(composeYaml),
+      },
     });
 
     await registerComposeDatabases(application, template.databases);

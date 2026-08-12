@@ -9,6 +9,7 @@ import { removeDomainsOfApplications } from '../domains/domain.service';
 import { issueInstallationToken } from '../git-sources/git-source.service';
 import { findMembership } from '../organizations/membership.service';
 import { isSuperuser } from '../users/user.service';
+import { findTemplateById, templateStatusOf } from '../templates/template.service';
 import { registerTopicAuthorizer } from '../websocket/websocket.service';
 import applicationModel from './application.model';
 import type { CreateApplicationDTO, UpdateApplicationDTO } from './application.schema';
@@ -113,6 +114,26 @@ export const updateVariableValue = (applicationId: string, key: string, value: s
   applicationModel.updateOne(
     { _id: applicationId, 'variables.key': key },
     { $set: { 'variables.$.value': encryptSecret(value) } },
+  );
+
+export const updateTemplateApplication = (
+  applicationId: string,
+  changes: {
+    compose: ApplicationCompose;
+    variables: CreateApplicationDTO['variables'];
+    origin: ApplicationOrigin;
+  },
+) =>
+  applicationModel.updateOne(
+    { _id: applicationId },
+    {
+      $set: {
+        'compose.content': changes.compose.content,
+        'compose.expose': changes.compose.expose,
+        variables: encryptVariables(changes.variables),
+        origin: changes.origin,
+      },
+    },
   );
 
 export const updateApplication = async (
@@ -248,6 +269,28 @@ registerTopicAuthorizer('application', authorizeApplicationTopic);
 export const listApplicationsOfOrganization = (organizationId: string) =>
   applicationModel.find({ organizationId }).sort({ createdAt: 1 });
 
+const currentVersionOf = (application: Application) => {
+  if (application.source !== 'compose' || !application.origin?.templateId) {
+    return undefined;
+  }
+
+  const template = findTemplateById(application.origin.templateId);
+
+  if (!template?.versions) {
+    return undefined;
+  }
+
+  const variable = application.variables.find(
+    candidate => candidate.key === template.versions!.key,
+  );
+
+  if (!variable?.value) {
+    return undefined;
+  }
+
+  return { key: template.versions.key, current: decryptSecret(variable.value) };
+};
+
 export const serializeApplication = (application: Application) => ({
   id: String(application._id),
   organizationId: String(application.organizationId),
@@ -298,6 +341,8 @@ export const serializeApplication = (application: Application) => ({
   resources: application.resources,
   restartPolicy: application.restartPolicy,
   origin: application.origin,
+  version: currentVersionOf(application),
+  templateStatus: templateStatusOf(application),
   lastError: application.lastError,
   createdAt: application.createdAt,
   updatedAt: application.updatedAt,
