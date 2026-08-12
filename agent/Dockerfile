@@ -1,6 +1,6 @@
 FROM oven/bun:alpine
 
-RUN apk add --no-cache docker-cli git
+RUN apk add --no-cache docker-cli docker-cli-compose git
 
 WORKDIR /app
 

@@ -13,6 +13,7 @@ import { stopMetricStreams } from './modules/metrics/metric.service';
 import { startWorker, stopWorker } from './modules/queue/queue.service';
 import { ensureDashboardRoutes } from './modules/servers/dashboard-route.service';
 import { ensureLocalServer } from './modules/servers/local-server.service';
+import { syncAgentBundles } from './modules/servers/provisioning.service';
 import { bootstrapUpdates } from './modules/updates/update.service';
 import { logError, logInfo } from './utils/logger';
 
@@ -26,6 +27,11 @@ const connect = () => {
     .then(startWorker)
     .then(() => void bootstrapUpdates())
     .then(() => void ensureDashboardRoutes())
+    .then(() =>
+      syncAgentBundles().catch(error => {
+        logError('Failed to sync the agents', error);
+      }),
+    )
     .catch(error => {
       logError('Failed to connect to MongoDB', error);
     });

@@ -1,9 +1,10 @@
 import { file } from 'bun';
 import type { Document } from 'mongoose';
+import { createHash } from 'node:crypto';
 import config from '../../config';
 import type { SshSession } from '../../providers/ssh';
 import { encryptSecret } from '../../utils/crypto';
-import { logError, logInfo } from '../../utils/logger';
+import { logError, logInfo, logWarn } from '../../utils/logger';
 import { publish } from '../websocket/websocket.service';
 import serverModel from './server.model';
 import {
@@ -159,7 +160,9 @@ BACKEND_URL="${config.backendUrl}"
 WORKSPACE_PATH="${config.deploy.workspacePath}"
 `;
 
-const readAgentBundle = async () => {
+type AgentBundle = { content: string; hash: string };
+
+const readAgentBundle = async (): Promise<AgentBundle> => {
   const bundle = file(config.agent.bundlePath);
 
   if (!(await bundle.exists())) {
@@ -168,8 +171,13 @@ const readAgentBundle = async () => {
     );
   }
 
-  return bundle.text();
+  const content = await bundle.text();
+
+  return { content, hash: createHash('sha256').update(content).digest('hex') };
 };
+
+const healthCheck = (port: number) =>
+  `curl -fsS -m 10 --retry 10 --retry-delay 2 --retry-connrefused http://127.0.0.1:${port}/api/health`;
 
 export const provisionServer = async (server: Server & Document) => {
   const serverId = String(server._id);
@@ -233,7 +241,7 @@ export const provisionServer = async (server: Server & Document) => {
       `${prefix}mkdir -p ${AGENT_DIR} ${AGENT_ENV_DIR} ${config.deploy.workspacePath} && ${prefix}chmod 700 ${AGENT_ENV_DIR}`,
       'Failed to create the agent directories',
     );
-    await session.uploadFile(AGENT_BUNDLE, bundle, 0o755);
+    await session.uploadFile(AGENT_BUNDLE, bundle.content, 0o755);
     record({ step: 'upload-agent', ok: true });
 
     currentStep = 'configure-agent';
@@ -261,7 +269,7 @@ export const provisionServer = async (server: Server & Document) => {
 
     const health = await runChecked(
       session,
-      `curl -fsS -m 10 http://127.0.0.1:${server.agent.port}/api/health`,
+      healthCheck(server.agent.port),
       'The agent did not answer its health check',
     );
     record({ step: 'verify-agent', ok: true, detail: health });
@@ -273,6 +281,7 @@ export const provisionServer = async (server: Server & Document) => {
           status: 'online',
           'agent.token': encryptSecret(token),
           'agent.installedAt': new Date(),
+          'agent.bundleHash': bundle.hash,
           lastError: null,
         },
       },
@@ -296,6 +305,82 @@ export const provisionServer = async (server: Server & Document) => {
     return results;
   } finally {
     session?.close();
+  }
+};
+
+const pushAgentBundle = async (server: Server & Document, bundle: AgentBundle) => {
+  const serverId = String(server._id);
+  const session = await openSshSession(server.ssh, server.ssh.fingerprint);
+
+  try {
+    const prefix = await detectPrivilegePrefix(session);
+
+    await runChecked(
+      session,
+      `${prefix}mkdir -p ${AGENT_DIR}`,
+      'Failed to create the agent directory',
+    );
+    await session.uploadFile(AGENT_BUNDLE, bundle.content, 0o755);
+    await session.uploadFile(AGENT_UNIT, systemdUnit(), 0o644);
+
+    await runChecked(
+      session,
+      `${prefix}systemctl daemon-reload && ${prefix}systemctl restart zydock-agent`,
+      'Failed to restart the agent service',
+    );
+    await runChecked(
+      session,
+      healthCheck(server.agent.port),
+      'The agent did not answer its health check',
+    );
+
+    await serverModel.updateOne(
+      { _id: serverId },
+      { $set: { 'agent.installedAt': new Date(), 'agent.bundleHash': bundle.hash } },
+    );
+
+    logInfo('Agent bundle updated', { serverId, hash: bundle.hash.slice(0, 12) });
+  } finally {
+    session.close();
+  }
+};
+
+export const syncAgentBundles = async () => {
+  let bundle: AgentBundle;
+
+  try {
+    bundle = await readAgentBundle();
+  } catch (error) {
+    logWarn('Skipping the agent bundle sync', {
+      error: error instanceof Error ? error.message : String(error),
+    });
+
+    return;
+  }
+
+  const servers = await serverModel
+    .find({
+      type: 'ssh',
+      'agent.installedAt': { $exists: true, $ne: null },
+      'agent.bundleHash': { $ne: bundle.hash },
+    })
+    .select('+ssh.privateKey +ssh.password +ssh.passphrase');
+
+  if (!servers.length) {
+    return;
+  }
+
+  logInfo('Syncing outdated agents', { servers: servers.length });
+
+  for (const server of servers) {
+    try {
+      await pushAgentBundle(server, bundle);
+    } catch (error) {
+      logWarn('Failed to update the agent, it stays on the previous bundle', {
+        serverId: String(server._id),
+        error: error instanceof Error ? error.message : String(error),
+      });
+    }
   }
 };
 

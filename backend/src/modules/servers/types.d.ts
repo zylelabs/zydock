@@ -13,6 +13,7 @@ interface ServerAgent {
   port: number;
   token?: string;
   version?: string;
+  bundleHash?: string;
   installedAt?: Date;
   lastHeartbeatAt?: Date;
 }

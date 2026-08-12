@@ -26,6 +26,7 @@ const serverSchema = new Schema(
       port: { type: Number, required: true, default: 9000 },
       token: { type: String, select: false },
       version: { type: String },
+      bundleHash: { type: String },
       installedAt: { type: Date },
       lastHeartbeatAt: { type: Date },
     },
