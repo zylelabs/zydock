@@ -1,0 +1,18 @@
+{
+  "id": "excalidraw",
+  "version": 1,
+  "name": "Excalidraw",
+  "tagline": "Virtual whiteboard for sketching hand-drawn like diagrams",
+  "category": "productivity",
+  "tags": ["whiteboard", "diagrams", "collaboration"],
+  "website": "https://excalidraw.com",
+  "documentation": "https://docs.excalidraw.com",
+  "license": "MIT",
+  "author": "zydock",
+  "origin": "official",
+  "docker_compose": "docker-compose.yml",
+  "expose": { "service": "app", "port": 80, "domain": true },
+  "databases": [],
+  "inputs": [],
+  "secrets": []
+}
