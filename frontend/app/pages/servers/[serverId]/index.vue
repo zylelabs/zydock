@@ -214,26 +214,40 @@
 
           <template v-else>
             <div class="grid gap-4 sm:grid-cols-3">
-              <Gauge
-                label="CPU"
-                :value="`${Math.round(metrics.cpuPercent ?? 0)}%`"
-                :percent="metrics.cpuPercent ?? 0"
-              />
-              <Gauge
-                label="Memory"
-                :value="`${percent(metrics.memoryUsedMb, metrics.memoryTotalMb)}%`"
-                :percent="percent(metrics.memoryUsedMb, metrics.memoryTotalMb)"
-              />
-              <Gauge
-                label="Disk"
-                :value="`${percent(metrics.diskUsedGb, metrics.diskTotalGb)}%`"
-                :percent="percent(metrics.diskUsedGb, metrics.diskTotalGb)"
-              />
-            </div>
+              <div>
+                <Gauge
+                  label="CPU"
+                  :value="`${Math.round(metrics.cpuPercent ?? 0)}%`"
+                  :percent="metrics.cpuPercent ?? 0"
+                />
+                <p class="mt-3.5 text-caption text-ink-2">
+                  {{ metrics.containersRunning }} of {{ metrics.containersTotal }} containers
+                  running
+                </p>
+              </div>
+              <div>
+                <Gauge
+                  label="Memory"
+                  :value="`${percent(metrics.memoryUsedMb, metrics.memoryTotalMb)}%`"
+                  :percent="percent(metrics.memoryUsedMb, metrics.memoryTotalMb)"
+                />
+                <p class="mt-3.5 text-caption text-ink-2">
+                  {{ (metrics.memoryUsedMb / 1000).toFixed(1) }} of
+                  {{ (metrics.memoryTotalMb / 1000).toFixed(1) }} GB used
+                </p>
+              </div>
 
-            <p class="mt-3.5 text-caption text-ink-2">
-              {{ metrics.containersRunning }} of {{ metrics.containersTotal }} containers running
-            </p>
+              <div>
+                <Gauge
+                  label="Disk"
+                  :value="`${percent(metrics.diskUsedGb, metrics.diskTotalGb)}%`"
+                  :percent="percent(metrics.diskUsedGb, metrics.diskTotalGb)"
+                />
+                <p v-if="metrics.diskTotalGb" class="mt-3.5 text-caption text-ink-2">
+                  {{ metrics.diskUsedGb || '-' }} of {{ metrics.diskTotalGb || '-' }} GB used
+                </p>
+              </div>
+            </div>
           </template>
         </Card>
 
