@@ -1,0 +1,23 @@
+services:
+  app0:
+    image: nginx:1.27
+  app1:
+    image: nginx:1.27
+  app2:
+    image: nginx:1.27
+  app3:
+    image: nginx:1.27
+  app4:
+    image: nginx:1.27
+  app5:
+    image: nginx:1.27
+  app6:
+    image: nginx:1.27
+  app7:
+    image: nginx:1.27
+  app8:
+    image: nginx:1.27
+  app9:
+    image: nginx:1.27
+  app10:
+    image: nginx:1.27

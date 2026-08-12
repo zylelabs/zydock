@@ -23,6 +23,7 @@ interface ServerResources {
   diskGb?: number;
   osRelease?: string;
   dockerVersion?: string;
+  composeVersion?: string;
 }
 
 interface ServerData {

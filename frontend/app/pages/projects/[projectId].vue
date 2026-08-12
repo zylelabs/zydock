@@ -372,7 +372,15 @@
             <StatusDot :status="applicationStatusDot(app.status)" />
             <span class="truncate text-[13.5px] font-medium text-ink">{{ app.name }}</span>
           </div>
-          <div class="truncate font-mono text-caption text-ink-2">{{ app.git.repository }}</div>
+          <div class="truncate font-mono text-caption text-ink-2">
+            {{
+              app.source === 'git'
+                ? app.git?.repository
+                : app.origin
+                  ? `Template · ${app.origin.templateId}`
+                  : 'Docker Compose'
+            }}
+          </div>
           <div class="truncate text-caption text-ink-2">
             {{ environmentName(app.environmentId) }}
           </div>

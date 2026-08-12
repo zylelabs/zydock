@@ -25,12 +25,12 @@ export const configureWebhook = async (application: Application) => {
 
   if (application.git.webhookId) {
     await git
-      .deleteWebhook(application.git.repository, application.git.webhookId)
+      .deleteWebhook(application.git.repository!, application.git.webhookId)
       .catch(error => logWarn('Could not remove the previous webhook', { error: String(error) }));
   }
 
   const webhook = await git.createWebhook(
-    application.git.repository,
+    application.git.repository!,
     callbackUrlOf(applicationId),
     secret,
   );
@@ -52,7 +52,7 @@ export const removeWebhook = async (application: Application) => {
 
   await (
     await gitProviderOf(application)
-  ).deleteWebhook(application.git.repository, application.git.webhookId);
+  ).deleteWebhook(application.git.repository!, application.git.webhookId);
 
   await applicationModel.updateOne(
     { _id: application._id },
@@ -66,6 +66,10 @@ export const handleGitWebhook = async (
   application: Application,
   request: GitWebhookRequest,
 ): Promise<WebhookOutcome> => {
+  if (application.source === 'compose') {
+    return { accepted: false, reason: 'Auto deploy via push is disabled for compose applications' };
+  }
+
   if (!application.git.webhookSecret) {
     return { accepted: false, reason: 'This application has no webhook configured' };
   }

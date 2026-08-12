@@ -1,5 +1,6 @@
 import config from '../../config';
 import { logDebug, logWarn } from '../../utils/logger';
+import { composeVersion } from '../compose/compose.service';
 import { collectSystemMetrics } from '../metrics/metrics.service';
 import { resolveServerId } from './identity.service';
 
@@ -7,9 +8,20 @@ const AGENT_VERSION = '0.1.0';
 
 let timer: ReturnType<typeof setInterval> | undefined;
 
+const readComposeVersion = async () => {
+  try {
+    return await composeVersion();
+  } catch {
+    return undefined;
+  }
+};
+
 const sendHeartbeat = async () => {
   const serverId = await resolveServerId();
-  const metrics = await collectSystemMetrics();
+  const [metrics, composeVersionReported] = await Promise.all([
+    collectSystemMetrics(),
+    readComposeVersion(),
+  ]);
 
   const response = await fetch(`${config.backendUrl}/api/agent/heartbeat/${serverId}`, {
     method: 'POST',
@@ -17,7 +29,11 @@ const sendHeartbeat = async () => {
       'Content-Type': 'application/json',
       'X-Agent-Token': config.agentToken,
     },
-    body: JSON.stringify({ version: AGENT_VERSION, metrics }),
+    body: JSON.stringify({
+      version: AGENT_VERSION,
+      metrics,
+      composeVersion: composeVersionReported,
+    }),
   });
 
   if (!response.ok) {

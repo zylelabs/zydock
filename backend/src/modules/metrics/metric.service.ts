@@ -5,7 +5,7 @@ import { createAgentClient } from '../../utils/agent';
 import { logError } from '../../utils/logger';
 import applicationModel from '../applications/application.model';
 import deploymentModel from '../deployments/deployment.model';
-import { APPLICATION_LABEL } from '../deployments/naming';
+import { APPLICATION_LABEL, composeContainerNameOf } from '../deployments/naming';
 import { buildAgentConnection, findServerById } from '../servers/server.service';
 import { publish, registerTopicListener, type TopicEvent } from '../websocket/websocket.service';
 import metricModel from './metric.model';
@@ -56,12 +56,20 @@ export const fetchServerContainerMetrics = (server: Server) =>
 export const fetchApplicationMetrics = async (
   application: Application,
   server: Server,
+  service?: string,
 ): Promise<ApplicationMetrics> => {
   const containers = resolveContainerProvider(buildAgentConnection(server));
 
-  const [container] = await containers.listContainers({
+  const list = await containers.listContainers({
     labels: { [APPLICATION_LABEL]: String(application._id) },
   });
+
+  const targetName =
+    application.source === 'compose' && application.compose
+      ? composeContainerNameOf(application.slug, service ?? application.compose.expose.service)
+      : undefined;
+
+  const container = (targetName ? list.find(entry => entry.name === targetName) : list[0]) ?? null;
 
   if (!container) {
     return null;

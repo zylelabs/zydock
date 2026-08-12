@@ -1,0 +1,152 @@
+import { z } from 'zod';
+
+const RESERVED_PREFIX = 'ZYDOCK_';
+
+const KEY_PATTERN = /^[A-Z][A-Z0-9_]*$/;
+
+const isNotReserved = (key: string) => !key.startsWith(RESERVED_PREFIX);
+
+export const TEMPLATE_INPUT_TYPES = ['text', 'password', 'number', 'boolean', 'select'] as const;
+
+export type TemplateInputType = (typeof TEMPLATE_INPUT_TYPES)[number];
+
+export const TEMPLATE_SECRET_GENERATORS = ['password', 'hex32', 'uuid'] as const;
+
+export type TemplateSecretGenerator = (typeof TEMPLATE_SECRET_GENERATORS)[number];
+
+export const TEMPLATE_DATABASE_ENGINES = ['postgresql', 'mysql', 'mongodb', 'redis'] as const;
+
+export type TemplateDatabaseEngine = (typeof TEMPLATE_DATABASE_ENGINES)[number];
+
+export const TEMPLATE_ORIGINS = ['official', 'community'] as const;
+
+export type TemplateOrigin = (typeof TEMPLATE_ORIGINS)[number];
+
+const serviceNameSchema = z
+  .string()
+  .trim()
+  .min(1)
+  .max(128)
+  .regex(/^[a-zA-Z0-9][a-zA-Z0-9_.-]*$/, 'Invalid service name');
+
+const templateKeySchema = z
+  .string()
+  .trim()
+  .min(1)
+  .max(128)
+  .regex(KEY_PATTERN, 'Use UPPER_SNAKE_CASE')
+  .refine(isNotReserved, `Cannot use the reserved "${RESERVED_PREFIX}" prefix`);
+
+const templateInputSchema = z
+  .object({
+    key: templateKeySchema,
+    label: z.string().trim().min(1).max(200),
+    type: z.enum(TEMPLATE_INPUT_TYPES),
+    options: z.array(z.string().trim().min(1).max(120)).min(1).max(50).optional(),
+    default: z.union([z.string(), z.number(), z.boolean()]).optional(),
+    required: z.boolean().default(false),
+  })
+  .refine(input => input.type !== 'select' || Boolean(input.options?.length), {
+    message: '"select" inputs require "options"',
+    path: ['options'],
+  });
+
+const templateSecretSchema = z.object({
+  key: templateKeySchema,
+  generate: z.enum(TEMPLATE_SECRET_GENERATORS),
+});
+
+const templateExposeSchema = z.object({
+  service: serviceNameSchema,
+  port: z.coerce.number().int().min(1).max(65535),
+  domain: z.boolean().default(true),
+});
+
+const templateDatabaseSchema = z.object({
+  service: serviceNameSchema,
+  engine: z.enum(TEMPLATE_DATABASE_ENGINES),
+});
+
+const rawTemplateSchema = z.object({
+  id: z
+    .string()
+    .trim()
+    .min(1)
+    .max(64)
+    .regex(/^[a-z0-9][a-z0-9-]*$/, 'Use lower kebab-case'),
+  version: z.number().int().min(1),
+  name: z.string().trim().min(1).max(120),
+  tagline: z.string().trim().min(1).max(200),
+  category: z.string().trim().min(1).max(64),
+  tags: z.array(z.string().trim().min(1).max(32)).max(10).default([]),
+  icon: z.string().trim().min(1).max(200).optional(),
+  website: z.string().trim().url().optional(),
+  documentation: z.string().trim().url().optional(),
+  license: z.string().trim().min(1).max(120).optional(),
+  author: z.string().trim().min(1).max(120),
+  origin: z.enum(TEMPLATE_ORIGINS),
+  docker_compose: z.string().trim().min(1).max(200),
+  expose: templateExposeSchema,
+  databases: z.array(templateDatabaseSchema).max(10).default([]),
+  inputs: z.array(templateInputSchema).max(50).default([]),
+  secrets: z.array(templateSecretSchema).max(50).default([]),
+  deprecated: z.boolean().default(false),
+});
+
+const describeIssues = (error: z.ZodError) =>
+  error.issues.map(issue => `${issue.path.join('.') || '(root)'}: ${issue.message}`).join('; ');
+
+export const parseTemplateManifest = (raw: unknown): TemplateManifest => {
+  const result = rawTemplateSchema.safeParse(raw);
+
+  if (!result.success) {
+    throw new Error(describeIssues(result.error));
+  }
+
+  const parsed = result.data;
+
+  return {
+    id: parsed.id,
+    version: parsed.version,
+    name: parsed.name,
+    tagline: parsed.tagline,
+    category: parsed.category,
+    tags: parsed.tags,
+    icon: parsed.icon,
+    website: parsed.website,
+    documentation: parsed.documentation,
+    license: parsed.license,
+    author: parsed.author,
+    origin: parsed.origin,
+    dockerCompose: parsed.docker_compose,
+    expose: parsed.expose,
+    databases: parsed.databases,
+    inputs: parsed.inputs,
+    secrets: parsed.secrets,
+    deprecated: parsed.deprecated,
+  };
+};
+
+export const listTemplatesQuerySchema = z.object({
+  search: z.string().trim().max(200).optional(),
+  category: z.string().trim().max(64).optional(),
+});
+
+export type ListTemplatesQuery = z.infer<typeof listTemplatesQuerySchema>;
+
+export const templateIdParamSchema = z.object({
+  templateId: z.string().trim().min(1).max(64),
+});
+
+export type TemplateIdParam = z.infer<typeof templateIdParamSchema>;
+
+export const deployTemplateSchema = z.object({
+  organizationId: z.string().length(24),
+  name: z.string().trim().min(1).max(120),
+  environmentId: z.string().length(24),
+  serverId: z.string().length(24),
+  inputs: z.record(z.string(), z.string().max(8192)).default({}),
+  deployNow: z.boolean().default(true),
+});
+
+export type DeployTemplateDTO = z.infer<typeof deployTemplateSchema>;

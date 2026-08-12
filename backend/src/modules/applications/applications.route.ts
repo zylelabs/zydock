@@ -10,19 +10,31 @@ import {
   triggerDeploymentSchema,
 } from '../deployments/deployment.schema';
 import { enqueueDeployment, enqueueRollback } from '../deployments/pipeline.service';
+import { validateComposeSecurity } from '../compose/compose.schema';
+import {
+  destroyComposeProject,
+  listApplicationServices,
+  parseComposeDocument,
+  publishedPortsOf,
+} from '../compose/compose.service';
 import { findGitSource } from '../git-sources/git-source.service';
 import { OrganizationIdParam, organizationIdParamSchema } from '../organizations/membership.schema';
 import { createOrganizationRoleGuard } from '../organizations/organizations.middleware';
 import { findEnvironmentOfOrganization } from '../projects/environment.service';
 import { findServer } from '../servers/server.service';
+import { regenerateTemplateSecret } from '../templates/template.service';
 import applicationModel from './application.model';
 import { findHostPortConflict } from './port-guard.service';
 import {
   ApplicationIdParam,
   applicationIdParamSchema,
+  ApplicationVariableKeyParam,
+  applicationVariableKeyParamSchema,
   CreateApplicationDTO,
   createApplicationSchema,
   listApplicationsQuerySchema,
+  RemoveApplicationQuery,
+  removeApplicationQuerySchema,
   ReplaceVariablesDTO,
   replaceVariablesSchema,
   UpdateApplicationDTO,
@@ -121,23 +133,53 @@ post(
       return c.json({ error: 'Server not found in this organization' }, 400);
     }
 
-    if (
-      body.git.source === 'github-app' &&
-      !(await isGitSourceUsable(organizationId, body.git.gitSourceId!))
-    ) {
-      return c.json({ error: 'Git source not found or not active in this organization' }, 400);
-    }
+    if (body.source === 'compose') {
+      let hostPorts: number[];
 
-    const conflict = await findHostPortConflict(
-      body.serverId,
-      body.portMappings.map(mapping => mapping.hostPort),
-    );
+      try {
+        const parsed = parseComposeDocument(body.compose.content);
 
-    if (conflict) {
-      return c.json(
-        { error: `Host port ${conflict.port} is already in use by ${conflict.owner}` },
-        400,
+        if (!parsed.services.some(service => service.name === body.compose.expose.service)) {
+          return c.json(
+            { error: `Service "${body.compose.expose.service}" was not found in the compose file` },
+            400,
+          );
+        }
+
+        validateComposeSecurity(parsed);
+
+        hostPorts = publishedPortsOf(parsed);
+      } catch (error) {
+        return c.json({ error: error instanceof Error ? error.message : String(error) }, 400);
+      }
+
+      const conflict = await findHostPortConflict(body.serverId, hostPorts);
+
+      if (conflict) {
+        return c.json(
+          { error: `Host port ${conflict.port} is already in use by ${conflict.owner}` },
+          400,
+        );
+      }
+    } else {
+      if (
+        body.git.source === 'github-app' &&
+        !(await isGitSourceUsable(organizationId, body.git.gitSourceId!))
+      ) {
+        return c.json({ error: 'Git source not found or not active in this organization' }, 400);
+      }
+
+      const conflict = await findHostPortConflict(
+        body.serverId,
+        body.portMappings.map(mapping => mapping.hostPort),
       );
+
+      if (conflict) {
+        return c.json(
+          { error: `Host port ${conflict.port} is already in use by ${conflict.owner}` },
+          400,
+        );
+      }
     }
 
     const application = await createApplication(
@@ -190,29 +232,79 @@ patch(
       return c.json({ error: 'Server not found in this organization' }, 400);
     }
 
-    if (
-      body.git?.source === 'github-app' &&
-      !(await isGitSourceUsable(organizationId, body.git.gitSourceId!))
-    ) {
-      return c.json({ error: 'Git source not found or not active in this organization' }, 400);
-    }
+    if (application.source === 'compose') {
+      if (body.compose?.content !== undefined) {
+        const service = body.compose.expose?.service ?? application.compose?.expose.service;
 
-    const conflict = await findHostPortConflict(
-      body.serverId ?? String(application.serverId),
-      (body.portMappings ?? application.portMappings).map(mapping => mapping.hostPort),
-      applicationId,
-    );
+        try {
+          const parsed = parseComposeDocument(body.compose.content);
 
-    if (conflict) {
-      return c.json(
-        { error: `Host port ${conflict.port} is already in use by ${conflict.owner}` },
-        400,
+          if (service && !parsed.services.some(candidate => candidate.name === service)) {
+            return c.json({ error: `Service "${service}" was not found in the compose file` }, 400);
+          }
+
+          validateComposeSecurity(parsed);
+
+          const conflict = await findHostPortConflict(
+            body.serverId ?? String(application.serverId),
+            publishedPortsOf(parsed),
+            applicationId,
+          );
+
+          if (conflict) {
+            return c.json(
+              { error: `Host port ${conflict.port} is already in use by ${conflict.owner}` },
+              400,
+            );
+          }
+        } catch (error) {
+          return c.json({ error: error instanceof Error ? error.message : String(error) }, 400);
+        }
+      }
+    } else {
+      if (
+        body.git?.source === 'github-app' &&
+        !(await isGitSourceUsable(organizationId, body.git.gitSourceId!))
+      ) {
+        return c.json({ error: 'Git source not found or not active in this organization' }, 400);
+      }
+
+      const conflict = await findHostPortConflict(
+        body.serverId ?? String(application.serverId),
+        (body.portMappings ?? application.portMappings).map(mapping => mapping.hostPort),
+        applicationId,
       );
+
+      if (conflict) {
+        return c.json(
+          { error: `Host port ${conflict.port} is already in use by ${conflict.owner}` },
+          400,
+        );
+      }
     }
 
     const updated = await updateApplication(application, body);
 
     return c.json({ application: serializeApplication(updated!) });
+  },
+);
+
+get(
+  '/:applicationId/services',
+  applicationsDocs.services,
+  authMiddleware,
+  validator('param', applicationIdParamSchema),
+  createOrganizationRoleGuard('member'),
+  async (c: Context) => {
+    const { organizationId, applicationId } = c.req.valid('param' as never) as ApplicationIdParam;
+
+    const application = await findApplication(organizationId, applicationId);
+
+    if (!application) {
+      return c.json({ error: 'Application not found' }, 404);
+    }
+
+    return c.json({ services: listApplicationServices(application) });
   },
 );
 
@@ -253,6 +345,44 @@ put(
     await replaceVariables(applicationId, body.variables);
 
     return c.json({ variables: body.variables });
+  },
+);
+
+post(
+  '/:applicationId/variables/:key/regenerate',
+  applicationsDocs.regenerateVariable,
+  authMiddleware,
+  validator('param', applicationVariableKeyParamSchema),
+  createOrganizationRoleGuard('admin'),
+  async (c: Context) => {
+    const { organizationId, applicationId, key } = c.req.valid(
+      'param' as never,
+    ) as ApplicationVariableKeyParam;
+    const auth = c.get('auth');
+
+    const application = await findApplication(organizationId, applicationId);
+
+    if (!application) {
+      return c.json({ error: 'Application not found' }, 404);
+    }
+
+    try {
+      await regenerateTemplateSecret(application, key);
+    } catch (error) {
+      return c.json({ error: error instanceof Error ? error.message : String(error) }, 400);
+    }
+
+    const updated = await findApplication(organizationId, applicationId);
+    const deployment = await enqueueDeployment({
+      application: updated!,
+      trigger: 'manual',
+      triggeredBy: auth.sub,
+    });
+
+    return c.json(
+      { application: serializeApplication(updated!), deployment: serializeDeployment(deployment) },
+      202,
+    );
   },
 );
 
@@ -310,7 +440,11 @@ post(
       return c.json({ error: 'Deployment not found for this application' }, 404);
     }
 
-    if (source.status !== 'succeeded' || !source.imageTag) {
+    const canRollback =
+      source.status === 'succeeded' &&
+      (application.source === 'compose' ? source.compose?.content : source.imageTag);
+
+    if (!canRollback) {
       return c.json(
         { error: 'Only a successful deployment with a built image can be rolled back to' },
         400,
@@ -365,6 +499,10 @@ post(
       return c.json({ error: 'Application not found' }, 404);
     }
 
+    if (application.source === 'compose') {
+      return c.json({ error: 'Compose applications have no Git webhook to configure' }, 400);
+    }
+
     if (application.git.source === 'github-app') {
       return c.json(
         { error: 'This application receives pushes through the GitHub App, no webhook to create' },
@@ -395,6 +533,10 @@ del(
       return c.json({ error: 'Application not found' }, 404);
     }
 
+    if (application.source === 'compose') {
+      return c.json({ error: 'Compose applications have no Git webhook to remove' }, 400);
+    }
+
     if (application.git.source === 'github-app') {
       return c.json(
         { error: 'This application receives pushes through the GitHub App, no webhook to remove' },
@@ -420,11 +562,23 @@ del(
   authMiddleware,
   validator('param', applicationIdParamSchema),
   createOrganizationRoleGuard('admin'),
+  validator('query', removeApplicationQuerySchema),
   async (c: Context) => {
     const { organizationId, applicationId } = c.req.valid('param' as never) as ApplicationIdParam;
+    const { removeData } = c.req.valid('query' as never) as RemoveApplicationQuery;
 
-    if (!(await findApplication(organizationId, applicationId))) {
+    const application = await findApplication(organizationId, applicationId);
+
+    if (!application) {
       return c.json({ error: 'Application not found' }, 404);
+    }
+
+    if (application.source === 'compose') {
+      try {
+        await destroyComposeProject(application, Boolean(removeData));
+      } catch (error) {
+        return c.json({ error: error instanceof Error ? error.message : String(error) }, 400);
+      }
     }
 
     await removeApplication(applicationId);

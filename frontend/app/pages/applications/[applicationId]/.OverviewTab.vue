@@ -17,6 +17,45 @@
   const { list: listDeployments } = useDeployments();
   const metricsApi = useMetrics();
 
+  const { data: servicesData } = useLazyAsyncData(
+    () => `application-${props.application.id}-services`,
+    () =>
+      props.application.source === 'compose'
+        ? applicationsApi.services(props.application.id)
+        : Promise.resolve({ services: [] }),
+    {
+      server: false,
+      watch: [() => props.application.id, () => props.application.source],
+      default: () => ({ services: [] }),
+    },
+  );
+
+  const services = computed(() => servicesData.value?.services ?? []);
+
+  const selectedService = ref('');
+
+  watch(
+    services,
+    list => {
+      if (!list.length) {
+        selectedService.value = '';
+        return;
+      }
+
+      if (!list.some(entry => entry.service === selectedService.value)) {
+        selectedService.value = list.find(entry => entry.exposed)?.service ?? list[0]!.service;
+      }
+    },
+    { immediate: true },
+  );
+
+  const serviceOptions = computed(() =>
+    services.value.map(entry => ({
+      value: entry.service,
+      label: entry.exposed ? `${entry.service} (exposed)` : entry.service,
+    })),
+  );
+
   const messageOf = (error: unknown, fallback: string) =>
     (error as { message?: string }).message || fallback;
 
@@ -62,7 +101,9 @@
       }
 
       const [metrics, deployMetrics] = await Promise.all([
-        metricsApi.applicationMetrics(props.application.id).catch(() => null),
+        metricsApi
+          .applicationMetrics(props.application.id, selectedService.value || undefined)
+          .catch(() => null),
         metricsApi.applicationDeploymentMetrics(props.application.id).catch(() => null),
       ]);
 
@@ -70,7 +111,7 @@
     },
     {
       server: false,
-      watch: [() => session.organizationId, () => props.application.id],
+      watch: [() => session.organizationId, () => props.application.id, selectedService],
       default: () => null,
     },
   );
@@ -153,6 +194,10 @@
 
   const startEditConfig = () => {
     const app = props.application;
+
+    if (!app.git) {
+      return;
+    }
 
     configForm.values.name = app.name;
     configForm.values.repository = app.git.repository;
@@ -238,6 +283,15 @@
 
     <div class="grid gap-4.5 lg:grid-cols-[1.4fr_1fr]">
       <div class="flex flex-col gap-4.5">
+        <Select
+          v-if="serviceOptions.length > 1"
+          v-model="selectedService"
+          label="Service"
+          :options="serviceOptions"
+          boxed
+          class="max-w-60"
+        />
+
         <div
           v-if="metricsStatus === 'pending' && !metricsLoadedOnce"
           class="grid gap-3.5 sm:grid-cols-3"
@@ -301,13 +355,40 @@
       </div>
 
       <Card title="Configuration" rows>
-        <template v-if="canManage" #right>
+        <template v-if="canManage && application.source === 'git'" #right>
           <Button v-if="!editingConfig" theme="secondary" size="xs" @click="startEditConfig">
             Edit
           </Button>
         </template>
 
-        <template v-if="!editingConfig">
+        <template v-if="application.source === 'compose'">
+          <Row as="div" class="flex items-center">
+            <div class="w-33 shrink-0 text-[13px] text-ink-2">Origin</div>
+            <div class="truncate font-mono text-[13px] text-ink">
+              {{
+                application.origin ? `Template · ${application.origin.templateId}` : 'Compose file'
+              }}
+            </div>
+          </Row>
+          <Row as="div" class="flex items-center">
+            <div class="w-33 shrink-0 text-[13px] text-ink-2">Exposed service</div>
+            <div class="font-mono text-[13px] text-ink">
+              {{ application.compose?.expose.service }} : {{ application.compose?.expose.port }}
+            </div>
+          </Row>
+          <Row as="div" class="flex items-center">
+            <div class="w-33 shrink-0 text-[13px] text-ink-2">Services</div>
+            <div class="truncate font-mono text-[13px] text-ink">
+              {{ services.map(entry => entry.service).join(', ') || '—' }}
+            </div>
+          </Row>
+          <Row as="div" class="flex items-center">
+            <div class="w-33 shrink-0 text-[13px] text-ink-2">Restart policy</div>
+            <div class="font-mono text-[13px] text-ink">{{ application.restartPolicy }}</div>
+          </Row>
+        </template>
+
+        <template v-else-if="!editingConfig">
           <Row as="div" class="flex items-center">
             <div class="w-33 shrink-0 text-[13px] text-ink-2">Name</div>
             <div class="truncate font-mono text-[13px] text-ink">
@@ -317,23 +398,23 @@
           <Row as="div" class="flex items-center">
             <div class="w-33 shrink-0 text-[13px] text-ink-2">Repository</div>
             <div class="truncate font-mono text-[13px] text-ink">
-              {{ application.git.repository }}
+              {{ application.git?.repository }}
             </div>
           </Row>
           <Row as="div" class="flex items-center">
             <div class="w-33 shrink-0 text-[13px] text-ink-2">Branch</div>
-            <div class="font-mono text-[13px] text-ink">{{ application.git.branch }}</div>
+            <div class="font-mono text-[13px] text-ink">{{ application.git?.branch }}</div>
           </Row>
           <Row as="div" class="flex items-center">
             <div class="w-33 shrink-0 text-[13px] text-ink-2">Dockerfile</div>
             <div class="truncate font-mono text-[13px] text-ink">
-              {{ application.git.dockerfilePath }}
+              {{ application.git?.dockerfilePath }}
             </div>
           </Row>
           <Row as="div" class="flex items-center">
             <div class="w-33 shrink-0 text-[13px] text-ink-2">Build context</div>
             <div class="truncate font-mono text-[13px] text-ink">
-              {{ application.git.buildContext }}
+              {{ application.git?.buildContext }}
             </div>
           </Row>
           <Row as="div" class="flex items-center">
@@ -343,7 +424,7 @@
           <Row as="div" class="flex items-center">
             <div class="w-33 shrink-0 text-[13px] text-ink-2">Auto-deploy</div>
             <div class="font-mono text-[13px] text-ink">
-              {{ application.git.autoDeploy ? 'on every push to main' : 'off' }}
+              {{ application.git?.autoDeploy ? 'on every push to main' : 'off' }}
             </div>
           </Row>
           <Row as="div" class="flex items-center">

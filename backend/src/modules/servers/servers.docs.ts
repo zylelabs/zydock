@@ -50,6 +50,12 @@ export const serverSchema = {
         diskGb: { type: 'integer', nullable: true },
         osRelease: { type: 'string', nullable: true },
         dockerVersion: { type: 'string', nullable: true },
+        composeVersion: {
+          type: 'string',
+          nullable: true,
+          description:
+            'Reported by the agent heartbeat. Absent until the Compose plugin is detected.',
+        },
       },
     },
     lastError: { type: 'string', nullable: true },

@@ -49,6 +49,7 @@ export interface Server {
     diskGb?: number;
     osRelease?: string;
     dockerVersion?: string;
+    composeVersion?: string;
   };
   lastError?: string;
   createdAt: string;

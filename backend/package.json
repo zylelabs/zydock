@@ -7,6 +7,7 @@
     "dev": "bun run --hot index.ts",
     "start": "bun run index.ts",
     "seed": "bun run src/seeds/index.ts",
+    "validate:catalog": "bun run src/scripts/validate-catalog.ts",
     "build": "bun build index.ts --compile --outfile server",
     "typecheck": "tsc --noEmit",
     "test": "bun test",
@@ -23,6 +24,7 @@
     "mongoose": "^8.24.1",
     "nodemailer": "^9.0.3",
     "ssh2": "^1.17.0",
+    "yaml": "^2.9.0",
     "zod": "^4.4.3"
   },
   "devDependencies": {

@@ -1,0 +1,6 @@
+services:
+  app:
+    image: nginx:1.27
+    extends:
+      file: base.yml
+      service: base

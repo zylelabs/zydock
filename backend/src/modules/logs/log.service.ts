@@ -8,7 +8,7 @@ import {
 import { errorMessage } from '../../utils';
 import { logDebug, logError } from '../../utils/logger';
 import applicationModel from '../applications/application.model';
-import { APPLICATION_LABEL } from '../deployments/naming';
+import { APPLICATION_LABEL, composeContainerNameOf } from '../deployments/naming';
 import { buildAgentConnection, findServerById } from '../servers/server.service';
 import {
   publish,
@@ -39,6 +39,7 @@ const remember = (stream: LiveStream, entry: LogEntry) => {
 
 const resolveApplicationContainer = async (
   applicationId: string,
+  service?: string,
 ): Promise<{ containers: ContainerProvider; container: ContainerInfo | null }> => {
   const application = await applicationModel.findById(applicationId);
 
@@ -54,11 +55,16 @@ const resolveApplicationContainer = async (
 
   const containers = resolveContainerProvider(buildAgentConnection(server));
 
-  const [container] = await containers.listContainers({
-    labels: { [APPLICATION_LABEL]: applicationId },
-  });
+  const list = await containers.listContainers({ labels: { [APPLICATION_LABEL]: applicationId } });
 
-  return { containers, container: container ?? null };
+  const targetName =
+    application.source === 'compose' && application.compose
+      ? composeContainerNameOf(application.slug, service ?? application.compose.expose.service)
+      : undefined;
+
+  const container = (targetName ? list.find(entry => entry.name === targetName) : list[0]) ?? null;
+
+  return { containers, container };
 };
 
 const openStream = async (topic: string, applicationId: string) => {
@@ -150,6 +156,7 @@ export type ApplicationLogsQuery = LogFilters & {
   since?: string;
   until?: string;
   tail: number;
+  service?: string;
 };
 
 export type ApplicationLogs = {
@@ -161,7 +168,7 @@ export const fetchApplicationLogs = async (
   applicationId: string,
   query: ApplicationLogsQuery,
 ): Promise<ApplicationLogs> => {
-  const { containers, container } = await resolveApplicationContainer(applicationId);
+  const { containers, container } = await resolveApplicationContainer(applicationId, query.service);
 
   if (!container) {
     return { containerId: null, entries: [] };

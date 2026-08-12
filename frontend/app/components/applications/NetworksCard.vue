@@ -6,6 +6,8 @@
 
   const applicationsApi = useApplications();
 
+  const networks = computed(() => props.application.networks ?? []);
+
   const messageOf = (error: unknown, fallback: string) =>
     (error as { message?: string }).message || fallback;
 
@@ -15,7 +17,7 @@
   const networksError = ref('');
 
   const startEditNetworks = () => {
-    networksDraft.value = [...props.application.networks];
+    networksDraft.value = [...networks.value];
     networksError.value = '';
     editingNetworks.value = true;
   };
@@ -51,7 +53,7 @@
     </template>
 
     <p v-if="!editingNetworks" class="px-4.25 py-4 font-mono text-[13px] text-ink">
-      {{ application.networks.length ? application.networks.join(', ') : '—' }}
+      {{ networks.length ? networks.join(', ') : '—' }}
     </p>
 
     <div v-else class="flex flex-col">

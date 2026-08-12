@@ -5,6 +5,8 @@
   import { useOrganizations } from '~/composables/services/useOrganizations';
   import { useProjects, type Environment, type Project } from '~/composables/services/useProjects';
   import { useServers, type Server } from '~/composables/services/useServers';
+  import { useTemplates, type Template } from '~/composables/services/useTemplates';
+  import ResourcesStep from './.ResourcesStep.vue';
 
   useHead({ title: 'New application' });
 
@@ -17,6 +19,7 @@
   const { list: listProjects, listEnvironments } = useProjects();
   const { list: listServers } = useServers();
   const { create } = useApplications();
+  const { deploy: deployTemplate } = useTemplates();
 
   const { data } = useLazyAsyncData(
     'wizard-context',
@@ -41,7 +44,8 @@
   const environments = ref<Environment[]>([]);
 
   const baseWizardSchema = z.object({
-    sourceMode: z.enum(['github-app', 'token']),
+    sourceMode: z.enum(['github-app', 'token', 'resources']),
+    resourceMode: z.enum(['template', 'compose']),
     gitSourceId: z.string().trim(),
     installationId: z.string().trim(),
     repository: z.string().trim(),
@@ -54,9 +58,28 @@
     dockerfilePath: z.string().trim().min(1, 'Enter a Dockerfile path'),
     port: z.string().regex(/^\d+$/, 'Invalid port'),
     autoDeploy: z.boolean(),
+    templateId: z.string().trim(),
+    composeContent: z.string().trim(),
+    composeService: z.string().trim(),
+    composePort: z.string(),
   });
 
   const wizardSchema = baseWizardSchema.superRefine((value, ctx) => {
+    if (value.sourceMode === 'resources') {
+      if (value.resourceMode === 'template') {
+        if (!value.templateId) {
+          ctx.addIssue({ code: 'custom', path: ['templateId'], message: 'Choose a template' });
+        }
+        return;
+      }
+
+      if (!value.composeContent) {
+        ctx.addIssue({ code: 'custom', path: ['composeContent'], message: 'Paste a compose file' });
+      }
+
+      return;
+    }
+
     if (value.sourceMode === 'token') {
       if (!/^[^/\s]+\/[^/\s]+$/.test(value.repository)) {
         ctx.addIssue({
@@ -76,7 +99,8 @@
   const form = useSchemaForm(
     wizardSchema,
     {
-      sourceMode: 'github-app' as 'github-app' | 'token',
+      sourceMode: 'github-app' as 'github-app' | 'token' | 'resources',
+      resourceMode: 'template' as 'template' | 'compose',
       gitSourceId: '',
       installationId: '',
       repository: '',
@@ -89,12 +113,48 @@
       dockerfilePath: 'Dockerfile',
       port: '3000',
       autoDeploy: true,
+      templateId: '',
+      composeContent: '',
+      composeService: '',
+      composePort: '',
     },
     {
       onError: message => toast.error({ title: 'Error', message }),
       onInvalid: (_errors, lastError) => toast.error({ title: 'Error', message: lastError }),
     },
   );
+
+  const selectedTemplate = ref<Template | null>(null);
+  const templateInputValues = reactive<Record<string, string>>({});
+
+  const handleSelectTemplate = (template: Template) => {
+    selectedTemplate.value = template;
+    form.values.templateId = template.id;
+    form.values.resourceMode = 'template';
+
+    for (const key of Object.keys(templateInputValues)) {
+      Reflect.deleteProperty(templateInputValues, key);
+    }
+
+    for (const input of template.inputs) {
+      templateInputValues[input.key] = input.default != null ? String(input.default) : '';
+    }
+  };
+
+  const handleSelectCompose = () => {
+    selectedTemplate.value = null;
+    form.values.templateId = '';
+    form.values.resourceMode = 'compose';
+  };
+
+  const templateInputError = (key: string) =>
+    (form.errors.value as Record<string, string | undefined>)[`input.${key}`];
+
+  const composeCapableServers = computed(() =>
+    servers.value.filter(server => server.resources.composeVersion),
+  );
+
+  const anyServerHasCompose = computed(() => composeCapableServers.value.length > 0);
 
   const initialProjectId = String(route.query.projectId ?? '');
 
@@ -157,8 +217,16 @@
     environments.value.map(environment => ({ value: environment.id, label: environment.name })),
   );
   const serverOptions = computed(() =>
-    servers.value.map(server => ({ value: server.id, label: server.name })),
+    (form.values.sourceMode === 'resources' ? composeCapableServers.value : servers.value).map(
+      server => ({ value: server.id, label: server.name }),
+    ),
   );
+
+  watch(serverOptions, options => {
+    if (!options.some(option => option.value === form.values.serverId)) {
+      form.values.serverId = options[0]?.value ?? '';
+    }
+  });
 
   const projectName = computed(
     () => projects.value.find(project => project.id === form.values.projectId)?.name ?? '—',
@@ -184,7 +252,11 @@
     }
   };
 
-  const pickSource = (mode: 'github-app' | 'token') => {
+  const pickSource = (mode: 'github-app' | 'token' | 'resources') => {
+    if (mode === 'resources' && !anyServerHasCompose.value) {
+      return;
+    }
+
     form.values.sourceMode = mode;
   };
 
@@ -211,7 +283,9 @@
 
   const footnote = computed(() => {
     if (currentStep.value === 0) {
-      return 'Branch and build settings are filled in from the repository.';
+      return form.values.sourceMode === 'resources'
+        ? 'Templates arrive with image, ports and volumes already set.'
+        : 'Branch and build settings are filled in from the repository.';
     }
 
     if (currentStep.value === 1) {
@@ -221,9 +295,49 @@
     return '';
   });
 
-  const nextLabel = computed(() => (currentStep.value === 2 ? 'Create application' : 'Continue'));
+  const nextLabel = computed(() => {
+    if (currentStep.value !== 2) {
+      return 'Continue';
+    }
+
+    return form.values.sourceMode === 'resources' && form.values.resourceMode === 'template'
+      ? 'Deploy'
+      : 'Create application';
+  });
+
+  const nextDisabled = computed(() => {
+    if (form.loading.value) {
+      return true;
+    }
+
+    if (currentStep.value !== 0 || form.values.sourceMode !== 'resources') {
+      return false;
+    }
+
+    return form.values.resourceMode === 'template'
+      ? !form.values.templateId
+      : !form.values.composeContent.trim();
+  });
 
   const validateSource = () => {
+    if (form.values.sourceMode === 'resources') {
+      if (form.values.resourceMode === 'template') {
+        if (!form.values.templateId) {
+          toast.error({ title: 'Error', message: 'Choose a template.' });
+          return false;
+        }
+
+        return true;
+      }
+
+      if (!form.values.composeContent.trim()) {
+        toast.error({ title: 'Error', message: 'Paste a compose file.' });
+        return false;
+      }
+
+      return true;
+    }
+
     if (form.values.sourceMode === 'token') {
       if (!/^[^/\s]+\/[^/\s]+$/.test(form.values.repository)) {
         form.errors.value = { ...form.errors.value, repository: 'Use the owner/repository format' };
@@ -245,7 +359,7 @@
     return true;
   };
 
-  const configureSlice = baseWizardSchema.pick({
+  const gitConfigureSlice = baseWizardSchema.pick({
     name: true,
     projectId: true,
     environmentId: true,
@@ -254,35 +368,96 @@
     port: true,
   });
 
-  const validateConfigure = () => {
-    const result = configureSlice.safeParse(form.values);
+  const resourcesConfigureSlice = baseWizardSchema.pick({
+    name: true,
+    projectId: true,
+    environmentId: true,
+    serverId: true,
+  });
 
-    if (result.success) {
-      return true;
-    }
+  const validateConfigure = () => {
+    const isResources = form.values.sourceMode === 'resources';
+    const slice = isResources ? resourcesConfigureSlice : gitConfigureSlice;
+    const result = slice.safeParse(form.values);
 
     const fieldErrors: Record<string, string> = {};
 
-    for (const issue of result.error.issues) {
-      const key = issue.path[0] as string | undefined;
+    if (!result.success) {
+      for (const issue of result.error.issues) {
+        const key = issue.path[0] as string | undefined;
 
-      if (key && !fieldErrors[key]) {
-        fieldErrors[key] = issue.message;
+        if (key && !fieldErrors[key]) {
+          fieldErrors[key] = issue.message;
+        }
       }
     }
 
-    form.errors.value = { ...form.errors.value, ...fieldErrors };
+    if (isResources && form.values.resourceMode === 'template' && selectedTemplate.value) {
+      for (const input of selectedTemplate.value.inputs) {
+        if (input.required && !templateInputValues[input.key]?.trim()) {
+          fieldErrors[`input.${input.key}`] = `Enter ${input.label.toLowerCase()}`;
+        }
+      }
+    }
 
-    const messages = Object.values(fieldErrors);
-    toast.error({
-      title: 'Error',
-      message: messages[messages.length - 1] ?? 'Check the fields above.',
-    });
+    if (isResources && form.values.resourceMode === 'compose') {
+      if (!/^[a-zA-Z0-9][a-zA-Z0-9_.-]*$/.test(form.values.composeService)) {
+        fieldErrors.composeService = 'Enter the service name to expose';
+      }
 
-    return false;
+      if (!/^\d+$/.test(form.values.composePort)) {
+        fieldErrors.composePort = 'Invalid port';
+      }
+    }
+
+    if (Object.keys(fieldErrors).length) {
+      form.errors.value = { ...form.errors.value, ...fieldErrors };
+
+      const messages = Object.values(fieldErrors);
+      toast.error({
+        title: 'Error',
+        message: messages[messages.length - 1] ?? 'Check the fields above.',
+      });
+
+      return false;
+    }
+
+    return true;
   };
 
   const handleCreate = form.submit(async values => {
+    if (values.sourceMode === 'resources' && values.resourceMode === 'template') {
+      const { application } = await deployTemplate(values.templateId, {
+        organizationId: session.organizationId!,
+        name: values.name,
+        environmentId: values.environmentId,
+        serverId: values.serverId,
+        inputs: Object.fromEntries(
+          Object.entries(templateInputValues).filter(([, value]) => value.trim()),
+        ),
+        deployNow: true,
+      });
+
+      await navigateTo(`/applications/${application.id}`);
+      return;
+    }
+
+    if (values.sourceMode === 'resources') {
+      const { application } = await create({
+        source: 'compose',
+        name: values.name,
+        environmentId: values.environmentId,
+        serverId: values.serverId,
+        compose: {
+          content: values.composeContent,
+          expose: { service: values.composeService, port: Number(values.composePort) },
+        },
+      });
+
+      await navigateTo(`/applications/${application.id}`);
+      return;
+    }
+
     const { application } = await create({
       name: values.name,
       environmentId: values.environmentId,
@@ -347,17 +522,52 @@
     currentStep.value -= 1;
   };
 
-  const reviewRows = computed(() => [
-    {
-      label: 'Source',
-      value: form.values.sourceMode === 'github-app' ? 'GitHub App' : 'Public repository or token',
-    },
-    { label: 'Repository', value: form.values.repository || '—' },
-    { label: 'Branch', value: form.values.branch || '—' },
-    { label: 'Project', value: `${projectName.value} · ${environmentName.value}` },
-    { label: 'Server', value: serverName.value },
-    { label: 'Auto-deploy', value: form.values.autoDeploy ? 'on' : 'off' },
-  ]);
+  const reviewRows = computed(() => {
+    if (form.values.sourceMode === 'resources' && form.values.resourceMode === 'template') {
+      const template = selectedTemplate.value;
+
+      return [
+        { label: 'Source', value: 'Marketplace template' },
+        { label: 'Template', value: template?.name ?? '—' },
+        { label: 'Category', value: template?.category ?? '—' },
+        {
+          label: 'Services',
+          value:
+            [template?.expose.service, ...(template?.databases.map(db => db.service) ?? [])]
+              .filter(Boolean)
+              .join(', ') || '—',
+        },
+        { label: 'Domain', value: template?.expose.domain ? 'automatic' : 'none' },
+        { label: 'Volumes', value: 'defined in the template’s compose file' },
+        { label: 'Project', value: `${projectName.value} · ${environmentName.value}` },
+        { label: 'Server', value: serverName.value },
+      ];
+    }
+
+    if (form.values.sourceMode === 'resources') {
+      return [
+        { label: 'Source', value: 'Pasted compose file' },
+        { label: 'Exposed service', value: form.values.composeService || '—' },
+        { label: 'Exposed port', value: form.values.composePort || '—' },
+        { label: 'Volumes', value: 'defined in the compose file' },
+        { label: 'Project', value: `${projectName.value} · ${environmentName.value}` },
+        { label: 'Server', value: serverName.value },
+      ];
+    }
+
+    return [
+      {
+        label: 'Source',
+        value:
+          form.values.sourceMode === 'github-app' ? 'GitHub App' : 'Public repository or token',
+      },
+      { label: 'Repository', value: form.values.repository || '—' },
+      { label: 'Branch', value: form.values.branch || '—' },
+      { label: 'Project', value: `${projectName.value} · ${environmentName.value}` },
+      { label: 'Server', value: serverName.value },
+      { label: 'Auto-deploy', value: form.values.autoDeploy ? 'on' : 'off' },
+    ];
+  });
 
   const { set: setNavbar } = useNavbar();
 
@@ -384,7 +594,7 @@
 
       <div class="min-w-0 flex-1">
         <template v-if="currentStep === 0">
-          <div class="mb-5 grid grid-cols-2 gap-3">
+          <div class="mb-5 grid grid-cols-3 gap-3">
             <button
               type="button"
               class="rounded-card border-[1.5px] p-4 text-left"
@@ -407,7 +617,26 @@
                 Paste owner/repository. Add a token if it is private.
               </div>
             </button>
+            <button
+              type="button"
+              class="rounded-card border-[1.5px] p-4 text-left"
+              :class="[
+                form.values.sourceMode === 'resources' ? 'border-accent' : 'border-edge',
+                !anyServerHasCompose && 'cursor-not-allowed opacity-50',
+              ]"
+              @click="pickSource('resources')"
+            >
+              <div class="text-[14px] font-semibold text-ink">Resources</div>
+              <div class="mt-1 text-caption text-ink-2">
+                Templates from the marketplace, published by other projects.
+              </div>
+            </button>
           </div>
+
+          <p v-if="!anyServerHasCompose" class="mb-5 text-caption text-attn-ink">
+            No connected server has the Docker Compose plugin yet — install it on a server and wait
+            for the next heartbeat to use templates or a compose file.
+          </p>
 
           <template v-if="form.values.sourceMode === 'github-app'">
             <GitSourcePicker ref="gitSourcePicker" @select="handlePickGitSource" />
@@ -416,7 +645,7 @@
             </span>
           </template>
 
-          <div v-else class="flex flex-col gap-1.5">
+          <div v-else-if="form.values.sourceMode === 'token'" class="flex flex-col gap-1.5">
             <Input
               v-model="form.values.repository"
               label="Repository"
@@ -436,6 +665,28 @@
               placeholder="Leave blank if the repository is public"
             />
           </div>
+
+          <template v-else>
+            <ResourcesStep
+              :selected-template-id="form.values.templateId"
+              :compose-mode="form.values.resourceMode === 'compose'"
+              @select-template="handleSelectTemplate"
+              @select-compose="handleSelectCompose"
+            />
+
+            <div v-if="form.values.resourceMode === 'compose'" class="mt-3.5 flex flex-col gap-1.5">
+              <Input
+                v-model="form.values.composeContent"
+                label="docker-compose.yml"
+                type="textarea"
+                :rows="10"
+                mono
+                boxed
+                stacked
+                :call-error="form.errors.value.composeContent"
+              />
+            </div>
+          </template>
         </template>
 
         <template v-else-if="currentStep === 1">
@@ -468,25 +719,78 @@
               placeholder="Choose a server"
               boxed
             />
-            <Input v-model="form.values.branch" label="Branch" mono boxed />
-            <Input v-model="form.values.dockerfilePath" label="Dockerfile" mono boxed />
-            <Input
-              v-model="form.values.port"
-              label="Port"
-              mono
-              boxed
-              :call-error="form.errors.value.port"
-            />
 
-            <div class="flex items-center gap-3.5 px-4.25 py-3">
-              <div class="flex-1">
-                <div class="text-[13px] text-ink">Auto-deploy on every push</div>
-                <div class="text-caption text-ink-3">
-                  Webhook comes from the git source. Nothing to configure.
+            <template v-if="form.values.sourceMode === 'resources'">
+              <template v-if="form.values.resourceMode === 'template'">
+                <template v-for="input in selectedTemplate?.inputs ?? []" :key="input.key">
+                  <Switch
+                    v-if="input.type === 'boolean'"
+                    :model-value="templateInputValues[input.key] === 'true'"
+                    class="px-4.25 py-3"
+                    @update:model-value="value => (templateInputValues[input.key] = String(value))"
+                  />
+                  <Select
+                    v-else-if="input.type === 'select'"
+                    v-model="templateInputValues[input.key]"
+                    :label="input.label"
+                    :options="
+                      (input.options ?? []).map(option => ({ value: option, label: option }))
+                    "
+                    boxed
+                    :call-error="templateInputError(input.key)"
+                  />
+                  <Input
+                    v-else
+                    v-model="templateInputValues[input.key]"
+                    :label="input.label"
+                    :password="input.type === 'password'"
+                    mono
+                    boxed
+                    :call-error="templateInputError(input.key)"
+                  />
+                </template>
+              </template>
+
+              <template v-else>
+                <Input
+                  v-model="form.values.composeService"
+                  label="Exposed service"
+                  placeholder="app"
+                  mono
+                  boxed
+                  :call-error="form.errors.value.composeService"
+                />
+                <Input
+                  v-model="form.values.composePort"
+                  label="Exposed port"
+                  mono
+                  boxed
+                  :call-error="form.errors.value.composePort"
+                />
+              </template>
+            </template>
+
+            <template v-else>
+              <Input v-model="form.values.branch" label="Branch" mono boxed />
+              <Input v-model="form.values.dockerfilePath" label="Dockerfile" mono boxed />
+              <Input
+                v-model="form.values.port"
+                label="Port"
+                mono
+                boxed
+                :call-error="form.errors.value.port"
+              />
+
+              <div class="flex items-center gap-3.5 px-4.25 py-3">
+                <div class="flex-1">
+                  <div class="text-[13px] text-ink">Auto-deploy on every push</div>
+                  <div class="text-caption text-ink-3">
+                    Webhook comes from the git source. Nothing to configure.
+                  </div>
                 </div>
+                <Switch v-model="form.values.autoDeploy" />
               </div>
-              <Switch v-model="form.values.autoDeploy" />
-            </div>
+            </template>
           </Card>
 
           <p v-if="!serverOptions.length" class="mt-2 text-caption text-attn-ink">
@@ -509,14 +813,17 @@
             </div>
           </div>
           <p class="mt-3.5 text-caption text-ink-2">
-            Creating the application does not deploy it. You will land on the application page with
-            a Deploy button.
+            {{
+              form.values.sourceMode === 'resources' && form.values.resourceMode === 'template'
+                ? 'Deploying starts right away — you will land on the application page and can follow it live.'
+                : 'Creating the application does not deploy it. You will land on the application page with a Deploy button.'
+            }}
           </p>
         </template>
 
         <div class="mt-5 flex items-center gap-2.5">
           <Button theme="secondary" @click="wizBack">Back</Button>
-          <Button theme="primary" :disabled="form.loading.value" @click="wizNext">
+          <Button theme="primary" :disabled="nextDisabled" @click="wizNext">
             <Icon v-if="form.loading.value" name="svg-spinners:tadpole" size="16" />
             {{ nextLabel }}
           </Button>

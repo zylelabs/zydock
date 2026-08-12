@@ -6,6 +6,8 @@
 
   const applicationsApi = useApplications();
 
+  const volumes = computed(() => props.application.volumes ?? []);
+
   const messageOf = (error: unknown, fallback: string) =>
     (error as { message?: string }).message || fallback;
 
@@ -28,7 +30,7 @@
   const startEditAdv = () => {
     const app = props.application;
 
-    advDraft.volumes = app.volumes.map(volume => ({
+    advDraft.volumes = volumes.value.map(volume => ({
       source: volume.source,
       target: volume.target,
       readOnly: Boolean(volume.readOnly),
@@ -149,9 +151,9 @@
       <Row as="div" class="flex items-baseline">
         <div class="w-33 shrink-0 text-[13px] text-ink-2">Volumes</div>
         <div class="font-mono text-[13px] text-ink">
-          <span v-if="!application.volumes.length">None</span>
+          <span v-if="!volumes.length">None</span>
           <div v-else class="flex flex-col gap-0.5">
-            <div v-for="(volume, index) in application.volumes" :key="index">
+            <div v-for="(volume, index) in volumes" :key="index">
               {{ volume.source }}:{{ volume.target }}{{ volume.readOnly ? ' (ro)' : '' }}
             </div>
           </div>

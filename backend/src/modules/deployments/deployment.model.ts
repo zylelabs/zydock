@@ -35,7 +35,7 @@ const deploymentSchema = new Schema(
     status: { type: String, required: true, enum: DEPLOYMENT_STATUSES, default: 'queued' },
     trigger: { type: String, required: true, enum: DEPLOYMENT_TRIGGERS },
     triggeredBy: { type: Schema.Types.ObjectId, ref: 'users' },
-    branch: { type: String, required: true, trim: true },
+    branch: { type: String, trim: true },
     commit: {
       sha: { type: String, trim: true },
       message: { type: String, trim: true },
@@ -44,6 +44,10 @@ const deploymentSchema = new Schema(
     },
     imageTag: { type: String, trim: true },
     containerId: { type: String, trim: true },
+    compose: {
+      content: { type: String },
+      envContent: { type: String, select: false },
+    },
     steps: { type: [stepSchema], default: [] },
     log: { type: [String], default: [] },
     startedAt: { type: Date },

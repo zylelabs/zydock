@@ -6,6 +6,8 @@
 
   const applicationsApi = useApplications();
 
+  const portMappings = computed(() => props.application.portMappings ?? []);
+
   const messageOf = (error: unknown, fallback: string) =>
     (error as { message?: string }).message || fallback;
 
@@ -22,7 +24,7 @@
   const portError = ref('');
 
   const startEditPorts = () => {
-    portDraft.value = props.application.portMappings.map(mapping => ({
+    portDraft.value = portMappings.value.map(mapping => ({
       hostPort: String(mapping.hostPort),
       containerPort: String(mapping.containerPort),
       protocol: mapping.protocol,
@@ -79,11 +81,11 @@
     </Row>
 
     <template v-if="!editingPorts">
-      <p v-if="!application.portMappings.length" class="px-4.25 py-4 text-caption text-ink-2">
+      <p v-if="!portMappings.length" class="px-4.25 py-4 text-caption text-ink-2">
         No published ports. Publish a host port to expose a service without going through the proxy.
       </p>
       <Row
-        v-for="(mapping, index) in application.portMappings"
+        v-for="(mapping, index) in portMappings"
         :key="index"
         as="div"
         class="flex items-center font-mono text-[13px] text-ink"

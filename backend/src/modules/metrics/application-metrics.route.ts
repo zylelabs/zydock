@@ -1,5 +1,6 @@
 import type { Context } from 'hono';
 import { createRouter, validator } from 'hono-route-docs';
+import { z } from 'zod';
 import { errorMessage } from '../../utils';
 import { agentFailureStatus } from '../../utils/agent';
 import { ApplicationIdParam, applicationIdParamSchema } from '../applications/application.schema';
@@ -12,14 +13,22 @@ import { metricsDocs } from './metrics.docs';
 
 const { router, get } = createRouter();
 
+const applicationMetricsQuerySchema = z.object({
+  service: z.string().trim().min(1).max(128).optional(),
+});
+
 get(
   '/',
   metricsDocs.application,
   authMiddleware,
   validator('param', applicationIdParamSchema),
   createOrganizationRoleGuard('member'),
+  validator('query', applicationMetricsQuerySchema),
   async (c: Context) => {
     const { organizationId, applicationId } = c.req.valid('param' as never) as ApplicationIdParam;
+    const { service } = c.req.valid('query' as never) as z.infer<
+      typeof applicationMetricsQuerySchema
+    >;
 
     const application = await findApplication(organizationId, applicationId);
 
@@ -34,7 +43,7 @@ get(
     }
 
     try {
-      return c.json(await fetchApplicationMetrics(application, server));
+      return c.json(await fetchApplicationMetrics(application, server, service));
     } catch (error) {
       return c.json({ error: errorMessage(error) }, agentFailureStatus(error));
     }

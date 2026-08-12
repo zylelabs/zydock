@@ -3,6 +3,7 @@ import { decryptSecret, encryptSecret } from '../../utils/crypto';
 import type { GitCredentials } from '../../providers/git';
 import type { AuthPayload } from '../auth/auth.middleware';
 import { removeDeploymentsOfApplications } from '../deployments/deployment.service';
+import { composeContainerNameOf, containerNameOf } from '../deployments/naming';
 import { removeDomainsOfApplications } from '../domains/domain.service';
 import { issueInstallationToken } from '../git-sources/git-source.service';
 import { findMembership } from '../organizations/membership.service';
@@ -12,7 +13,7 @@ import applicationModel from './application.model';
 import type { CreateApplicationDTO, UpdateApplicationDTO } from './application.schema';
 import { callbackUrlOf } from './webhook.service';
 
-const uniqueSlug = (environmentId: string, name: string) =>
+export const uniqueSlug = (environmentId: string, name: string) =>
   generateUniqueSlug(name, 'application', async slug =>
     Boolean(await applicationModel.exists({ environmentId, slug })),
   );
@@ -46,15 +47,28 @@ export const createApplication = async (
   organizationId: string,
   projectId: string,
   body: CreateApplicationDTO,
-) =>
-  applicationModel.create({
+  options?: { slug?: string; origin?: ApplicationOrigin },
+) => {
+  const base = {
     organizationId,
     projectId,
     environmentId: body.environmentId,
     serverId: body.serverId,
     name: body.name,
-    slug: await uniqueSlug(body.environmentId, body.name),
-    status: 'created',
+    slug: options?.slug ?? (await uniqueSlug(body.environmentId, body.name)),
+    status: 'created' as const,
+    source: body.source,
+    variables: encryptVariables(body.variables),
+    restartPolicy: body.restartPolicy,
+    ...(options?.origin ? { origin: options.origin } : {}),
+  };
+
+  if (body.source === 'compose') {
+    return applicationModel.create({ ...base, compose: body.compose, resources: body.resources });
+  }
+
+  return applicationModel.create({
+    ...base,
     git: {
       ...body.git,
       token: body.git.token ? encryptSecret(body.git.token) : undefined,
@@ -62,13 +76,28 @@ export const createApplication = async (
     },
     port: body.port,
     portMappings: body.portMappings,
-    variables: encryptVariables(body.variables),
     volumes: body.volumes,
     networks: body.networks,
     healthcheck: body.healthcheck,
     resources: body.resources,
-    restartPolicy: body.restartPolicy,
   });
+};
+
+export const exposedPortOf = (application: Application): number => {
+  const port =
+    application.source === 'compose' ? application.compose?.expose.port : application.port;
+
+  if (!port) {
+    throw new Error(`Application ${application._id} has no exposed port configured`);
+  }
+
+  return port;
+};
+
+export const upstreamHostOf = (application: Application): string =>
+  application.source === 'compose' && application.compose
+    ? composeContainerNameOf(application.slug, application.compose.expose.service)
+    : containerNameOf(application.slug);
 
 export const replaceVariables = (
   applicationId: string,
@@ -77,6 +106,12 @@ export const replaceVariables = (
   applicationModel.updateOne(
     { _id: applicationId },
     { $set: { variables: encryptVariables(variables) } },
+  );
+
+export const updateVariableValue = (applicationId: string, key: string, value: string) =>
+  applicationModel.updateOne(
+    { _id: applicationId, 'variables.key': key },
+    { $set: { 'variables.$.value': encryptSecret(value) } },
   );
 
 export const updateApplication = async (
@@ -120,6 +155,12 @@ export const updateApplication = async (
       }
     } else {
       set[`git.${field}`] = value;
+    }
+  }
+
+  for (const [field, value] of Object.entries(changes.compose ?? {})) {
+    if (value !== undefined) {
+      set[`compose.${field}`] = value;
     }
   }
 
@@ -214,31 +255,47 @@ export const serializeApplication = (application: Application) => ({
   name: application.name,
   slug: application.slug,
   status: application.status,
-  git: {
-    host: application.git.host,
-    repository: application.git.repository,
-    branch: application.git.branch,
-    dockerfilePath: application.git.dockerfilePath,
-    buildContext: application.git.buildContext,
-    autoDeploy: application.git.autoDeploy,
-    hasToken: application.git.hasToken,
-    hasWebhook: Boolean(application.git.webhookId),
-    webhookUrl: application.git.webhookId ? callbackUrlOf(String(application._id)) : undefined,
-    source: application.git.source,
-    gitSourceId: application.git.gitSourceId ? String(application.git.gitSourceId) : undefined,
-    installationId: application.git.installationId,
-  },
-  port: application.port,
-  portMappings: application.portMappings,
+  source: application.source,
+  git:
+    application.source === 'git'
+      ? {
+          host: application.git.host,
+          repository: application.git.repository,
+          branch: application.git.branch,
+          dockerfilePath: application.git.dockerfilePath,
+          buildContext: application.git.buildContext,
+          autoDeploy: application.git.autoDeploy,
+          hasToken: application.git.hasToken,
+          hasWebhook: Boolean(application.git.webhookId),
+          webhookUrl: application.git.webhookId
+            ? callbackUrlOf(String(application._id))
+            : undefined,
+          source: application.git.source,
+          gitSourceId: application.git.gitSourceId
+            ? String(application.git.gitSourceId)
+            : undefined,
+          installationId: application.git.installationId,
+        }
+      : undefined,
+  compose:
+    application.source === 'compose' && application.compose
+      ? { content: application.compose.content, expose: application.compose.expose }
+      : undefined,
+  port: application.source === 'git' ? application.port : application.compose?.expose.port,
+  portMappings: application.source === 'git' ? application.portMappings : undefined,
   variables: application.variables.map(variable => ({
     key: variable.key,
     secret: variable.secret,
   })),
-  volumes: application.volumes,
-  networks: application.networks,
-  healthcheck: application.healthcheck?.path ? application.healthcheck : undefined,
+  volumes: application.source === 'git' ? application.volumes : undefined,
+  networks: application.source === 'git' ? application.networks : undefined,
+  healthcheck:
+    application.source === 'git' && application.healthcheck?.path
+      ? application.healthcheck
+      : undefined,
   resources: application.resources,
   restartPolicy: application.restartPolicy,
+  origin: application.origin,
   lastError: application.lastError,
   createdAt: application.createdAt,
   updatedAt: application.updatedAt,
