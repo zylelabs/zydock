@@ -1,0 +1,7 @@
+services:
+  app:
+    image: nginx:1.27
+    volumes:
+      - type: bind
+        source: /etc
+        target: /host-etc

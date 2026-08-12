@@ -1,6 +1,6 @@
 interface ApplicationGit {
   host: import('../../providers/git').GitHost;
-  repository: string;
+  repository?: string;
   branch: string;
   dockerfilePath: string;
   buildContext: string;
@@ -12,6 +12,22 @@ interface ApplicationGit {
   source: import('./application.schema').ApplicationGitSource;
   gitSourceId?: string;
   installationId?: string;
+}
+
+interface ApplicationComposeExpose {
+  service: string;
+  port: number;
+}
+
+interface ApplicationCompose {
+  content: string;
+  expose: ApplicationComposeExpose;
+}
+
+interface ApplicationOrigin {
+  templateId: string;
+  templateVersion: number;
+  inputs: Record<string, string>;
 }
 
 interface ApplicationVariable {
@@ -53,8 +69,11 @@ interface ApplicationData {
   name: string;
   slug: string;
   status: import('./application.schema').ApplicationStatus;
+  source: import('./application.schema').ApplicationSource;
   git: ApplicationGit;
-  port: number;
+  compose?: ApplicationCompose;
+  origin?: ApplicationOrigin;
+  port?: number;
   portMappings: ApplicationPortMapping[];
   variables: ApplicationVariable[];
   volumes: ApplicationVolume[];

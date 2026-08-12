@@ -75,6 +75,30 @@ export interface ApplicationResources {
   memoryMb?: number;
 }
 
+export type ApplicationSource = 'git' | 'compose';
+
+export interface ApplicationComposeExpose {
+  service: string;
+  port: number;
+}
+
+export interface ApplicationCompose {
+  content: string;
+  expose: ApplicationComposeExpose;
+}
+
+export interface ApplicationOrigin {
+  templateId: string;
+  templateVersion: number;
+  inputs: Record<string, string>;
+}
+
+export interface ApplicationService {
+  service: string;
+  containerName: string;
+  exposed: boolean;
+}
+
 export interface Application {
   id: string;
   organizationId: string;
@@ -84,27 +108,39 @@ export interface Application {
   name: string;
   slug: string;
   status: ApplicationStatus;
-  git: ApplicationGit;
-  port: number;
-  portMappings: ApplicationPortMapping[];
+  source: ApplicationSource;
+  git?: ApplicationGit;
+  compose?: ApplicationCompose;
+  port?: number;
+  portMappings?: ApplicationPortMapping[];
   variables: ApplicationVariable[];
-  volumes: ApplicationVolume[];
-  networks: string[];
+  volumes?: ApplicationVolume[];
+  networks?: string[];
   healthcheck?: ApplicationHealthcheck;
   resources?: ApplicationResources;
   restartPolicy: string;
+  origin?: ApplicationOrigin;
   lastError?: string;
   createdAt: string;
   updatedAt: string;
 }
 
-export interface CreateApplicationBody {
-  name: string;
-  environmentId: string;
-  serverId: string;
-  git: Partial<ApplicationGit> & { repository: string };
-  port: number;
-}
+export type CreateApplicationBody =
+  | {
+      source?: 'git';
+      name: string;
+      environmentId: string;
+      serverId: string;
+      git: Partial<ApplicationGit> & { repository: string };
+      port: number;
+    }
+  | {
+      source: 'compose';
+      name: string;
+      environmentId: string;
+      serverId: string;
+      compose: ApplicationCompose;
+    };
 
 export type ApplicationFilter = {
   projectId?: string;
@@ -156,6 +192,9 @@ export const useApplications = () => {
   const removeWebhook = (applicationId: string) =>
     api.del<{ message: string }>(`${base()}/${applicationId}/webhook`);
 
+  const services = (applicationId: string) =>
+    api.get<{ services: ApplicationService[] }>(`${base()}/${applicationId}/services`);
+
   return {
     list,
     get,
@@ -171,5 +210,6 @@ export const useApplications = () => {
     start,
     configureWebhook,
     removeWebhook,
+    services,
   };
 };

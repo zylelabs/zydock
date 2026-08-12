@@ -12,6 +12,7 @@ export interface LogFilters {
   stream?: 'stdout' | 'stderr';
   level?: LogLevel;
   tail?: number;
+  service?: string;
 }
 
 export const useLogs = () => {

@@ -4,6 +4,7 @@ import { paginateStatics } from '../../utils/pagination';
 import {
   APPLICATION_GIT_SOURCES,
   APPLICATION_RESTART_POLICIES,
+  APPLICATION_SOURCES,
   APPLICATION_STATUSES,
 } from './application.schema';
 
@@ -53,9 +54,10 @@ const applicationSchema = new Schema(
     name: { type: String, required: true, trim: true },
     slug: { type: String, required: true, trim: true, lowercase: true },
     status: { type: String, required: true, enum: APPLICATION_STATUSES, default: 'created' },
+    source: { type: String, required: true, enum: APPLICATION_SOURCES, default: 'git' },
     git: {
       host: { type: String, required: true, enum: GIT_HOSTS, default: 'github' },
-      repository: { type: String, required: true, trim: true },
+      repository: { type: String, trim: true },
       branch: { type: String, required: true, trim: true, default: 'main' },
       dockerfilePath: { type: String, required: true, trim: true, default: 'Dockerfile' },
       buildContext: { type: String, required: true, trim: true, default: '.' },
@@ -68,7 +70,19 @@ const applicationSchema = new Schema(
       gitSourceId: { type: Schema.Types.ObjectId, ref: 'git_sources' },
       installationId: { type: String },
     },
-    port: { type: Number, required: true },
+    compose: {
+      content: { type: String },
+      expose: {
+        service: { type: String, trim: true },
+        port: { type: Number },
+      },
+    },
+    origin: {
+      templateId: { type: String, trim: true },
+      templateVersion: { type: Number },
+      inputs: { type: Schema.Types.Mixed },
+    },
+    port: { type: Number },
     portMappings: { type: [portMappingSchema], default: [] },
     variables: { type: [variableSchema], default: [] },
     volumes: { type: [volumeSchema], default: [] },

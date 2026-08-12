@@ -1,5 +1,5 @@
 <script setup lang="ts">
-  import { useApplications } from '~/composables/services/useApplications';
+  import { useApplications, type ApplicationService } from '~/composables/services/useApplications';
   import { useLogs, type LogEntry, type LogLevel } from '~/composables/services/useLogs';
 
   const route = useRoute();
@@ -11,6 +11,17 @@
 
   const applicationId = computed(() => String(route.params.applicationId));
   const applicationName = ref('');
+  const services = ref<ApplicationService[]>([]);
+  const selectedService = ref('');
+
+  const serviceOptions = computed(() =>
+    services.value.map(entry => ({
+      value: entry.service,
+      label: entry.exposed ? `${entry.service} (exposed)` : entry.service,
+    })),
+  );
+
+  const exposedService = computed(() => services.value.find(entry => entry.exposed)?.service ?? '');
 
   useHead(() => ({ title: `Logs · ${applicationName.value || 'Application'}` }));
 
@@ -53,6 +64,7 @@
     stream: (filters.stream || undefined) as 'stdout' | 'stderr' | undefined,
     level: (filters.level || undefined) as LogLevel | undefined,
     tail: 200,
+    service: selectedService.value || undefined,
   });
 
   const load = async () => {
@@ -144,7 +156,23 @@
     const { application } = await applications.get(applicationId.value);
     applicationName.value = application.name;
 
+    if (application.source === 'compose') {
+      const result = await applications.services(applicationId.value);
+      services.value = result.services;
+
+      const exposed = result.services.find(entry => entry.exposed)?.service ?? '';
+
+      if (exposed) {
+        selectedService.value = exposed;
+        return;
+      }
+    }
+
     await load();
+  });
+
+  watch(selectedService, () => {
+    load();
   });
 </script>
 
@@ -159,6 +187,13 @@
           @keyup.enter="load"
         />
         <Segmented v-model="filters.stream" :options="streamOptions" @update:model-value="load" />
+        <Select
+          v-if="serviceOptions.length > 1"
+          v-model="selectedService"
+          :options="serviceOptions"
+          boxed
+          class="w-40"
+        />
         <Segmented
           v-model="filters.level"
           :options="levelOptions"
@@ -181,6 +216,13 @@
           Download
         </Button>
       </div>
+
+      <p
+        v-if="live && serviceOptions.length > 1 && selectedService !== exposedService"
+        class="text-caption text-ink-3"
+      >
+        Live tail always follows the exposed service — switch back to see it live for this one.
+      </p>
 
       <Alert v-if="error" theme="error">{{ error }}</Alert>
 

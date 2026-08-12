@@ -2,6 +2,8 @@
   import { useApplications, type Application } from '~/composables/services/useApplications';
 
   const props = defineProps<{ application: Application }>();
+
+  const git = computed(() => props.application.git!);
   const emit = defineEmits<{ refresh: [] }>();
 
   const applicationsApi = useApplications();
@@ -42,11 +44,11 @@
   };
 
   const copyWebhookUrl = async () => {
-    if (!props.application.git.webhookUrl) {
+    if (!git.value.webhookUrl) {
       return;
     }
 
-    await navigator.clipboard.writeText(props.application.git.webhookUrl);
+    await navigator.clipboard.writeText(git.value.webhookUrl);
     webhookCopied.value = true;
     setTimeout(() => (webhookCopied.value = false), 2000);
   };
@@ -80,7 +82,7 @@
 </script>
 
 <template>
-  <Card v-if="application.git.source === 'github-app'" title="Git webhook">
+  <Card v-if="git.source === 'github-app'" title="Git webhook">
     <p class="text-[13px] leading-relaxed text-ink-2">
       This application comes from a GitHub App source, so the webhook is already installed and
       shared by every application on that source.
@@ -94,7 +96,7 @@
     <Card title="Git webhook" content-class="p-0">
       <template #right>
         <Button
-          v-if="!application.git.hasWebhook"
+          v-if="!git.hasWebhook"
           theme="secondary"
           size="xs"
           :disabled="webhookBusy"
@@ -109,26 +111,23 @@
         <Alert v-if="webhookError" theme="error">{{ webhookError }}</Alert>
 
         <div class="flex items-center gap-2 text-[13px]">
-          <Tag :color="application.git.hasWebhook ? 'live' : 'default'">
-            {{ application.git.hasWebhook ? 'Configured' : 'Not configured' }}
+          <Tag :color="git.hasWebhook ? 'live' : 'default'">
+            {{ git.hasWebhook ? 'Configured' : 'Not configured' }}
           </Tag>
           <span class="text-ink-2">
             {{
-              application.git.hasWebhook
+              git.hasWebhook
                 ? 'GitHub notifies this URL on every push, triggering auto-deploy.'
                 : 'Without it, auto-deploy only runs if the webhook is set up manually on the repository.'
             }}
           </span>
         </div>
 
-        <div
-          v-if="application.git.hasWebhook && application.git.webhookUrl"
-          class="flex items-center gap-2"
-        >
+        <div v-if="git.hasWebhook && git.webhookUrl" class="flex items-center gap-2">
           <code
             class="flex-1 truncate rounded-control border border-edge bg-inset px-3 py-2 text-caption"
           >
-            {{ application.git.webhookUrl }}
+            {{ git.webhookUrl }}
           </code>
           <Button theme="quiet" size="xs" type="button" @click="copyWebhookUrl">
             <Icon :name="webhookCopied ? 'lucide:check' : 'lucide:copy'" class="size-3.5" />
@@ -136,12 +135,12 @@
           </Button>
         </div>
 
-        <Alert v-if="!application.git.hasWebhook && application.git.autoDeploy" theme="info">
+        <Alert v-if="!git.hasWebhook && git.autoDeploy" theme="info">
           Auto-deploy is enabled but no webhook is configured — configure it above so pushes deploy
           automatically.
         </Alert>
 
-        <div v-if="application.git.hasWebhook" class="flex justify-end">
+        <div v-if="git.hasWebhook" class="flex justify-end">
           <Button theme="quiet" size="xs" :disabled="webhookBusy" @click="handleRemoveWebhook">
             Remove webhook
           </Button>
@@ -152,23 +151,23 @@
     <Card title="Access token" content-class="p-0">
       <template #right>
         <Button v-if="!editingToken" theme="secondary" size="xs" @click="startEditToken">
-          {{ application.git.hasToken ? 'Replace' : 'Set' }}
+          {{ git.hasToken ? 'Replace' : 'Set' }}
         </Button>
       </template>
 
       <div v-if="!editingToken" class="flex items-center gap-2 p-4.25 text-[13px]">
-        <Tag :color="application.git.hasToken ? 'live' : 'default'">
-          {{ application.git.hasToken ? 'Configured' : 'Not configured' }}
+        <Tag :color="git.hasToken ? 'live' : 'default'">
+          {{ git.hasToken ? 'Configured' : 'Not configured' }}
         </Tag>
         <span class="text-ink-2">
           {{
-            application.git.hasToken
+            git.hasToken
               ? 'The platform clones the private repository with this token.'
               : 'Required only for private repositories.'
           }}
         </span>
         <button
-          v-if="application.git.hasToken"
+          v-if="git.hasToken"
           type="button"
           class="ml-auto cursor-pointer text-caption text-ink-2 hover:text-failed"
           :disabled="savingToken"

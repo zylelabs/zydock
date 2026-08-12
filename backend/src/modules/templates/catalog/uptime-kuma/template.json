@@ -1,0 +1,18 @@
+{
+  "id": "uptime-kuma",
+  "version": 1,
+  "name": "Uptime Kuma",
+  "tagline": "Self-hosted monitoring tool with a slick status page",
+  "category": "monitoring",
+  "tags": ["monitoring", "status-page"],
+  "website": "https://github.com/louislam/uptime-kuma",
+  "documentation": "https://github.com/louislam/uptime-kuma/wiki",
+  "license": "MIT",
+  "author": "zydock",
+  "origin": "official",
+  "docker_compose": "docker-compose.yml",
+  "expose": { "service": "app", "port": 3001, "domain": true },
+  "databases": [],
+  "inputs": [],
+  "secrets": []
+}

@@ -13,6 +13,7 @@ const ARGV: Record<Exclude<AllowedCommand, 'agent.autoheal-sweep'>, string[]> = 
   'docker.version': ['docker', 'version', '--format', '{{.Server.Version}}'],
   'docker.info': ['docker', 'info', '--format', '{{json .}}'],
   'docker.prune': ['docker', 'system', 'prune', '--force'],
+  'docker.compose-version': ['docker', 'compose', 'version', '--short'],
   'system.uptime': ['uptime'],
   'system.disk': ['df', '-h', '/'],
   'system.memory': ['free', '-m'],

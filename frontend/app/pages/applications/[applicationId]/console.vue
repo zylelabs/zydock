@@ -11,6 +11,7 @@
   const servers = useServers();
 
   const applicationId = computed(() => String(route.params.applicationId));
+  const selectedService = ref('');
 
   const { data } = useLazyAsyncData(
     () => `console-${applicationId.value}`,
@@ -19,23 +20,57 @@
         return null;
       }
 
-      const [app, deps] = await Promise.all([
-        applications.get(applicationId.value),
-        deployments.list({ applicationId: applicationId.value }),
-      ]);
-
-      const containerId = deps.items.find(deployment => deployment.containerId)?.containerId;
+      const app = await applications.get(applicationId.value);
       const server = await servers.get(app.application.serverId);
+
+      if (app.application.source === 'compose') {
+        const { services } = await applications.services(applicationId.value);
+
+        selectedService.value =
+          services.find(entry => entry.exposed)?.service ?? services[0]?.service ?? '';
+
+        return {
+          name: app.application.name,
+          serverId: app.application.serverId,
+          serverName: server.server.name,
+          services,
+        };
+      }
+
+      const deps = await deployments.list({ applicationId: applicationId.value });
+      const containerId = deps.items.find(deployment => deployment.containerId)?.containerId;
 
       return {
         name: app.application.name,
         serverId: app.application.serverId,
         serverName: server.server.name,
         containerId,
+        services: [],
       };
     },
     { server: false, watch: [() => session.organizationId, applicationId], default: () => null },
   );
+
+  const serviceOptions = computed(
+    () =>
+      data.value?.services.map(entry => ({
+        value: entry.service,
+        label: entry.exposed ? `${entry.service} (exposed)` : entry.service,
+      })) ?? [],
+  );
+
+  const containerId = computed(() => {
+    if (!data.value) {
+      return undefined;
+    }
+
+    if (data.value.services.length) {
+      return data.value.services.find(entry => entry.service === selectedService.value)
+        ?.containerName;
+    }
+
+    return data.value.containerId;
+  });
 
   useHead(() => ({ title: `Console · ${data.value?.name ?? 'Application'}` }));
 
@@ -52,8 +87,21 @@
 
 <template>
   <Content>
-    <div v-if="data?.containerId" class="flex flex-col gap-2.5">
-      <Terminal :server-id="data.serverId" :container-id="data.containerId" host-class="min-h-85" />
+    <div v-if="data && containerId" class="flex flex-col gap-2.5">
+      <Select
+        v-if="serviceOptions.length > 1"
+        v-model="selectedService"
+        label="Service"
+        :options="serviceOptions"
+        boxed
+        class="max-w-60"
+      />
+      <Terminal
+        :key="containerId"
+        :server-id="data.serverId"
+        :container-id="containerId"
+        host-class="min-h-85"
+      />
       <p class="text-caption text-ink-2">
         Session runs inside the container on {{ data.serverName }}. It closes when you leave the
         page.

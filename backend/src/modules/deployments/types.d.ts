@@ -12,6 +12,11 @@ interface DeploymentStepResult {
   durationMs: number;
 }
 
+interface DeploymentCompose {
+  content: string;
+  envContent: string;
+}
+
 interface DeploymentData {
   organizationId: string;
   applicationId: string;
@@ -23,6 +28,7 @@ interface DeploymentData {
   commit?: DeploymentCommit;
   imageTag?: string;
   containerId?: string;
+  compose?: DeploymentCompose;
   steps: DeploymentStepResult[];
   log: string[];
   startedAt?: Date;

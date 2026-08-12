@@ -1,0 +1,12 @@
+services:
+  app:
+    image: nginx:1.27
+    volumes:
+      - app-data:/usr/share/nginx/html
+    deploy:
+      resources:
+        limits:
+          memory: 256M
+
+volumes:
+  app-data:

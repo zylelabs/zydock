@@ -237,6 +237,12 @@
           </template>
         </Card>
 
+        <Alert v-if="!server.resources.composeVersion" theme="info">
+          No Docker Compose plugin detected on this server yet — templates and pasted compose files
+          can't be deployed here until it's installed and the agent reports it on the next
+          heartbeat.
+        </Alert>
+
         <DockerPanel :server-id="serverId" :can-manage="canManage" />
 
         <div

@@ -21,20 +21,22 @@ export const runLifecycleAction = async (application: Application, action: Lifec
 
   const containers = resolveContainerProvider(buildAgentConnection(server));
 
-  const [container] = await containers.listContainers({
+  const running = await containers.listContainers({
     labels: { [APPLICATION_LABEL]: String(application._id) },
   });
 
-  if (!container) {
+  if (!running.length) {
     throw new Error('No container is running for this application; deploy it first');
   }
 
-  if (action === 'stop') {
-    await containers.stopContainer(container.id);
-  } else if (action === 'start') {
-    await containers.startContainer(container.id);
-  } else {
-    await containers.restartContainer(container.id);
+  for (const container of running) {
+    if (action === 'stop') {
+      await containers.stopContainer(container.id);
+    } else if (action === 'start') {
+      await containers.startContainer(container.id);
+    } else {
+      await containers.restartContainer(container.id);
+    }
   }
 
   await applicationModel.updateOne(

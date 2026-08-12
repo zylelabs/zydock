@@ -56,6 +56,7 @@ post(
           'agent.version': body.version,
           'agent.lastHeartbeatAt': new Date(),
           ...(body.dockerVersion ? { 'resources.dockerVersion': body.dockerVersion } : {}),
+          ...(body.composeVersion ? { 'resources.composeVersion': body.composeVersion } : {}),
         },
       },
     );

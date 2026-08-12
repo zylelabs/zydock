@@ -8,6 +8,7 @@ export const logsQuerySchema = z.object({
   since: z.string().trim().min(1).max(64).optional(),
   until: z.string().trim().min(1).max(64).optional(),
   tail: z.coerce.number().int().min(1).max(5000).default(200),
+  service: z.string().trim().min(1).max(128).optional(),
 });
 
 export type LogsQuery = z.infer<typeof logsQuerySchema>;

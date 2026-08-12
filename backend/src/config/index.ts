@@ -134,6 +134,15 @@ export default {
     network: readString('PROXY_NETWORK', 'zydock'),
     accessRetentionHours: readNumber('PROXY_ACCESS_RETENTION_HOURS', 168),
   },
+  compose: {
+    registryAllowlist: (() => {
+      const configured = readList('COMPOSE_REGISTRY_ALLOWLIST');
+
+      return configured.length ? configured : ['docker.io', 'ghcr.io', 'quay.io'];
+    })(),
+    maxServices: readNumber('COMPOSE_MAX_SERVICES', 10),
+    defaultMemoryLimitMb: readNumber('COMPOSE_DEFAULT_MEMORY_LIMIT_MB', 512),
+  },
   metrics: {
     retentionHours: readNumber('METRICS_RETENTION_HOURS', 168),
     streamIntervalSeconds: readNumber('METRICS_STREAM_INTERVAL_SECONDS', 5),

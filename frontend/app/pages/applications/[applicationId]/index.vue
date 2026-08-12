@@ -3,6 +3,7 @@
   import NetworkTab from './.NetworkTab.vue';
   import VariablesTab from './.VariablesTab.vue';
   import AdvancedTab from './.AdvancedTab.vue';
+  import ComposeTab from './.ComposeTab.vue';
   import {
     applicationStatusDot,
     useApplications,
@@ -173,18 +174,23 @@
     }
   };
 
-  type TabId = 'overview' | 'network' | 'variables' | 'advanced';
+  type TabId = 'overview' | 'network' | 'variables' | 'compose' | 'advanced';
 
   const TABS: { id: TabId; label: string }[] = [
     { id: 'overview', label: 'Overview' },
     { id: 'network', label: 'Domains & network' },
     { id: 'variables', label: 'Variables' },
+    { id: 'compose', label: 'Compose' },
     { id: 'advanced', label: 'Advanced' },
   ];
 
-  const visibleTabs = computed(() =>
-    canManage.value ? TABS : TABS.filter(tab => tab.id === 'overview'),
-  );
+  const visibleTabs = computed(() => {
+    const tabs = TABS.filter(
+      tab => tab.id !== 'compose' || application.value?.source === 'compose',
+    );
+
+    return canManage.value ? tabs : tabs.filter(tab => tab.id === 'overview');
+  });
   const activeTab = ref<TabId>('overview');
 
   watch(canManage, manage => {
@@ -213,6 +219,10 @@
         <StatusDot :status="applicationStatusDot(application.status)" />
         {{ STATUS_LABEL[application.status] }}
       </div>
+
+      <Tag v-if="application.origin"
+        >Created from template · {{ application.origin.templateId }}</Tag
+      >
 
       <a
         v-if="applicationUrl"
@@ -297,6 +307,11 @@
     />
     <VariablesTab
       v-else-if="activeTab === 'variables'"
+      :application="application"
+      :can-manage="canManage"
+    />
+    <ComposeTab
+      v-else-if="activeTab === 'compose'"
       :application="application"
       :can-manage="canManage"
     />

@@ -13,6 +13,16 @@
       ? 'grid-cols-[1.3fr_1.1fr_0.8fr_0.8fr_auto]'
       : 'grid-cols-[1.3fr_1.1fr_0.8fr_auto]',
   );
+
+  const origin = computed(() => {
+    if (props.application.source === 'git') {
+      return props.application.git?.repository ?? '—';
+    }
+
+    return props.application.origin
+      ? `Template · ${props.application.origin.templateId}`
+      : 'Docker Compose';
+  });
 </script>
 
 <template>
@@ -24,7 +34,7 @@
         <div class="truncate font-mono text-caption text-ink-2">{{ application.slug }}</div>
       </div>
     </div>
-    <div class="truncate font-mono text-[13px] text-ink-2">{{ application.git.repository }}</div>
+    <div class="truncate font-mono text-[13px] text-ink-2">{{ origin }}</div>
     <div class="truncate text-[13px] text-ink-2">{{ context }}</div>
     <div v-if="server" class="truncate text-[13px] text-ink-2">{{ server }}</div>
     <div class="text-right text-caption text-ink-2">{{ lastDeploy }}</div>

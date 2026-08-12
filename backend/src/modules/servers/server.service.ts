@@ -178,6 +178,7 @@ export const serializeServer = (server: Server) => ({
     diskGb: server.resources?.diskGb,
     osRelease: server.resources?.osRelease,
     dockerVersion: server.resources?.dockerVersion,
+    composeVersion: server.resources?.composeVersion,
   },
   lastError: server.lastError,
   createdAt: server.createdAt,

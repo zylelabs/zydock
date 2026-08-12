@@ -7,14 +7,14 @@ import {
 } from '../../providers/reverse-proxy';
 import { logError, logInfo } from '../../utils/logger';
 import applicationModel from '../applications/application.model';
-import { containerNameOf } from '../deployments/naming';
+import { exposedPortOf, upstreamHostOf } from '../applications/application.service';
 import { buildAgentConnection, findServerById } from '../servers/server.service';
 import domainModel from './domain.model';
 
 const routeSpecOf = (domain: Domain, application: Application): RouteSpec => ({
   id: String(domain._id),
   domain: domain.hostname,
-  upstreams: [{ host: containerNameOf(application.slug), port: application.port }],
+  upstreams: [{ host: upstreamHostOf(application), port: exposedPortOf(application) }],
   pathPrefix: domain.pathPrefix,
   tls: domain.tls,
 });

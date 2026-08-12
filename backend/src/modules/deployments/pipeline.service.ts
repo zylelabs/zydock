@@ -1,4 +1,5 @@
 import config from '../../config';
+import { resolveComposeProvider, type ComposeServiceStatus } from '../../providers/compose';
 import {
   resolveContainerProvider,
   type ContainerSpec,
@@ -18,12 +19,27 @@ import {
   findApplicationWithSecrets,
   resolveGitCredentials,
 } from '../applications/application.service';
+import { validateComposeSecurity } from '../compose/compose.schema';
+import {
+  maskSecrets,
+  parseComposeDocument,
+  renderEnvFile,
+  secretValuesOf,
+} from '../compose/compose.service';
+import { renderOverrideDocument } from '../compose/override.service';
 import { enqueueJob, registerJobHandler } from '../queue/queue.service';
 import { buildAgentConnection, findServerById } from '../servers/server.service';
 import { applyApplicationDomains } from '../domains/domain.service';
 import deploymentModel from './deployment.model';
 import type { DeploymentStep } from './deployment.schema';
-import { APPLICATION_LABEL, AUTOHEAL_LABEL, containerNameOf, DEPLOYMENT_LABEL } from './naming';
+import {
+  APPLICATION_LABEL,
+  AUTOHEAL_LABEL,
+  composeContainerNameOf,
+  composeProjectOf,
+  containerNameOf,
+  DEPLOYMENT_LABEL,
+} from './naming';
 import {
   appendLog,
   createDeployment,
@@ -31,6 +47,7 @@ import {
   markRunning,
   recordStep,
   setCommit,
+  setComposeContent,
 } from './deployment.service';
 
 export const DEPLOY_JOB = 'deployment.run';
@@ -102,7 +119,7 @@ const specOf = (application: Application, deploymentId: string, image: string): 
   image,
   environment: environmentOf(application),
   ports: [
-    { containerPort: application.port, protocol: 'tcp' as const },
+    { containerPort: application.port!, protocol: 'tcp' as const },
     ...application.portMappings.map(mapping => ({
       containerPort: mapping.containerPort,
       hostPort: mapping.hostPort,
@@ -141,7 +158,7 @@ const cloneStep = async (
 ) => {
   const git = resolveGitProvider(await resolveGitCredentials(application));
 
-  const url = await git.getCloneUrl(application.git.repository);
+  const url = await git.getCloneUrl(application.git.repository!);
 
   const { send } = createAgentClient(connection);
 
@@ -242,8 +259,73 @@ const healthcheckStep = async (
   throw new Error(`The container did not become healthy in time (last state: ${last})`);
 };
 
+const renderComposeStep = async (
+  connection: AgentConnection,
+  application: Application,
+  deploymentId: string,
+  isRollback: boolean,
+  rollbackCompose: DeploymentCompose | undefined,
+  secretValues: string[],
+) => {
+  if (!application.compose) {
+    throw new Error('This application has no compose file configured');
+  }
+
+  let content: string;
+  let envContent: string;
+
+  if (isRollback) {
+    if (!rollbackCompose) {
+      throw new Error('This rollback has no compose snapshot to reapply');
+    }
+
+    content = rollbackCompose.content;
+    envContent = rollbackCompose.envContent;
+  } else {
+    content = application.compose.content;
+    envContent = renderEnvFile(application);
+
+    await setComposeContent(deploymentId, { content, envContent });
+  }
+
+  const parsed = parseComposeDocument(content);
+
+  validateComposeSecurity(parsed);
+
+  const overrideContent = renderOverrideDocument(parsed.services, application, deploymentId);
+  const project = composeProjectOf(application.slug);
+
+  const compose = resolveComposeProvider(connection);
+
+  await compose.writeFiles(project, [
+    { name: 'docker-compose.yml', content },
+    { name: 'zydock.override.yml', content: overrideContent },
+    { name: '.env', content: envContent },
+  ]);
+
+  const result = await compose.config(project);
+
+  if (!result.valid) {
+    throw new Error(maskSecrets(result.error || 'Invalid compose project', secretValues));
+  }
+
+  validateComposeSecurity(parseComposeDocument(result.output));
+
+  return { project, services: parsed.services.map(service => service.name) };
+};
+
+const composeStatusSummary = (rows: ComposeServiceStatus[]) => {
+  const notRunning = rows.filter(row => row.state !== 'running');
+
+  return notRunning.length === 0
+    ? `${rows.length}/${rows.length} services running`
+    : `${rows.length - notRunning.length}/${rows.length} services running (${notRunning
+        .map(row => `${row.service}: ${row.state}`)
+        .join(', ')})`;
+};
+
 export const runDeployment = async (deploymentId: string) => {
-  const deployment = await deploymentModel.findById(deploymentId);
+  const deployment = await deploymentModel.findById(deploymentId).select('+compose.envContent');
 
   if (!deployment) {
     throw new Error(`Deployment ${deploymentId} not found`);
@@ -266,7 +348,7 @@ export const runDeployment = async (deploymentId: string) => {
     return;
   }
 
-  let currentStep: DeploymentStep = 'clone';
+  let currentStep: DeploymentStep = application.source === 'compose' ? 'render' : 'clone';
   let stepStartedAt = Date.now();
   let workspace: string | undefined;
   let connection: AgentConnection | undefined;
@@ -290,108 +372,61 @@ export const runDeployment = async (deploymentId: string) => {
 
     connection = buildAgentConnection(server);
 
-    const containers = resolveContainerProvider(connection);
-
     const isRollback = deployment.trigger === 'rollback';
 
-    let image: string;
-    let commit: DeploymentCommit | undefined;
+    let containerId: string;
+    let finalImageTag: string | undefined;
+    let finalCommit: DeploymentCommit | undefined;
 
-    if (isRollback) {
-      if (!deployment.imageTag) {
-        throw new Error('This rollback has no target image');
-      }
+    if (application.source === 'compose') {
+      const secretValues = secretValuesOf(application);
 
-      image = deployment.imageTag;
-      commit = deployment.commit;
+      startStep('render');
 
-      startStep('clone');
-      await finishStep('Rollback — clone dispensado', 'skipped');
+      const { project, services } = await renderComposeStep(
+        connection,
+        application,
+        deploymentId,
+        isRollback,
+        deployment.compose,
+        secretValues,
+      );
 
-      startStep('build');
-      await finishStep(`Reusando a imagem ${image}`, 'skipped');
-    } else {
-      startStep('clone');
+      await finishStep(`${services.length} service(s) rendered`);
 
-      const cloneLog = makeLogPublisher(deploymentId, 'clone');
+      startStep('pull');
 
-      let clone: CloneResult;
+      const pullLog = makeLogPublisher(deploymentId, 'pull');
+      const compose = resolveComposeProvider(connection);
 
       try {
-        clone = await cloneStep(
-          connection,
-          application,
-          deploymentId,
-          deployment.branch,
-          deployment.commit?.sha,
-          message => cloneLog.push(message),
+        await compose.pull(project, entry =>
+          pullLog.push(maskSecrets(entry.message, secretValues)),
         );
       } finally {
-        cloneLog.drain();
+        pullLog.drain();
       }
 
-      workspace = clone.workspace;
+      await finishStep();
 
-      commit = {
-        sha: clone.commit,
-        message: clone.message,
-        author: clone.author,
-        committedAt: new Date(clone.committedAt),
-      };
+      startStep('container');
 
-      await setCommit(deploymentId, commit);
-      await finishStep(`${clone.commit.slice(0, 7)} — ${clone.message}`);
-
-      startStep('build');
-
-      image = imageTagOf(application.slug, clone.commit);
-
-      const buildLog = makeLogPublisher(deploymentId, 'build');
-
-      let built: ImageInfo;
+      const upLog = makeLogPublisher(deploymentId, 'container');
 
       try {
-        built = await containers.buildImage({
-          tag: image,
-          contextPath: `${clone.path}/${application.git.buildContext}`.replace(/\/\.$/, ''),
-          dockerfilePath: `${clone.path}/${application.git.dockerfilePath}`,
-          onLog: entry => buildLog.push(entry.message),
-        });
+        await compose.up(project, entry => upLog.push(maskSecrets(entry.message, secretValues)));
       } finally {
-        buildLog.drain();
+        upLog.drain();
       }
 
-      await finishStep(`${built.tag} (${Math.round(built.sizeBytes / 1024 / 1024)} MB)`);
-    }
+      const rows = await compose.ps(project);
 
-    startStep('container');
+      await finishStep(composeStatusSummary(rows));
 
-    const container = await replaceContainer(connection, application, deploymentId, image);
+      containerId = composeContainerNameOf(application.slug, application.compose!.expose.service);
 
-    await finishStep(container.name);
+      const exposedRow = rows.find(row => row.service === application.compose!.expose.service);
 
-    const containerLog = makeLogPublisher(deploymentId, 'container');
-    const bootLogsAbort = new AbortController();
-
-    const consumeBootLogs = async () => {
-      try {
-        for await (const entry of containers.streamLogs(container.id, {
-          signal: bootLogsAbort.signal,
-        })) {
-          containerLog.push(entry.message);
-        }
-      } catch (error) {
-        if (!isAbortError(error)) {
-          logError('Failed to stream container boot logs', error, { deployment: deploymentId });
-        }
-      } finally {
-        containerLog.drain();
-      }
-    };
-
-    const bootLogsPromise = consumeBootLogs();
-
-    try {
       startStep('proxy');
 
       const domains = await applyApplicationDomains(application, connection);
@@ -406,14 +441,139 @@ export const runDeployment = async (deploymentId: string) => {
 
       const state = await healthcheckStep(
         connection,
-        container.id,
-        Boolean(application.healthcheck?.path),
+        containerId,
+        Boolean(exposedRow?.health && exposedRow.health !== 'none'),
       );
 
       await finishStep(state);
-    } finally {
-      bootLogsAbort.abort();
-      await bootLogsPromise;
+    } else {
+      const containers = resolveContainerProvider(connection);
+
+      let image: string;
+      let commit: DeploymentCommit | undefined;
+
+      if (isRollback) {
+        if (!deployment.imageTag) {
+          throw new Error('This rollback has no target image');
+        }
+
+        image = deployment.imageTag;
+        commit = deployment.commit;
+
+        startStep('clone');
+        await finishStep('Rollback — clone dispensado', 'skipped');
+
+        startStep('build');
+        await finishStep(`Reusando a imagem ${image}`, 'skipped');
+      } else {
+        startStep('clone');
+
+        const cloneLog = makeLogPublisher(deploymentId, 'clone');
+
+        let clone: CloneResult;
+
+        try {
+          clone = await cloneStep(
+            connection,
+            application,
+            deploymentId,
+            deployment.branch,
+            deployment.commit?.sha,
+            message => cloneLog.push(message),
+          );
+        } finally {
+          cloneLog.drain();
+        }
+
+        workspace = clone.workspace;
+
+        commit = {
+          sha: clone.commit,
+          message: clone.message,
+          author: clone.author,
+          committedAt: new Date(clone.committedAt),
+        };
+
+        await setCommit(deploymentId, commit);
+        await finishStep(`${clone.commit.slice(0, 7)} — ${clone.message}`);
+
+        startStep('build');
+
+        image = imageTagOf(application.slug, clone.commit);
+
+        const buildLog = makeLogPublisher(deploymentId, 'build');
+
+        let built: ImageInfo;
+
+        try {
+          built = await containers.buildImage({
+            tag: image,
+            contextPath: `${clone.path}/${application.git.buildContext}`.replace(/\/\.$/, ''),
+            dockerfilePath: `${clone.path}/${application.git.dockerfilePath}`,
+            onLog: entry => buildLog.push(entry.message),
+          });
+        } finally {
+          buildLog.drain();
+        }
+
+        await finishStep(`${built.tag} (${Math.round(built.sizeBytes / 1024 / 1024)} MB)`);
+      }
+
+      startStep('container');
+
+      const container = await replaceContainer(connection, application, deploymentId, image);
+
+      await finishStep(container.name);
+
+      containerId = container.id;
+      finalImageTag = image;
+      finalCommit = commit;
+
+      const containerLog = makeLogPublisher(deploymentId, 'container');
+      const bootLogsAbort = new AbortController();
+
+      const consumeBootLogs = async () => {
+        try {
+          for await (const entry of containers.streamLogs(container.id, {
+            signal: bootLogsAbort.signal,
+          })) {
+            containerLog.push(entry.message);
+          }
+        } catch (error) {
+          if (!isAbortError(error)) {
+            logError('Failed to stream container boot logs', error, { deployment: deploymentId });
+          }
+        } finally {
+          containerLog.drain();
+        }
+      };
+
+      const bootLogsPromise = consumeBootLogs();
+
+      try {
+        startStep('proxy');
+
+        const domains = await applyApplicationDomains(application, connection);
+
+        if (domains.length === 0) {
+          await finishStep('No domain configured for this application', 'skipped');
+        } else {
+          await finishStep(domains.map(domain => domain.hostname).join(', '));
+        }
+
+        startStep('healthcheck');
+
+        const state = await healthcheckStep(
+          connection,
+          container.id,
+          Boolean(application.healthcheck?.path),
+        );
+
+        await finishStep(state);
+      } finally {
+        bootLogsAbort.abort();
+        await bootLogsPromise;
+      }
     }
 
     await applicationModel.updateOne(
@@ -423,18 +583,21 @@ export const runDeployment = async (deploymentId: string) => {
 
     await finishDeployment(deploymentId, {
       status: 'succeeded',
-      imageTag: image,
-      containerId: container.id,
-      commit,
+      imageTag: finalImageTag,
+      containerId,
+      commit: finalCommit,
     });
 
     logInfo('Deployment succeeded', {
       deployment: deploymentId,
       application: String(application._id),
-      image,
     });
   } catch (error) {
-    const message = error instanceof Error ? error.message : String(error);
+    const rawMessage = error instanceof Error ? error.message : String(error);
+    const message =
+      application.source === 'compose'
+        ? maskSecrets(rawMessage, secretValuesOf(application))
+        : rawMessage;
 
     await recordStep(deploymentId, {
       step: currentStep,
@@ -477,7 +640,8 @@ export const enqueueDeployment = async (params: {
     organizationId: String(params.application.organizationId),
     applicationId: String(params.application._id),
     serverId: String(params.application.serverId),
-    branch: params.branch ?? params.application.git.branch,
+    branch:
+      params.branch ?? (params.application.source === 'git' ? params.application.git.branch : ''),
     trigger: params.trigger,
     triggeredBy: params.triggeredBy,
     commit: params.commit,
@@ -493,6 +657,21 @@ export const enqueueRollback = async (params: {
   source: Deployment;
   triggeredBy?: string;
 }) => {
+  let compose: DeploymentCompose | undefined;
+
+  if (params.application.source === 'compose') {
+    const withSecrets = await deploymentModel
+      .findById(params.source._id)
+      .select('+compose.envContent');
+
+    if (withSecrets?.compose?.content && withSecrets.compose.envContent !== undefined) {
+      compose = {
+        content: withSecrets.compose.content,
+        envContent: withSecrets.compose.envContent,
+      };
+    }
+  }
+
   const deployment = await createDeployment({
     organizationId: String(params.application.organizationId),
     applicationId: String(params.application._id),
@@ -502,6 +681,7 @@ export const enqueueRollback = async (params: {
     triggeredBy: params.triggeredBy,
     commitDetail: params.source.commit,
     imageTag: params.source.imageTag,
+    compose,
   });
 
   await enqueueJob(DEPLOY_JOB, { deploymentId: String(deployment._id) }, { maxAttempts: 1 });

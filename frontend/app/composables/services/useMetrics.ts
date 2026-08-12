@@ -80,8 +80,8 @@ export const useMetrics = () => {
   const serverMetricsHistory = (serverId: string, filter: MetricHistoryFilter = {}) =>
     api.get<{ items: MetricSample[] }>(`${serverBase(serverId)}/history`, { query: { ...filter } });
 
-  const applicationMetrics = (applicationId: string) =>
-    api.get<ApplicationMetrics>(applicationBase(applicationId));
+  const applicationMetrics = (applicationId: string, service?: string) =>
+    api.get<ApplicationMetrics>(applicationBase(applicationId), { query: { service } });
   const applicationDeploymentMetrics = (applicationId: string) =>
     api.get<DeploymentMetrics>(`${applicationBase(applicationId)}/deployments`);
 

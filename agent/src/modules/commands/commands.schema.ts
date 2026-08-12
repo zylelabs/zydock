@@ -4,6 +4,7 @@ export const ALLOWED_COMMANDS = [
   'docker.version',
   'docker.info',
   'docker.prune',
+  'docker.compose-version',
   'system.uptime',
   'system.disk',
   'system.memory',

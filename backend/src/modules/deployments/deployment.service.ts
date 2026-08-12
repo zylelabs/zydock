@@ -34,6 +34,7 @@ export const createDeployment = (params: {
   commit?: string;
   commitDetail?: DeploymentCommit;
   imageTag?: string;
+  compose?: DeploymentCompose;
 }) =>
   deploymentModel.create({
     organizationId: params.organizationId,
@@ -45,9 +46,13 @@ export const createDeployment = (params: {
     branch: params.branch,
     commit: params.commitDetail ?? (params.commit ? { sha: params.commit } : undefined),
     imageTag: params.imageTag,
+    compose: params.compose,
     steps: [],
     log: [],
   });
+
+export const setComposeContent = (deploymentId: string, compose: DeploymentCompose) =>
+  deploymentModel.updateOne({ _id: deploymentId }, { $set: { compose } });
 
 export const markRunning = async (deploymentId: string) => {
   await deploymentModel.updateOne(

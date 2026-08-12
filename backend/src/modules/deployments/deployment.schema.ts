@@ -9,7 +9,15 @@ export const DEPLOYMENT_TRIGGERS = ['manual', 'webhook', 'rollback'] as const;
 
 export type DeploymentTrigger = (typeof DEPLOYMENT_TRIGGERS)[number];
 
-export const DEPLOYMENT_STEPS = ['clone', 'build', 'container', 'proxy', 'healthcheck'] as const;
+export const DEPLOYMENT_STEPS = [
+  'clone',
+  'build',
+  'render',
+  'pull',
+  'container',
+  'proxy',
+  'healthcheck',
+] as const;
 
 export type DeploymentStep = (typeof DEPLOYMENT_STEPS)[number];
 

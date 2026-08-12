@@ -35,6 +35,7 @@ const serverSchema = new Schema(
       diskGb: { type: Number },
       osRelease: { type: String },
       dockerVersion: { type: String },
+      composeVersion: { type: String },
     },
     lastError: { type: String },
   },

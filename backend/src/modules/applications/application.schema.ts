@@ -1,5 +1,6 @@
 import { z } from 'zod';
 import { GIT_HOSTS } from '../../providers/git/git.contract';
+import { applicationComposeSchema } from '../compose/compose.schema';
 import { organizationIdParamSchema } from '../organizations/membership.schema';
 
 export const APPLICATION_STATUSES = [
@@ -11,6 +12,10 @@ export const APPLICATION_STATUSES = [
 ] as const;
 
 export type ApplicationStatus = (typeof APPLICATION_STATUSES)[number];
+
+export const APPLICATION_SOURCES = ['git', 'compose'] as const;
+
+export type ApplicationSource = (typeof APPLICATION_SOURCES)[number];
 
 export const APPLICATION_RESTART_POLICIES = [
   'no',
@@ -30,6 +35,12 @@ export const applicationIdParamSchema = organizationIdParamSchema.extend({
 });
 
 export type ApplicationIdParam = z.infer<typeof applicationIdParamSchema>;
+
+export const applicationVariableKeyParamSchema = applicationIdParamSchema.extend({
+  key: z.string().trim().min(1).max(128),
+});
+
+export type ApplicationVariableKeyParam = z.infer<typeof applicationVariableKeyParamSchema>;
 
 const gitBaseSchema = z.object({
   host: z.enum(GIT_HOSTS),
@@ -133,7 +144,8 @@ const variableSchema = z.object({
   secret: z.boolean().default(false),
 });
 
-export const createApplicationSchema = z.object({
+const gitApplicationSchema = z.object({
+  source: z.literal('git'),
   name: z.string().trim().min(1).max(120),
   environmentId: z.string().length(24),
   serverId: z.string().length(24),
@@ -148,12 +160,32 @@ export const createApplicationSchema = z.object({
   restartPolicy: z.enum(APPLICATION_RESTART_POLICIES).default('unless-stopped'),
 });
 
+const composeApplicationSchema = z.object({
+  source: z.literal('compose'),
+  name: z.string().trim().min(1).max(120),
+  environmentId: z.string().length(24),
+  serverId: z.string().length(24),
+  compose: applicationComposeSchema,
+  variables: z.array(variableSchema).max(200).default([]),
+  resources: resourcesSchema.optional(),
+  restartPolicy: z.enum(APPLICATION_RESTART_POLICIES).default('unless-stopped'),
+});
+
+export const createApplicationSchema = z.preprocess(
+  value =>
+    value && typeof value === 'object' && !('source' in value)
+      ? { ...value, source: 'git' }
+      : value,
+  z.discriminatedUnion('source', [gitApplicationSchema, composeApplicationSchema]),
+);
+
 export type CreateApplicationDTO = z.infer<typeof createApplicationSchema>;
 
 export const updateApplicationSchema = z.object({
   name: z.string().trim().min(1).max(120).optional(),
   serverId: z.string().length(24).optional(),
   git: gitUpdateSchema.optional(),
+  compose: applicationComposeSchema.partial().optional(),
   port: z.coerce.number().int().min(1).max(65535).optional(),
   portMappings: z.array(portMappingSchema).max(50).optional(),
   volumes: z.array(volumeSchema).max(50).optional(),
@@ -170,6 +202,12 @@ export const replaceVariablesSchema = z.object({
 });
 
 export type ReplaceVariablesDTO = z.infer<typeof replaceVariablesSchema>;
+
+export const removeApplicationQuerySchema = z.object({
+  removeData: z.coerce.boolean().optional(),
+});
+
+export type RemoveApplicationQuery = z.infer<typeof removeApplicationQuerySchema>;
 
 export const listApplicationsQuerySchema = z.object({
   projectId: z.string().length(24).optional(),

@@ -1,6 +1,7 @@
 import { createRouter } from 'hono-route-docs';
 import backupsRoute from './backups/backups.route';
 import commandsRoute from './commands/commands.route';
+import composeRoute from './compose/compose.route';
 import consoleRoute from './containers/console.route';
 import containersRoute from './containers/containers.route';
 import healthRoute from './health/health.route';
@@ -25,6 +26,7 @@ route('/volumes', volumesRoute);
 route('/proxy', proxyRoute);
 route('/proxy', proxyAccessRoute);
 route('/repositories', repositoriesRoute);
+route('/compose', composeRoute);
 route('/backups', backupsRoute);
 route('/commands', commandsRoute);
 route('/updates', updatesRoute);

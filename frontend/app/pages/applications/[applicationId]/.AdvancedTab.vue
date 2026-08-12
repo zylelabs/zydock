@@ -31,8 +31,17 @@
 
 <template>
   <div class="flex max-w-205 flex-col gap-4.5">
-    <GitCredentialsCard :application="application" @refresh="emit('refresh')" />
-    <ResourcesCard :application="application" :can-manage="canManage" @refresh="emit('refresh')" />
+    <GitCredentialsCard
+      v-if="application.source === 'git'"
+      :application="application"
+      @refresh="emit('refresh')"
+    />
+    <ResourcesCard
+      v-if="application.source === 'git'"
+      :application="application"
+      :can-manage="canManage"
+      @refresh="emit('refresh')"
+    />
 
     <div
       v-if="canManage"
