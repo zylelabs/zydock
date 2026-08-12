@@ -35,6 +35,17 @@ interface TemplateDatabase {
   credentials: TemplateDatabaseCredentials;
 }
 
+interface TemplateVersionEntry {
+  value: string;
+  label?: string;
+}
+
+interface TemplateVersions {
+  key: string;
+  default: string;
+  available: TemplateVersionEntry[];
+}
+
 interface TemplateManifest {
   id: string;
   version: number;
@@ -53,6 +64,7 @@ interface TemplateManifest {
   databases: TemplateDatabase[];
   inputs: TemplateInput[];
   secrets: TemplateSecret[];
+  versions?: TemplateVersions;
   deprecated: boolean;
 }
 

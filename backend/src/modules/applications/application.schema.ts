@@ -203,6 +203,21 @@ export const replaceVariablesSchema = z.object({
 
 export type ReplaceVariablesDTO = z.infer<typeof replaceVariablesSchema>;
 
+export const changeApplicationVersionSchema = z.object({
+  version: z.string().trim().min(1).max(200),
+  deployNow: z.boolean().default(true),
+});
+
+export type ChangeApplicationVersionDTO = z.infer<typeof changeApplicationVersionSchema>;
+
+export const applyTemplateUpdateSchema = z.object({
+  confirmOverwrite: z.boolean().default(false),
+  deployNow: z.boolean().default(true),
+  inputs: z.record(z.string(), z.string().max(8192)).default({}),
+});
+
+export type ApplyTemplateUpdateDTO = z.infer<typeof applyTemplateUpdateSchema>;
+
 export const removeApplicationQuerySchema = z.object({
   removeData: z.coerce.boolean().optional(),
 });

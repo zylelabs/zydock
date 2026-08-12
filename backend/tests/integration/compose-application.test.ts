@@ -4,10 +4,14 @@ import { createApp } from '../../src/app-server';
 import { connectDatabase, disconnectDatabase } from '../../src/config/mongodb';
 import { runDeployment } from '../../src/modules/deployments/pipeline.service';
 import { stopWorker } from '../../src/modules/queue/queue.service';
+import applicationModel from '../../src/modules/applications/application.model';
 import {
   ensureLocalServer,
   getLocalServerId,
 } from '../../src/modules/servers/local-server.service';
+import serverModel from '../../src/modules/servers/server.model';
+import { allTemplates } from '../../src/modules/templates/catalog.service';
+import { deployTemplateApplication } from '../../src/modules/templates/template.service';
 
 let app: ReturnType<typeof createApp>;
 
@@ -439,5 +443,396 @@ describe('compose applications', () => {
     const detail = (await status.json()) as { deployment: { status: string } };
 
     expect(detail.deployment.status).toBe('succeeded');
+  });
+});
+
+describe('rollback reconciles application variables', () => {
+  let organizationId = '';
+  let serverId = '';
+  let environmentId = '';
+  let applicationId = '';
+  let firstDeploymentId = '';
+
+  const volumeCompose =
+    'services:\n' +
+    '  app:\n' +
+    '    image: nginx:1.27\n' +
+    '    environment:\n' +
+    '      GREETING: ${GREETING}\n' +
+    '    volumes:\n' +
+    '      - app-data:/data\n' +
+    'volumes:\n' +
+    '  app-data:\n';
+
+  test('setup: org, project, environment and a compose application with a named volume', async () => {
+    const org = await json(
+      '/organizations',
+      'POST',
+      { name: 'Rollback Reconcile Co' },
+      accessToken,
+    );
+    organizationId = ((await org.json()) as { organization: { id: string } }).organization.id;
+
+    serverId = getLocalServerId()!;
+
+    const project = await json(
+      `/organizations/${organizationId}/projects`,
+      'POST',
+      { name: 'Rollback Reconcile Project' },
+      accessToken,
+    );
+    const projectId = ((await project.json()) as { project: { id: string } }).project.id;
+
+    const envs = await json(
+      `/organizations/${organizationId}/projects/${projectId}/environments`,
+      'GET',
+      undefined,
+      accessToken,
+    );
+    environmentId = ((await envs.json()) as { items: { id: string }[] }).items[0]!.id;
+
+    const create = await json(
+      `/organizations/${organizationId}/applications`,
+      'POST',
+      {
+        source: 'compose',
+        name: 'volume-app',
+        environmentId,
+        serverId,
+        compose: { content: volumeCompose, expose: { service: 'app', port: 80 } },
+        variables: [{ key: 'GREETING', value: 'v1', secret: false }],
+      },
+      accessToken,
+    );
+    const created = (await create.json()) as {
+      application: { id: string; slug: string; source: string };
+    };
+
+    expect(create.status).toBe(201);
+
+    applicationId = created.application.id;
+    currentSlug = created.application.slug;
+    currentServices = ['app'];
+  });
+
+  test('first deploy runs with GREETING=v1', async () => {
+    installAgentMock();
+
+    try {
+      const deploy = await json(
+        `/organizations/${organizationId}/applications/${applicationId}/deploy`,
+        'POST',
+        {},
+        accessToken,
+      );
+      const body = (await deploy.json()) as { deployment: { id: string } };
+
+      firstDeploymentId = body.deployment.id;
+
+      await runDeployment(firstDeploymentId);
+    } finally {
+      restoreFetch();
+    }
+
+    const status = await json(
+      `/organizations/${organizationId}/deployments/${firstDeploymentId}`,
+      'GET',
+      undefined,
+      accessToken,
+    );
+    const detail = (await status.json()) as { deployment: { status: string } };
+
+    expect(detail.deployment.status).toBe('succeeded');
+  });
+
+  test('changing the variable and redeploying runs with GREETING=v2', async () => {
+    const replace = await json(
+      `/organizations/${organizationId}/applications/${applicationId}/variables`,
+      'PUT',
+      { variables: [{ key: 'GREETING', value: 'v2', secret: false }] },
+      accessToken,
+    );
+
+    expect(replace.status).toBe(200);
+
+    installAgentMock();
+
+    try {
+      const deploy = await json(
+        `/organizations/${organizationId}/applications/${applicationId}/deploy`,
+        'POST',
+        {},
+        accessToken,
+      );
+      const body = (await deploy.json()) as { deployment: { id: string } };
+
+      await runDeployment(body.deployment.id);
+    } finally {
+      restoreFetch();
+    }
+
+    const variables = await json(
+      `/organizations/${organizationId}/applications/${applicationId}/variables`,
+      'GET',
+      undefined,
+      accessToken,
+    );
+    const variablesBody = (await variables.json()) as {
+      variables: { key: string; value: string }[];
+    };
+
+    expect(variablesBody.variables.find(variable => variable.key === 'GREETING')?.value).toBe('v2');
+  });
+
+  test('rolling back to the first deployment reconciles GREETING back to v1 without touching the volume', async () => {
+    installAgentMock();
+
+    let downCalled = false;
+    const wrapped = globalThis.fetch;
+
+    globalThis.fetch = (async (input: string | URL, init?: RequestInit) => {
+      const url = new URL(String(input));
+
+      if ((init?.method ?? 'GET') === 'POST' && /\/api\/compose\/[^/]+\/down$/.test(url.pathname)) {
+        downCalled = true;
+      }
+
+      return wrapped(input, init);
+    }) as typeof fetch;
+
+    try {
+      const rollback = await json(
+        `/organizations/${organizationId}/applications/${applicationId}/rollback`,
+        'POST',
+        { deploymentId: firstDeploymentId },
+        accessToken,
+      );
+
+      expect(rollback.status).toBe(202);
+
+      const body = (await rollback.json()) as { deployment: { id: string } };
+
+      await runDeployment(body.deployment.id);
+
+      const status = await json(
+        `/organizations/${organizationId}/deployments/${body.deployment.id}`,
+        'GET',
+        undefined,
+        accessToken,
+      );
+      const detail = (await status.json()) as { deployment: { status: string } };
+
+      expect(detail.deployment.status).toBe('succeeded');
+    } finally {
+      restoreFetch();
+    }
+
+    expect(downCalled).toBeFalse();
+
+    const variables = await json(
+      `/organizations/${organizationId}/applications/${applicationId}/variables`,
+      'GET',
+      undefined,
+      accessToken,
+    );
+    const variablesBody = (await variables.json()) as {
+      variables: { key: string; value: string }[];
+    };
+
+    expect(variablesBody.variables.find(variable => variable.key === 'GREETING')?.value).toBe('v1');
+  });
+});
+
+describe('applying a template update never touches the volume', () => {
+  let organizationId = '';
+  let projectId = '';
+  let environmentId = '';
+  let applicationId = '';
+
+  const v1ComposeContent =
+    'services:\n' +
+    '  app:\n' +
+    '    image: nginx:1.27\n' +
+    '    volumes:\n' +
+    '      - app-data:/data\n' +
+    'volumes:\n' +
+    '  app-data:\n';
+
+  const v2ComposeContent =
+    'services:\n' +
+    '  app:\n' +
+    '    image: nginx:1.28\n' +
+    '    volumes:\n' +
+    '      - app-data:/data\n' +
+    'volumes:\n' +
+    '  app-data:\n';
+
+  const installedTemplate: Template = {
+    id: 'synthetic-volume-safe-update-app',
+    version: 1,
+    name: 'Synthetic volume-safe update',
+    tagline: 'Synthetic template for the volume-safety test of a template update',
+    category: 'test',
+    tags: [],
+    icon: 'icon.svg',
+    author: 'zydock',
+    origin: 'official',
+    dockerCompose: 'docker-compose.yml',
+    expose: { service: 'app', port: 80, domain: true },
+    databases: [],
+    inputs: [],
+    secrets: [],
+    deprecated: false,
+    dockerComposeContent: v1ComposeContent,
+  };
+
+  const catalogTemplate: Template = { ...installedTemplate };
+
+  beforeAll(() => {
+    allTemplates().push(catalogTemplate);
+  });
+
+  afterAll(() => {
+    const index = allTemplates().findIndex(template => template.id === catalogTemplate.id);
+
+    if (index >= 0) {
+      allTemplates().splice(index, 1);
+    }
+  });
+
+  test('setup: org, project, environment and a template application with a named volume', async () => {
+    const org = await json(
+      '/organizations',
+      'POST',
+      { name: 'Volume Safe Update Co' },
+      accessToken,
+    );
+    organizationId = ((await org.json()) as { organization: { id: string } }).organization.id;
+
+    const project = await json(
+      `/organizations/${organizationId}/projects`,
+      'POST',
+      { name: 'Volume Safe Update Project' },
+      accessToken,
+    );
+    projectId = ((await project.json()) as { project: { id: string } }).project.id;
+
+    const envs = await json(
+      `/organizations/${organizationId}/projects/${projectId}/environments`,
+      'GET',
+      undefined,
+      accessToken,
+    );
+    environmentId = ((await envs.json()) as { items: { id: string }[] }).items[0]!.id;
+
+    const server = await serverModel.findById(getLocalServerId());
+
+    const { application } = await deployTemplateApplication({
+      template: installedTemplate,
+      organizationId,
+      projectId,
+      server: server!,
+      body: {
+        organizationId,
+        name: 'volume-safe-update-app',
+        environmentId,
+        serverId: getLocalServerId()!,
+        inputs: {},
+        deployNow: false,
+      },
+      triggeredBy: 'test-user',
+    });
+    applicationId = String(application._id);
+
+    currentSlug = application.slug;
+    currentServices = ['app'];
+  });
+
+  test('deploying the template application succeeds', async () => {
+    installAgentMock();
+
+    try {
+      const deploy = await json(
+        `/organizations/${organizationId}/applications/${applicationId}/deploy`,
+        'POST',
+        {},
+        accessToken,
+      );
+      const body = (await deploy.json()) as { deployment: { id: string } };
+
+      await runDeployment(body.deployment.id);
+
+      const status = await json(
+        `/organizations/${organizationId}/deployments/${body.deployment.id}`,
+        'GET',
+        undefined,
+        accessToken,
+      );
+      const detail = (await status.json()) as { deployment: { status: string } };
+
+      expect(detail.deployment.status).toBe('succeeded');
+    } finally {
+      restoreFetch();
+    }
+  });
+
+  test('applying the newer template version and redeploying never calls docker compose down', async () => {
+    catalogTemplate.version = 2;
+    catalogTemplate.dockerComposeContent = v2ComposeContent;
+
+    const update = await json(
+      `/organizations/${organizationId}/applications/${applicationId}/template-update`,
+      'POST',
+      { deployNow: false },
+      accessToken,
+    );
+
+    expect(update.status).toBe(200);
+
+    const raw = await applicationModel.findById(applicationId);
+
+    expect(raw!.compose!.content).toBe(v2ComposeContent);
+    expect(raw!.compose!.content).toContain('app-data:/data');
+
+    installAgentMock();
+
+    let downCalled = false;
+    const wrapped = globalThis.fetch;
+
+    globalThis.fetch = (async (input: string | URL, init?: RequestInit) => {
+      const url = new URL(String(input));
+
+      if ((init?.method ?? 'GET') === 'POST' && /\/api\/compose\/[^/]+\/down$/.test(url.pathname)) {
+        downCalled = true;
+      }
+
+      return wrapped(input, init);
+    }) as typeof fetch;
+
+    try {
+      const deploy = await json(
+        `/organizations/${organizationId}/applications/${applicationId}/deploy`,
+        'POST',
+        {},
+        accessToken,
+      );
+      const body = (await deploy.json()) as { deployment: { id: string } };
+
+      await runDeployment(body.deployment.id);
+
+      const status = await json(
+        `/organizations/${organizationId}/deployments/${body.deployment.id}`,
+        'GET',
+        undefined,
+        accessToken,
+      );
+      const detail = (await status.json()) as { deployment: { status: string } };
+
+      expect(detail.deployment.status).toBe('succeeded');
+    } finally {
+      restoreFetch();
+    }
+
+    expect(downCalled).toBeFalse();
   });
 });

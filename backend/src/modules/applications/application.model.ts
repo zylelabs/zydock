@@ -81,6 +81,7 @@ const applicationSchema = new Schema(
       templateId: { type: String, trim: true },
       templateVersion: { type: Number },
       inputs: { type: Schema.Types.Mixed },
+      composeHash: { type: String },
     },
     port: { type: Number },
     portMappings: { type: [portMappingSchema], default: [] },

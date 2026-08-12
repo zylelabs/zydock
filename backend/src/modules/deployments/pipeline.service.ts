@@ -17,6 +17,7 @@ import applicationModel from '../applications/application.model';
 import {
   decryptVariables,
   findApplicationWithSecrets,
+  replaceVariables,
   resolveGitCredentials,
 } from '../applications/application.service';
 import { validateComposeSecurity } from '../compose/compose.schema';
@@ -27,9 +28,10 @@ import {
   secretValuesOf,
 } from '../compose/compose.service';
 import { renderOverrideDocument } from '../compose/override.service';
+import { applyApplicationDomains } from '../domains/domain.service';
 import { enqueueJob, registerJobHandler } from '../queue/queue.service';
 import { buildAgentConnection, findServerById } from '../servers/server.service';
-import { applyApplicationDomains } from '../domains/domain.service';
+import { parseEnvContent } from '../templates/render.service';
 import deploymentModel from './deployment.model';
 import type { DeploymentStep } from './deployment.schema';
 import {
@@ -580,6 +582,22 @@ export const runDeployment = async (deploymentId: string) => {
       { _id: application._id },
       { $set: { status: 'running' }, $unset: { lastError: '' } },
     );
+
+    if (
+      application.source === 'compose' &&
+      isRollback &&
+      deployment.compose?.envContent !== undefined
+    ) {
+      const rollbackVariables = parseEnvContent(deployment.compose.envContent).map(
+        ({ key, value }) => ({
+          key,
+          value,
+          secret: application.variables.find(candidate => candidate.key === key)?.secret ?? false,
+        }),
+      );
+
+      await replaceVariables(String(application._id), rollbackVariables);
+    }
 
     await finishDeployment(deploymentId, {
       status: 'succeeded',

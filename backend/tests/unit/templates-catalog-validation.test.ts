@@ -4,6 +4,7 @@ import {
   assertDatabaseCredentialsAreDeclared,
   assertServiceExists,
   assertVariablesAreDeclared,
+  assertVersionsAreUsed,
 } from '../../src/modules/templates/catalog.service';
 
 const manifest = (overrides: Partial<TemplateManifest> = {}): TemplateManifest => ({
@@ -62,6 +63,56 @@ describe('assertVariablesAreDeclared', () => {
         'services:\n  app:\n    environment:\n      TZ: ${TIMEZONE}\n',
       ),
     ).toThrow(/"\$\{TIMEZONE\}".*not declared/);
+  });
+
+  test('accepts the "versions.key" variable without declaring it as an input or secret', () => {
+    expect(() =>
+      assertVariablesAreDeclared(
+        manifest({ versions: { key: 'APP_VERSION', default: '2', available: [{ value: '2' }] } }),
+        'services:\n  app:\n    image: sample:${APP_VERSION}\n',
+      ),
+    ).not.toThrow();
+  });
+});
+
+describe('assertVersionsAreUsed', () => {
+  test('does nothing when the template does not declare "versions"', () => {
+    const parsed = parseComposeDocument('services:\n  app:\n    image: sample:1\n');
+
+    expect(() => assertVersionsAreUsed(manifest(), parsed)).not.toThrow();
+  });
+
+  test('accepts a template whose image references "${key}"', () => {
+    const versionedManifest = manifest({
+      versions: { key: 'APP_VERSION', default: '2', available: [{ value: '2' }] },
+    });
+    const parsed = parseComposeDocument('services:\n  app:\n    image: sample:${APP_VERSION}\n');
+
+    expect(() => assertVersionsAreUsed(versionedManifest, parsed)).not.toThrow();
+  });
+
+  test('rejects a template that declares "versions" but no image references "${key}"', () => {
+    const versionedManifest = manifest({
+      versions: { key: 'APP_VERSION', default: '2', available: [{ value: '2' }] },
+    });
+    const parsed = parseComposeDocument('services:\n  app:\n    image: sample:1\n');
+
+    expect(() => assertVersionsAreUsed(versionedManifest, parsed)).toThrow(
+      /"APP_VERSION".*no service "image"/,
+    );
+  });
+
+  test('rejects an image that references "${key}" alongside a fixed digest', () => {
+    const versionedManifest = manifest({
+      versions: { key: 'APP_VERSION', default: '2', available: [{ value: '2' }] },
+    });
+    const parsed = parseComposeDocument(
+      'services:\n  app:\n    image: sample:${APP_VERSION}@sha256:' + 'a'.repeat(64) + '\n',
+    );
+
+    expect(() => assertVersionsAreUsed(versionedManifest, parsed)).toThrow(
+      /fixed digest at the same time/,
+    );
   });
 });
 

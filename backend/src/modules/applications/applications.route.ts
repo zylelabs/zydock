@@ -22,7 +22,13 @@ import { OrganizationIdParam, organizationIdParamSchema } from '../organizations
 import { createOrganizationRoleGuard } from '../organizations/organizations.middleware';
 import { findEnvironmentOfOrganization } from '../projects/environment.service';
 import { findServer } from '../servers/server.service';
-import { regenerateTemplateSecret } from '../templates/template.service';
+import {
+  applyTemplateUpdate,
+  buildTemplateUpdatePreview,
+  changeApplicationVersion,
+  composeIsManuallyEdited,
+  regenerateTemplateSecret,
+} from '../templates/template.service';
 import applicationModel from './application.model';
 import { findHostPortConflict } from './port-guard.service';
 import {
@@ -30,6 +36,10 @@ import {
   applicationIdParamSchema,
   ApplicationVariableKeyParam,
   applicationVariableKeyParamSchema,
+  ApplyTemplateUpdateDTO,
+  applyTemplateUpdateSchema,
+  ChangeApplicationVersionDTO,
+  changeApplicationVersionSchema,
   CreateApplicationDTO,
   createApplicationSchema,
   listApplicationsQuerySchema,
@@ -383,6 +393,115 @@ post(
       { application: serializeApplication(updated!), deployment: serializeDeployment(deployment) },
       202,
     );
+  },
+);
+
+post(
+  '/:applicationId/version',
+  applicationsDocs.changeVersion,
+  authMiddleware,
+  validator('param', applicationIdParamSchema),
+  createOrganizationRoleGuard('admin'),
+  validator('json', changeApplicationVersionSchema),
+  async (c: Context) => {
+    const { organizationId, applicationId } = c.req.valid('param' as never) as ApplicationIdParam;
+    const body = c.req.valid('json' as never) as ChangeApplicationVersionDTO;
+    const auth = c.get('auth');
+
+    const application = await findApplicationWithSecrets(organizationId, applicationId);
+
+    if (!application) {
+      return c.json({ error: 'Application not found' }, 404);
+    }
+
+    try {
+      await changeApplicationVersion(application, body.version);
+    } catch (error) {
+      return c.json({ error: error instanceof Error ? error.message : String(error) }, 400);
+    }
+
+    const updated = await findApplicationWithSecrets(organizationId, applicationId);
+    const deployment = body.deployNow
+      ? await enqueueDeployment({ application: updated!, trigger: 'manual', triggeredBy: auth.sub })
+      : undefined;
+
+    return c.json({
+      application: serializeApplication(updated!),
+      deployment: deployment ? serializeDeployment(deployment) : undefined,
+    });
+  },
+);
+
+get(
+  '/:applicationId/template-update',
+  applicationsDocs.templateUpdate,
+  authMiddleware,
+  validator('param', applicationIdParamSchema),
+  createOrganizationRoleGuard('member'),
+  async (c: Context) => {
+    const { organizationId, applicationId } = c.req.valid('param' as never) as ApplicationIdParam;
+
+    const application = await findApplication(organizationId, applicationId);
+
+    if (!application) {
+      return c.json({ error: 'Application not found' }, 404);
+    }
+
+    try {
+      return c.json(await buildTemplateUpdatePreview(application));
+    } catch (error) {
+      return c.json({ error: error instanceof Error ? error.message : String(error) }, 400);
+    }
+  },
+);
+
+post(
+  '/:applicationId/template-update',
+  applicationsDocs.applyTemplateUpdate,
+  authMiddleware,
+  validator('param', applicationIdParamSchema),
+  createOrganizationRoleGuard('admin'),
+  validator('json', applyTemplateUpdateSchema),
+  async (c: Context) => {
+    const { organizationId, applicationId } = c.req.valid('param' as never) as ApplicationIdParam;
+    const body = c.req.valid('json' as never) as ApplyTemplateUpdateDTO;
+    const auth = c.get('auth');
+
+    const application = await findApplicationWithSecrets(organizationId, applicationId);
+
+    if (!application) {
+      return c.json({ error: 'Application not found' }, 404);
+    }
+
+    if (composeIsManuallyEdited(application) && !body.confirmOverwrite) {
+      return c.json(
+        {
+          error:
+            'The compose file was edited by hand — updating the template would overwrite that ' +
+            'edit. Set "confirmOverwrite" to true to proceed and discard it.',
+        },
+        409,
+      );
+    }
+
+    let versionFellBackToDefault: boolean;
+
+    try {
+      ({ versionFellBackToDefault } = await applyTemplateUpdate(application, body.inputs));
+    } catch (error) {
+      return c.json({ error: error instanceof Error ? error.message : String(error) }, 400);
+    }
+
+    const updated = await findApplicationWithSecrets(organizationId, applicationId);
+    const deployment = body.deployNow
+      ? await enqueueDeployment({ application: updated!, trigger: 'manual', triggeredBy: auth.sub })
+      : undefined;
+
+    return c.json({
+      application: serializeApplication(updated!),
+      deployment: deployment ? serializeDeployment(deployment) : undefined,
+      versionFellBackToDefault,
+    });
   },
 );
 

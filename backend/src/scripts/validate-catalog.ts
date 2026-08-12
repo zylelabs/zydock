@@ -28,12 +28,34 @@ const dummyValueFor = (field: TemplateInput | TemplateSecret): string => {
   return field.options?.[0] ?? 'value';
 };
 
-const checkComposeConfig = async (template: Template): Promise<CatalogFailure[]> => {
+const versionsToCheck = (template: Template): Array<string | undefined> =>
+  template.versions ? template.versions.available.map(entry => entry.value) : [undefined];
+
+const answersFor = (template: Template, version: string | undefined): Record<string, string> => {
   const answers = Object.fromEntries(
     [...template.inputs, ...template.secrets].map(field => [field.key, dummyValueFor(field)]),
   );
 
-  const { composeYaml, env } = renderTemplate(template, answers, {
+  if (template.versions && version !== undefined) {
+    answers[template.versions.key] = version;
+  }
+
+  return answers;
+};
+
+const imagesOf = (resolvedComposeYaml: string): string[] => [
+  ...new Set(
+    Array.from(resolvedComposeYaml.matchAll(/^\s*image:\s*(\S+)\s*$/gm)).map(match => match[1]),
+  ),
+];
+
+const checkComposeConfigForVersion = async (
+  template: Template,
+  version: string | undefined,
+): Promise<{ failures: CatalogFailure[]; images: string[] }> => {
+  const label = version === undefined ? template.id : `${template.id}@${version}`;
+
+  const { composeYaml, env } = renderTemplate(template, answersFor(template, version), {
     applicationSlug: `${template.id}-catalog-check`,
     serverHost: 'catalog-check.local',
     domain: `${template.id}.catalog-check.local`,
@@ -60,27 +82,45 @@ const checkComposeConfig = async (template: Template): Promise<CatalogFailure[]>
       { cwd: workdir, stdout: 'pipe', stderr: 'pipe' },
     );
 
-    const [stderr, code] = await Promise.all([new Response(process.stderr).text(), process.exited]);
+    const [stdout, stderr, code] = await Promise.all([
+      new Response(process.stdout).text(),
+      new Response(process.stderr).text(),
+      process.exited,
+    ]);
 
     if (code !== 0) {
-      return [{ templateId: template.id, check: 'compose-config', message: stderr.trim() }];
+      return {
+        failures: [
+          {
+            templateId: template.id,
+            check: 'compose-config',
+            message: `[${label}] ${stderr.trim()}`,
+          },
+        ],
+        images: [],
+      };
     }
 
-    return [];
+    return { failures: [], images: imagesOf(stdout) };
   } finally {
     await rm(workdir, { recursive: true, force: true });
   }
 };
 
-const checkImages = async (template: Template): Promise<CatalogFailure[]> => {
-  const images = [
-    ...new Set(
-      Array.from(template.dockerComposeContent.matchAll(/^\s*image:\s*(\S+)\s*$/gm)).map(
-        match => match[1],
-      ),
-    ),
-  ];
+const checkComposeConfig = async (
+  template: Template,
+): Promise<{ failures: CatalogFailure[]; images: string[] }> => {
+  const results = await Promise.all(
+    versionsToCheck(template).map(version => checkComposeConfigForVersion(template, version)),
+  );
 
+  return {
+    failures: results.flatMap(result => result.failures),
+    images: [...new Set(results.flatMap(result => result.images))],
+  };
+};
+
+const checkImages = async (template: Template, images: string[]): Promise<CatalogFailure[]> => {
   const results = await Promise.all(
     images.map(async (image): Promise<CatalogFailure | null> => {
       const process = Bun.spawn(['docker', 'buildx', 'imagetools', 'inspect', image], {
@@ -153,11 +193,12 @@ const checkLinks = async (template: Template): Promise<CatalogFailure[]> => {
 };
 
 const validateTemplate = async (template: Template): Promise<CatalogFailure[]> => {
-  const [composeFailures, imageFailures, linkFailures] = await Promise.all([
+  const [{ failures: composeFailures, images }, linkFailures] = await Promise.all([
     checkComposeConfig(template),
-    checkImages(template),
     checkLinks(template),
   ]);
+
+  const imageFailures = await checkImages(template, images);
 
   return [...composeFailures, ...imageFailures, ...linkFailures];
 };

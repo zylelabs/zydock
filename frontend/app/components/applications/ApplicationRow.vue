@@ -30,7 +30,16 @@
     <div class="flex min-w-0 items-center gap-2.75">
       <StatusDot :status="applicationStatusDot(application.status)" />
       <div class="min-w-0">
-        <div class="truncate text-[14px] font-medium text-ink">{{ application.name }}</div>
+        <div class="flex items-center gap-1.5">
+          <div class="truncate text-[14px] font-medium text-ink">{{ application.name }}</div>
+          <Tag
+            v-if="application.templateStatus === 'update-available'"
+            color="attn"
+            title="The embedded catalog has a newer version of this template."
+          >
+            update
+          </Tag>
+        </div>
         <div class="truncate font-mono text-caption text-ink-2">{{ application.slug }}</div>
       </div>
     </div>

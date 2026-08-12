@@ -76,17 +76,27 @@ describe('templates catalog', () => {
 
   test('every template renders a compose + env that "docker compose config" accepts', async () => {
     for (const template of allTemplates()) {
-      const answers = Object.fromEntries(
-        [...template.inputs, ...template.secrets].map(field => [field.key, dummyValueFor(field)]),
-      );
+      const versions = template.versions
+        ? template.versions.available.map(entry => entry.value)
+        : [undefined];
 
-      const { composeYaml, env } = renderTemplate(template, answers, {
-        applicationSlug: `${template.id}-test`,
-        serverHost: 'server.local',
-        domain: `${template.id}.example.com`,
-      });
+      for (const version of versions) {
+        const answers = Object.fromEntries(
+          [...template.inputs, ...template.secrets].map(field => [field.key, dummyValueFor(field)]),
+        );
 
-      await runDockerComposeConfig(composeYaml, env);
+        if (template.versions && version !== undefined) {
+          answers[template.versions.key] = version;
+        }
+
+        const { composeYaml, env } = renderTemplate(template, answers, {
+          applicationSlug: `${template.id}-test`,
+          serverHost: 'server.local',
+          domain: `${template.id}.example.com`,
+        });
+
+        await runDockerComposeConfig(composeYaml, env);
+      }
     }
   }, 30000);
 });

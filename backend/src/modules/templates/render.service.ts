@@ -21,6 +21,7 @@ const assertAnswersAreDeclared = (template: TemplateManifest, answers: RenderTem
   const declared = new Set([
     ...template.inputs.map(input => input.key),
     ...template.secrets.map(secret => secret.key),
+    ...(template.versions ? [template.versions.key] : []),
   ]);
 
   for (const key of Object.keys(answers)) {

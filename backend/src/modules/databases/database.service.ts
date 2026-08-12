@@ -293,6 +293,15 @@ export const registerComposeDatabases = async (
 export const unlinkDatabasesOfApplications = (applicationIds: string[]) =>
   databaseModel.deleteMany({ 'link.applicationId': { $in: applicationIds } });
 
+export const unlinkComposeDatabasesOfServices = (applicationId: string, services: string[]) =>
+  databaseModel.deleteMany({
+    'link.applicationId': applicationId,
+    'link.service': { $in: services },
+  });
+
+export const findDatabasesOfApplication = (applicationId: string) =>
+  databaseModel.find({ 'link.applicationId': applicationId });
+
 export const listDatabasesOfOrganization = (organizationId: string) =>
   databaseModel.find({ organizationId }).sort({ createdAt: 1 });
 

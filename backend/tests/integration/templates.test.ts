@@ -1,7 +1,11 @@
 import { afterAll, beforeAll, describe, expect, test } from 'bun:test';
 import { createApp } from '../../src/app-server';
 import { connectDatabase, disconnectDatabase } from '../../src/config/mongodb';
-import { removeApplication } from '../../src/modules/applications/application.service';
+import { decryptSecret } from '../../src/utils/crypto';
+import {
+  removeApplication,
+  serializeApplication,
+} from '../../src/modules/applications/application.service';
 import applicationModel from '../../src/modules/applications/application.model';
 import databaseModel from '../../src/modules/databases/database.model';
 import { composeContainerNameOf } from '../../src/modules/deployments/naming';
@@ -14,6 +18,7 @@ import {
 } from '../../src/modules/servers/local-server.service';
 import serverModel from '../../src/modules/servers/server.model';
 import { stopWorker } from '../../src/modules/queue/queue.service';
+import { allTemplates } from '../../src/modules/templates/catalog.service';
 import { deployTemplateApplication } from '../../src/modules/templates/template.service';
 import userModel from '../../src/modules/users/user.model';
 import { hashPassword } from '../../src/modules/users/user.service';
@@ -115,10 +120,46 @@ describe('GET /templates/:templateId', () => {
   });
 });
 
+const versionedTemplate: Template = {
+  id: 'synthetic-versioned-app',
+  version: 1,
+  name: 'Synthetic with versions',
+  tagline: 'Synthetic template for the deploy-version tests',
+  category: 'test',
+  tags: [],
+  icon: 'icon.svg',
+  author: 'zydock',
+  origin: 'official',
+  dockerCompose: 'docker-compose.yml',
+  expose: { service: 'app', port: 80, domain: true },
+  databases: [],
+  inputs: [],
+  secrets: [],
+  versions: {
+    key: 'APP_VERSION',
+    default: '1',
+    available: [{ value: '1' }, { value: '2', label: '2.x (stable)' }],
+  },
+  deprecated: false,
+  dockerComposeContent: 'services:\n  app:\n    image: nginx:${APP_VERSION}\n',
+};
+
 describe('POST /templates/:templateId/deploy', () => {
   let organizationId = '';
   let environmentId = '';
   let projectId = '';
+
+  beforeAll(() => {
+    allTemplates().push(versionedTemplate);
+  });
+
+  afterAll(() => {
+    const index = allTemplates().findIndex(template => template.id === versionedTemplate.id);
+
+    if (index >= 0) {
+      allTemplates().splice(index, 1);
+    }
+  });
 
   test('setup: org, project and environment', async () => {
     const org = await json('/organizations', 'POST', { name: 'Templates Deploy Co' }, token);
@@ -191,7 +232,7 @@ describe('POST /templates/:templateId/deploy', () => {
     expect(response.status).toBe(201);
     expect(body.application.source).toBe('compose');
     expect(body.application.origin?.templateId).toBe('uptime-kuma');
-    expect(body.application.origin?.templateVersion).toBe(1);
+    expect(body.application.origin?.templateVersion).toBe(2);
     expect(body.deployment).toBeUndefined();
   });
 
@@ -398,6 +439,138 @@ describe('POST /templates/:templateId/deploy', () => {
     ).rejects.toThrow(/Input "API_KEY" is required/);
 
     expect(String(environment!.projectId)).toBe(projectId);
+  });
+
+  test('deploys with the default version when none is chosen', async () => {
+    const server = await serverModel.findById(getLocalServerId());
+
+    const { application } = await deployTemplateApplication({
+      template: versionedTemplate,
+      organizationId,
+      projectId,
+      server: server!,
+      body: {
+        organizationId,
+        name: 'synthetic-versioned-default',
+        environmentId,
+        serverId: getLocalServerId()!,
+        inputs: {},
+        deployNow: false,
+      },
+      triggeredBy: userId,
+    });
+
+    const raw = await applicationModel.findById(application._id).select('+variables.value');
+    const variable = raw!.variables.find(item => item.key === 'APP_VERSION');
+
+    expect(variable?.secret).toBe(false);
+    expect(decryptSecret(variable!.value)).toBe('1');
+  });
+
+  test('deploys with the version explicitly chosen', async () => {
+    const server = await serverModel.findById(getLocalServerId());
+
+    const { application } = await deployTemplateApplication({
+      template: versionedTemplate,
+      organizationId,
+      projectId,
+      server: server!,
+      body: {
+        organizationId,
+        name: 'synthetic-versioned-chosen',
+        environmentId,
+        serverId: getLocalServerId()!,
+        inputs: {},
+        version: '2',
+        deployNow: false,
+      },
+      triggeredBy: userId,
+    });
+
+    const raw = await applicationModel.findById(application._id).select('+variables.value');
+    const variable = raw!.variables.find(item => item.key === 'APP_VERSION');
+
+    expect(decryptSecret(variable!.value)).toBe('2');
+    expect(application.origin?.inputs).not.toHaveProperty('APP_VERSION');
+    expect(serializeApplication(application).version).toEqual({
+      key: 'APP_VERSION',
+      current: '2',
+    });
+  });
+
+  test('rejects an invalid version naming the valid options', async () => {
+    const server = await serverModel.findById(getLocalServerId());
+
+    await expect(
+      deployTemplateApplication({
+        template: versionedTemplate,
+        organizationId,
+        projectId,
+        server: server!,
+        body: {
+          organizationId,
+          name: 'synthetic-versioned-invalid',
+          environmentId,
+          serverId: getLocalServerId()!,
+          inputs: {},
+          version: '99',
+          deployNow: false,
+        },
+        triggeredBy: userId,
+      }),
+    ).rejects.toThrow('"version" must be one of: 1, 2');
+  });
+
+  test('rejects the version key submitted as a plain input', async () => {
+    const server = await serverModel.findById(getLocalServerId());
+
+    await expect(
+      deployTemplateApplication({
+        template: versionedTemplate,
+        organizationId,
+        projectId,
+        server: server!,
+        body: {
+          organizationId,
+          name: 'synthetic-versioned-as-input',
+          environmentId,
+          serverId: getLocalServerId()!,
+          inputs: { APP_VERSION: '2' },
+          deployNow: false,
+        },
+        triggeredBy: userId,
+      }),
+    ).rejects.toThrow(/"APP_VERSION" is the version selector/);
+  });
+
+  test('a template without "versions" keeps working unaffected', async () => {
+    const server = await serverModel.findById(getLocalServerId());
+
+    const { application } = await deployTemplateApplication({
+      template: {
+        ...versionedTemplate,
+        id: 'synthetic-unversioned-app',
+        versions: undefined,
+        dockerComposeContent: 'services:\n  app:\n    image: nginx:1.27\n',
+      },
+      organizationId,
+      projectId,
+      server: server!,
+      body: {
+        organizationId,
+        name: 'synthetic-unversioned',
+        environmentId,
+        serverId: getLocalServerId()!,
+        inputs: {},
+        version: '2',
+        deployNow: false,
+      },
+      triggeredBy: userId,
+    });
+
+    const raw = await applicationModel.findById(application._id).select('+variables.value');
+
+    expect(raw!.variables.some(item => item.key === 'APP_VERSION')).toBe(false);
   });
 });
 
@@ -803,5 +976,919 @@ describe('POST /applications/:applicationId/variables/:key/regenerate', () => {
     );
 
     expect(response.status).toBe(400);
+  });
+});
+
+describe('POST /applications/:applicationId/version', () => {
+  let organizationId = '';
+  let environmentId = '';
+  let projectId = '';
+  let versionedApplicationId = '';
+  let plainComposeApplicationId = '';
+  let gitApplicationId = '';
+  let unknownTemplateApplicationId = '';
+  let noVersionsApplicationId = '';
+
+  const catalogTemplate: Template = {
+    ...versionedTemplate,
+    id: 'synthetic-changeable-version-app',
+  };
+
+  beforeAll(() => {
+    allTemplates().push(catalogTemplate);
+  });
+
+  afterAll(() => {
+    const index = allTemplates().findIndex(template => template.id === catalogTemplate.id);
+
+    if (index >= 0) {
+      allTemplates().splice(index, 1);
+    }
+  });
+
+  test('setup: org, project, environment and one application of every guarded shape', async () => {
+    const org = await json('/organizations', 'POST', { name: 'Version Change Co' }, token);
+    organizationId = ((await org.json()) as { organization: { id: string } }).organization.id;
+
+    const project = await json(
+      `/organizations/${organizationId}/projects`,
+      'POST',
+      { name: 'Version Change Project' },
+      token,
+    );
+    projectId = ((await project.json()) as { project: { id: string } }).project.id;
+
+    const envs = await json(
+      `/organizations/${organizationId}/projects/${projectId}/environments`,
+      'GET',
+      undefined,
+      token,
+    );
+    environmentId = ((await envs.json()) as { items: { id: string }[] }).items[0]!.id;
+
+    await serverModel.updateOne(
+      { _id: getLocalServerId() },
+      { $set: { 'resources.composeVersion': 'v2.29.1' } },
+    );
+
+    const server = await serverModel.findById(getLocalServerId());
+
+    const { application: versionedApplication } = await deployTemplateApplication({
+      template: catalogTemplate,
+      organizationId,
+      projectId,
+      server: server!,
+      body: {
+        organizationId,
+        name: 'version-change-app',
+        environmentId,
+        serverId: getLocalServerId()!,
+        inputs: {},
+        deployNow: false,
+      },
+      triggeredBy: userId,
+    });
+    versionedApplicationId = String(versionedApplication._id);
+
+    const composeApp = await json(
+      `/organizations/${organizationId}/applications`,
+      'POST',
+      {
+        source: 'compose',
+        name: 'plain-compose-app-for-version',
+        environmentId,
+        serverId: getLocalServerId(),
+        compose: {
+          content: 'services:\n  app:\n    image: nginx:1.27\n',
+          expose: { service: 'app', port: 80 },
+        },
+      },
+      token,
+    );
+    plainComposeApplicationId = ((await composeApp.json()) as { application: { id: string } })
+      .application.id;
+
+    const gitApp = await json(
+      `/organizations/${organizationId}/applications`,
+      'POST',
+      {
+        source: 'git',
+        name: 'git-app-for-version',
+        environmentId,
+        serverId: getLocalServerId(),
+        git: { repository: 'zydock/example', source: 'pat' },
+        port: 3000,
+      },
+      token,
+    );
+    gitApplicationId = ((await gitApp.json()) as { application: { id: string } }).application.id;
+
+    const { application: unknownTemplateApplication } = await deployTemplateApplication({
+      template: { ...catalogTemplate, id: 'synthetic-template-not-in-catalog' },
+      organizationId,
+      projectId,
+      server: server!,
+      body: {
+        organizationId,
+        name: 'unknown-template-app',
+        environmentId,
+        serverId: getLocalServerId()!,
+        inputs: {},
+        deployNow: false,
+      },
+      triggeredBy: userId,
+    });
+    unknownTemplateApplicationId = String(unknownTemplateApplication._id);
+
+    const excalidrawDeploy = await json(
+      '/templates/excalidraw/deploy',
+      'POST',
+      {
+        organizationId,
+        name: 'no-versions-app',
+        environmentId,
+        serverId: getLocalServerId(),
+        inputs: {},
+        deployNow: false,
+      },
+      token,
+    );
+    noVersionsApplicationId = ((await excalidrawDeploy.json()) as { application: { id: string } })
+      .application.id;
+  });
+
+  test('404 for an unknown application', async () => {
+    const response = await json(
+      `/organizations/${organizationId}/applications/000000000000000000000000/version`,
+      'POST',
+      { version: '2' },
+      token,
+    );
+
+    expect(response.status).toBe(404);
+  });
+
+  test('rejects a plain compose application without a template origin', async () => {
+    const response = await json(
+      `/organizations/${organizationId}/applications/${plainComposeApplicationId}/version`,
+      'POST',
+      { version: '2' },
+      token,
+    );
+
+    expect(response.status).toBe(400);
+  });
+
+  test('rejects a git application', async () => {
+    const response = await json(
+      `/organizations/${organizationId}/applications/${gitApplicationId}/version`,
+      'POST',
+      { version: '2' },
+      token,
+    );
+
+    expect(response.status).toBe(400);
+  });
+
+  test('rejects when the template is no longer in the catalog', async () => {
+    const response = await json(
+      `/organizations/${organizationId}/applications/${unknownTemplateApplicationId}/version`,
+      'POST',
+      { version: '2' },
+      token,
+    );
+    const body = (await response.json()) as { error: string };
+
+    expect(response.status).toBe(400);
+    expect(body.error).toContain('no longer in the catalog');
+  });
+
+  test('rejects when the template has no selectable versions', async () => {
+    const response = await json(
+      `/organizations/${organizationId}/applications/${noVersionsApplicationId}/version`,
+      'POST',
+      { version: '2' },
+      token,
+    );
+    const body = (await response.json()) as { error: string };
+
+    expect(response.status).toBe(400);
+    expect(body.error).toContain('no selectable versions');
+  });
+
+  test('rejects an invalid version, naming the valid options', async () => {
+    const response = await json(
+      `/organizations/${organizationId}/applications/${versionedApplicationId}/version`,
+      'POST',
+      { version: '99' },
+      token,
+    );
+    const body = (await response.json()) as { error: string };
+
+    expect(response.status).toBe(400);
+    expect(body.error).toBe('"version" must be one of: 1, 2');
+  });
+
+  test('rejects when the application is already on that version', async () => {
+    const response = await json(
+      `/organizations/${organizationId}/applications/${versionedApplicationId}/version`,
+      'POST',
+      { version: '1' },
+      token,
+    );
+    const body = (await response.json()) as { error: string };
+
+    expect(response.status).toBe(400);
+    expect(body.error).toContain('already running this version');
+  });
+
+  test('rejects a version change from a member without admin rights', async () => {
+    const memberEmail = `version-change-member-${Date.now()}@zydock.test`;
+    const memberPassword = 'version-change-member-secret-1';
+
+    const member = await userModel.create({
+      email: memberEmail,
+      name: 'version-change-member',
+      status: 'active',
+      password: await hashPassword(memberPassword),
+    });
+
+    await createMembership(organizationId, String(member._id), 'member');
+
+    const signin = await json('/auth/signin', 'POST', {
+      email: memberEmail,
+      password: memberPassword,
+    });
+    const memberToken = ((await signin.json()) as { accessToken: string }).accessToken;
+
+    const response = await json(
+      `/organizations/${organizationId}/applications/${versionedApplicationId}/version`,
+      'POST',
+      { version: '2' },
+      memberToken,
+    );
+
+    expect(response.status).toBe(403);
+
+    await userModel.deleteOne({ _id: member._id });
+  });
+
+  test('changes the version without deploying when deployNow is false', async () => {
+    const response = await json(
+      `/organizations/${organizationId}/applications/${versionedApplicationId}/version`,
+      'POST',
+      { version: '2', deployNow: false },
+      token,
+    );
+    const body = (await response.json()) as {
+      application: { version?: { key: string; current: string } };
+      deployment?: unknown;
+    };
+
+    expect(response.status).toBe(200);
+    expect(body.application.version).toEqual({ key: 'APP_VERSION', current: '2' });
+    expect(body.deployment).toBeUndefined();
+
+    const raw = await applicationModel.findById(versionedApplicationId).select('+variables.value');
+    const variable = raw!.variables.find(item => item.key === 'APP_VERSION');
+
+    expect(decryptSecret(variable!.value)).toBe('2');
+  });
+
+  test('changes the version and queues a deployment by default', async () => {
+    const response = await json(
+      `/organizations/${organizationId}/applications/${versionedApplicationId}/version`,
+      'POST',
+      { version: '1' },
+      token,
+    );
+    const body = (await response.json()) as {
+      application: { version?: { key: string; current: string } };
+      deployment?: { status: string };
+    };
+
+    expect(response.status).toBe(200);
+    expect(body.application.version).toEqual({ key: 'APP_VERSION', current: '1' });
+    expect(body.deployment?.status).toBe('queued');
+  });
+});
+
+describe('GET /applications/:applicationId/template-update', () => {
+  let organizationId = '';
+  let environmentId = '';
+  let projectId = '';
+  let plainComposeApplicationId = '';
+  let gitApplicationId = '';
+
+  const installedTemplate: Template = {
+    id: 'synthetic-update-preview-app',
+    version: 1,
+    name: 'Synthetic update preview',
+    tagline: 'Synthetic template for the template-update preview tests',
+    category: 'test',
+    tags: [],
+    icon: 'icon.svg',
+    author: 'zydock',
+    origin: 'official',
+    dockerCompose: 'docker-compose.yml',
+    expose: { service: 'app', port: 80, domain: true },
+    databases: [],
+    inputs: [],
+    secrets: [],
+    deprecated: false,
+    dockerComposeContent: 'services:\n  app:\n    image: nginx:1.27\n',
+  };
+
+  const catalogTemplate: Template = { ...installedTemplate };
+
+  let templateApplicationId = '';
+
+  beforeAll(() => {
+    allTemplates().push(catalogTemplate);
+  });
+
+  afterAll(() => {
+    const index = allTemplates().findIndex(template => template.id === catalogTemplate.id);
+
+    if (index >= 0) {
+      allTemplates().splice(index, 1);
+    }
+  });
+
+  test('setup: org, project, environment and one application of every guarded shape', async () => {
+    const org = await json('/organizations', 'POST', { name: 'Template Update Preview Co' }, token);
+    organizationId = ((await org.json()) as { organization: { id: string } }).organization.id;
+
+    const project = await json(
+      `/organizations/${organizationId}/projects`,
+      'POST',
+      { name: 'Template Update Preview Project' },
+      token,
+    );
+    projectId = ((await project.json()) as { project: { id: string } }).project.id;
+
+    const envs = await json(
+      `/organizations/${organizationId}/projects/${projectId}/environments`,
+      'GET',
+      undefined,
+      token,
+    );
+    environmentId = ((await envs.json()) as { items: { id: string }[] }).items[0]!.id;
+
+    await serverModel.updateOne(
+      { _id: getLocalServerId() },
+      { $set: { 'resources.composeVersion': 'v2.29.1' } },
+    );
+
+    const server = await serverModel.findById(getLocalServerId());
+
+    const { application } = await deployTemplateApplication({
+      template: installedTemplate,
+      organizationId,
+      projectId,
+      server: server!,
+      body: {
+        organizationId,
+        name: 'template-update-preview-app',
+        environmentId,
+        serverId: getLocalServerId()!,
+        inputs: {},
+        deployNow: false,
+      },
+      triggeredBy: userId,
+    });
+    templateApplicationId = String(application._id);
+
+    const composeApp = await json(
+      `/organizations/${organizationId}/applications`,
+      'POST',
+      {
+        source: 'compose',
+        name: 'plain-compose-app-for-update-preview',
+        environmentId,
+        serverId: getLocalServerId(),
+        compose: {
+          content: 'services:\n  app:\n    image: nginx:1.27\n',
+          expose: { service: 'app', port: 80 },
+        },
+      },
+      token,
+    );
+    plainComposeApplicationId = ((await composeApp.json()) as { application: { id: string } })
+      .application.id;
+
+    const gitApp = await json(
+      `/organizations/${organizationId}/applications`,
+      'POST',
+      {
+        source: 'git',
+        name: 'git-app-for-update-preview',
+        environmentId,
+        serverId: getLocalServerId(),
+        git: { repository: 'zydock/example', source: 'pat' },
+        port: 3000,
+      },
+      token,
+    );
+    gitApplicationId = ((await gitApp.json()) as { application: { id: string } }).application.id;
+  });
+
+  test('404 for an unknown application', async () => {
+    const response = await json(
+      `/organizations/${organizationId}/applications/000000000000000000000000/template-update`,
+      'GET',
+      undefined,
+      token,
+    );
+
+    expect(response.status).toBe(404);
+  });
+
+  test('rejects a plain compose application without a template origin', async () => {
+    const response = await json(
+      `/organizations/${organizationId}/applications/${plainComposeApplicationId}/template-update`,
+      'GET',
+      undefined,
+      token,
+    );
+
+    expect(response.status).toBe(400);
+  });
+
+  test('rejects a git application', async () => {
+    const response = await json(
+      `/organizations/${organizationId}/applications/${gitApplicationId}/template-update`,
+      'GET',
+      undefined,
+      token,
+    );
+
+    expect(response.status).toBe(400);
+  });
+
+  test('"up-to-date" when the catalog is on the same version, with no compose diff', async () => {
+    const response = await json(
+      `/organizations/${organizationId}/applications/${templateApplicationId}/template-update`,
+      'GET',
+      undefined,
+      token,
+    );
+    const body = (await response.json()) as {
+      status: string;
+      installedVersion: number;
+      availableVersion: number;
+      manuallyEdited: boolean;
+      composeDiff: { type: string; content: string }[];
+    };
+
+    expect(response.status).toBe(200);
+    expect(body.status).toBe('up-to-date');
+    expect(body.installedVersion).toBe(1);
+    expect(body.availableVersion).toBe(1);
+    expect(body.manuallyEdited).toBe(false);
+    expect(body.composeDiff.every(line => line.type === 'context')).toBe(true);
+  });
+
+  test('"update-available" once the catalog version moves ahead, with the diff and no removed variables', async () => {
+    catalogTemplate.version = 2;
+    catalogTemplate.dockerComposeContent = 'services:\n  app:\n    image: nginx:1.28\n';
+
+    const response = await json(
+      `/organizations/${organizationId}/applications/${templateApplicationId}/template-update`,
+      'GET',
+      undefined,
+      token,
+    );
+    const body = (await response.json()) as {
+      status: string;
+      installedVersion: number;
+      availableVersion: number;
+      composeDiff: { type: string; content: string }[];
+      variables: { added: string[]; removed: string[] };
+    };
+
+    expect(response.status).toBe(200);
+    expect(body.status).toBe('update-available');
+    expect(body.installedVersion).toBe(1);
+    expect(body.availableVersion).toBe(2);
+    expect(body.composeDiff.some(line => line.type === 'removed')).toBe(true);
+    expect(body.composeDiff.some(line => line.type === 'added')).toBe(true);
+    expect(body.variables).toEqual({ added: [], removed: [] });
+  });
+
+  test('flags the compose as manually edited once it diverges from the recorded hash', async () => {
+    await json(
+      `/organizations/${organizationId}/applications/${templateApplicationId}`,
+      'PATCH',
+      { compose: { content: 'services:\n  app:\n    image: nginx:1.27\n    restart: always\n' } },
+      token,
+    );
+
+    const response = await json(
+      `/organizations/${organizationId}/applications/${templateApplicationId}/template-update`,
+      'GET',
+      undefined,
+      token,
+    );
+    const body = (await response.json()) as { manuallyEdited: boolean };
+
+    expect(response.status).toBe(200);
+    expect(body.manuallyEdited).toBe(true);
+  });
+
+  test('"deprecated" when the template is still in the catalog but taken off the storefront', async () => {
+    catalogTemplate.deprecated = true;
+
+    const response = await json(
+      `/organizations/${organizationId}/applications/${templateApplicationId}/template-update`,
+      'GET',
+      undefined,
+      token,
+    );
+    const body = (await response.json()) as { status: string };
+
+    expect(response.status).toBe(200);
+    expect(body.status).toBe('deprecated');
+
+    catalogTemplate.deprecated = false;
+  });
+
+  test('"unknown" once the template leaves the catalog entirely, with no compose diff or available version', async () => {
+    const index = allTemplates().findIndex(template => template.id === catalogTemplate.id);
+
+    allTemplates().splice(index, 1);
+
+    const response = await json(
+      `/organizations/${organizationId}/applications/${templateApplicationId}/template-update`,
+      'GET',
+      undefined,
+      token,
+    );
+    const body = (await response.json()) as {
+      status: string;
+      availableVersion?: number;
+      composeDiff?: unknown;
+    };
+
+    expect(response.status).toBe(200);
+    expect(body.status).toBe('unknown');
+    expect(body.availableVersion).toBeUndefined();
+    expect(body.composeDiff).toBeUndefined();
+
+    allTemplates().push(catalogTemplate);
+  });
+});
+
+describe('POST /applications/:applicationId/template-update', () => {
+  let organizationId = '';
+  let environmentId = '';
+  let projectId = '';
+  let applicationId = '';
+  let plainComposeApplicationId = '';
+  let gitApplicationId = '';
+
+  const v2ComposeContent =
+    'services:\n' +
+    '  app:\n' +
+    '    image: nginx:${APP_VERSION}\n' +
+    '    environment:\n' +
+    '      TZ: ${TIMEZONE}\n' +
+    '      API_KEY: ${API_KEY}\n' +
+    '      DB_PASSWORD: ${DB_PASSWORD}\n' +
+    '  db:\n' +
+    '    image: postgres:16-alpine\n' +
+    '    environment:\n' +
+    '      POSTGRES_PASSWORD: ${DB_PASSWORD}\n';
+
+  const installedTemplate: Template = {
+    id: 'synthetic-apply-update-app',
+    version: 1,
+    name: 'Synthetic apply update',
+    tagline: 'Synthetic template for the apply-template-update tests',
+    category: 'test',
+    tags: [],
+    icon: 'icon.svg',
+    author: 'zydock',
+    origin: 'official',
+    dockerCompose: 'docker-compose.yml',
+    expose: { service: 'app', port: 80, domain: true },
+    databases: [],
+    inputs: [{ key: 'TIMEZONE', label: 'Timezone', type: 'text', required: false }],
+    secrets: [],
+    versions: {
+      key: 'APP_VERSION',
+      default: '1',
+      available: [{ value: '1' }],
+    },
+    deprecated: false,
+    dockerComposeContent:
+      'services:\n' +
+      '  app:\n' +
+      '    image: nginx:${APP_VERSION}\n' +
+      '    environment:\n' +
+      '      TZ: ${TIMEZONE}\n',
+  };
+
+  const catalogTemplate: Template = { ...installedTemplate };
+
+  beforeAll(() => {
+    allTemplates().push(catalogTemplate);
+  });
+
+  afterAll(() => {
+    const index = allTemplates().findIndex(template => template.id === catalogTemplate.id);
+
+    if (index >= 0) {
+      allTemplates().splice(index, 1);
+    }
+  });
+
+  test('setup: org, project, environment and one application of every guarded shape', async () => {
+    const org = await json('/organizations', 'POST', { name: 'Apply Update Co' }, token);
+    organizationId = ((await org.json()) as { organization: { id: string } }).organization.id;
+
+    const project = await json(
+      `/organizations/${organizationId}/projects`,
+      'POST',
+      { name: 'Apply Update Project' },
+      token,
+    );
+    projectId = ((await project.json()) as { project: { id: string } }).project.id;
+
+    const envs = await json(
+      `/organizations/${organizationId}/projects/${projectId}/environments`,
+      'GET',
+      undefined,
+      token,
+    );
+    environmentId = ((await envs.json()) as { items: { id: string }[] }).items[0]!.id;
+
+    await serverModel.updateOne(
+      { _id: getLocalServerId() },
+      { $set: { 'resources.composeVersion': 'v2.29.1' } },
+    );
+
+    const server = await serverModel.findById(getLocalServerId());
+
+    const { application } = await deployTemplateApplication({
+      template: installedTemplate,
+      organizationId,
+      projectId,
+      server: server!,
+      body: {
+        organizationId,
+        name: 'apply-update-app',
+        environmentId,
+        serverId: getLocalServerId()!,
+        inputs: { TIMEZONE: 'UTC' },
+        deployNow: false,
+      },
+      triggeredBy: userId,
+    });
+    applicationId = String(application._id);
+
+    const composeApp = await json(
+      `/organizations/${organizationId}/applications`,
+      'POST',
+      {
+        source: 'compose',
+        name: 'plain-compose-app-for-apply-update',
+        environmentId,
+        serverId: getLocalServerId(),
+        compose: {
+          content: 'services:\n  app:\n    image: nginx:1.27\n',
+          expose: { service: 'app', port: 80 },
+        },
+      },
+      token,
+    );
+    plainComposeApplicationId = ((await composeApp.json()) as { application: { id: string } })
+      .application.id;
+
+    const gitApp = await json(
+      `/organizations/${organizationId}/applications`,
+      'POST',
+      {
+        source: 'git',
+        name: 'git-app-for-apply-update',
+        environmentId,
+        serverId: getLocalServerId(),
+        git: { repository: 'zydock/example', source: 'pat' },
+        port: 3000,
+      },
+      token,
+    );
+    gitApplicationId = ((await gitApp.json()) as { application: { id: string } }).application.id;
+  });
+
+  test('404 for an unknown application', async () => {
+    const response = await json(
+      `/organizations/${organizationId}/applications/000000000000000000000000/template-update`,
+      'POST',
+      {},
+      token,
+    );
+
+    expect(response.status).toBe(404);
+  });
+
+  test('rejects a plain compose application without a template origin', async () => {
+    const response = await json(
+      `/organizations/${organizationId}/applications/${plainComposeApplicationId}/template-update`,
+      'POST',
+      {},
+      token,
+    );
+
+    expect(response.status).toBe(400);
+  });
+
+  test('rejects a git application', async () => {
+    const response = await json(
+      `/organizations/${organizationId}/applications/${gitApplicationId}/template-update`,
+      'POST',
+      {},
+      token,
+    );
+
+    expect(response.status).toBe(400);
+  });
+
+  test('rejects when the application is already on the latest template version', async () => {
+    const response = await json(
+      `/organizations/${organizationId}/applications/${applicationId}/template-update`,
+      'POST',
+      {},
+      token,
+    );
+    const body = (await response.json()) as { error: string };
+
+    expect(response.status).toBe(400);
+    expect(body.error).toContain('already on the latest template version');
+  });
+
+  test('rejects an update from a member without admin rights', async () => {
+    catalogTemplate.version = 2;
+
+    const memberEmail = `apply-update-member-${Date.now()}@zydock.test`;
+    const memberPassword = 'apply-update-member-secret-1';
+
+    const member = await userModel.create({
+      email: memberEmail,
+      name: 'apply-update-member',
+      status: 'active',
+      password: await hashPassword(memberPassword),
+    });
+
+    await createMembership(organizationId, String(member._id), 'member');
+
+    const signin = await json('/auth/signin', 'POST', {
+      email: memberEmail,
+      password: memberPassword,
+    });
+    const memberToken = ((await signin.json()) as { accessToken: string }).accessToken;
+
+    const response = await json(
+      `/organizations/${organizationId}/applications/${applicationId}/template-update`,
+      'POST',
+      {},
+      memberToken,
+    );
+
+    expect(response.status).toBe(403);
+
+    await userModel.deleteOne({ _id: member._id });
+  });
+
+  test('blocks with 400 when the new template requires an input that was never answered', async () => {
+    catalogTemplate.inputs = [
+      { key: 'TIMEZONE', label: 'Timezone', type: 'text', required: false },
+      { key: 'API_KEY', label: 'API key', type: 'text', required: true },
+    ];
+    catalogTemplate.secrets = [{ key: 'DB_PASSWORD', generate: 'password' }];
+    catalogTemplate.databases = [
+      {
+        service: 'db',
+        engine: 'postgresql',
+        credentials: {
+          username: { value: 'postgres' },
+          password: { key: 'DB_PASSWORD' },
+          database: { value: 'postgres' },
+        },
+      },
+    ];
+    catalogTemplate.versions = { key: 'APP_VERSION', default: '2', available: [{ value: '2' }] };
+    catalogTemplate.dockerComposeContent = v2ComposeContent;
+
+    const response = await json(
+      `/organizations/${organizationId}/applications/${applicationId}/template-update`,
+      'POST',
+      {},
+      token,
+    );
+    const body = (await response.json()) as { error: string };
+
+    expect(response.status).toBe(400);
+    expect(body.error).toContain('Missing required input(s)');
+    expect(body.error).toContain('API_KEY');
+  });
+
+  test(
+    'applies the update: preserves the existing variable, generates the new secret, registers ' +
+      'the new database and falls the version back to the default',
+    async () => {
+      const response = await json(
+        `/organizations/${organizationId}/applications/${applicationId}/template-update`,
+        'POST',
+        { inputs: { API_KEY: 'abc123' }, deployNow: false },
+        token,
+      );
+      const body = (await response.json()) as {
+        application: {
+          origin?: { templateVersion: number; inputs: Record<string, string> };
+          version?: { key: string; current: string };
+        };
+        deployment?: unknown;
+        versionFellBackToDefault: boolean;
+      };
+
+      expect(response.status).toBe(200);
+      expect(body.application.origin?.templateVersion).toBe(2);
+      expect(body.application.origin?.inputs).toEqual({ TIMEZONE: 'UTC', API_KEY: 'abc123' });
+      expect(body.application.version).toEqual({ key: 'APP_VERSION', current: '2' });
+      expect(body.versionFellBackToDefault).toBe(true);
+      expect(body.deployment).toBeUndefined();
+
+      const variables = await json(
+        `/organizations/${organizationId}/applications/${applicationId}/variables`,
+        'GET',
+        undefined,
+        token,
+      );
+      const variablesBody = (await variables.json()) as {
+        variables: { key: string; value: string; secret: boolean }[];
+      };
+
+      const timezone = variablesBody.variables.find(variable => variable.key === 'TIMEZONE');
+      const dbPassword = variablesBody.variables.find(variable => variable.key === 'DB_PASSWORD');
+
+      expect(timezone?.value).toBe('UTC');
+      expect(dbPassword?.secret).toBe(true);
+      expect(dbPassword?.value.length).toBeGreaterThan(0);
+
+      const registered = await databaseModel.findOne({ 'link.applicationId': applicationId });
+
+      expect(registered).not.toBeNull();
+      expect(registered!.engine).toBe('postgresql');
+      expect(registered!.link!.service).toBe('db');
+    },
+  );
+
+  test('blocks with 409 when the compose file was edited by hand, and applies with confirmOverwrite', async () => {
+    catalogTemplate.version = 3;
+    catalogTemplate.dockerComposeContent = `# v3\n${v2ComposeContent}`;
+    catalogTemplate.versions = {
+      key: 'APP_VERSION',
+      default: '2',
+      available: [{ value: '2' }, { value: '3' }],
+    };
+
+    await json(
+      `/organizations/${organizationId}/applications/${applicationId}`,
+      'PATCH',
+      { compose: { content: `${v2ComposeContent}    # hand-edited\n` } },
+      token,
+    );
+
+    const blocked = await json(
+      `/organizations/${organizationId}/applications/${applicationId}/template-update`,
+      'POST',
+      { deployNow: false },
+      token,
+    );
+    const blockedBody = (await blocked.json()) as { error: string };
+
+    expect(blocked.status).toBe(409);
+    expect(blockedBody.error).toContain('confirmOverwrite');
+
+    const confirmed = await json(
+      `/organizations/${organizationId}/applications/${applicationId}/template-update`,
+      'POST',
+      { confirmOverwrite: true, deployNow: false },
+      token,
+    );
+    const confirmedBody = (await confirmed.json()) as {
+      application: { origin?: { templateVersion: number }; version?: { current: string } };
+      versionFellBackToDefault: boolean;
+    };
+
+    expect(confirmed.status).toBe(200);
+    expect(confirmedBody.application.origin?.templateVersion).toBe(3);
+    expect(confirmedBody.application.version?.current).toBe('2');
+    expect(confirmedBody.versionFellBackToDefault).toBe(false);
+
+    const raw = await applicationModel.findById(applicationId);
+
+    expect(raw!.compose!.content).toBe(catalogTemplate.dockerComposeContent);
   });
 });

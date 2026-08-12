@@ -64,7 +64,14 @@ const applicationSchema = {
         templateId: { type: 'string' },
         templateVersion: { type: 'integer' },
         inputs: { type: 'object' },
+        composeHash: { type: 'string' },
       },
+    },
+    templateStatus: {
+      type: 'string',
+      nullable: true,
+      enum: ['up-to-date', 'update-available', 'deprecated', 'unknown'],
+      description: 'Only for compose applications created from a template.',
     },
     createdAt: { type: 'string', format: 'date-time' },
   },
@@ -137,6 +144,74 @@ export const applicationsDocs = {
       200: jsonRes('Application updated.', applicationResponse),
       400: errorRes('Unknown server.'),
       404: errorRes('Application not found.'),
+    },
+  },
+  templateUpdate: {
+    tags: ['Applications'],
+    summary: 'Preview a pending template update',
+    description:
+      'Only for `source: "compose"` applications created from a template. Compares the ' +
+      'installed template version against the current catalog: the compose diff, variables that ' +
+      'would be added or removed, changes to `expose`/`databases`, and whether the compose file ' +
+      'was edited by hand (`origin.composeHash`). The catalog is embedded in the backend binary, ' +
+      'so a template update ships with a Zydock platform update, not on its own schedule.',
+    security: bearerOrApiKeyAuth,
+    responses: {
+      200: jsonRes('Update preview.', {
+        type: 'object',
+        properties: {
+          status: {
+            type: 'string',
+            enum: ['up-to-date', 'update-available', 'deprecated', 'unknown'],
+          },
+          installedVersion: { type: 'integer' },
+          availableVersion: { type: 'integer' },
+          manuallyEdited: { type: 'boolean' },
+          composeDiff: { type: 'array', items: { type: 'object' } },
+          variables: {
+            type: 'object',
+            properties: {
+              added: { type: 'array', items: { type: 'string' } },
+              removed: { type: 'array', items: { type: 'string' } },
+            },
+          },
+          expose: { type: 'object' },
+          databases: { type: 'object' },
+        },
+      }),
+      400: errorRes('Not a template application.'),
+      404: errorRes('Application not found.'),
+    },
+  },
+  applyTemplateUpdate: {
+    tags: ['Applications'],
+    summary: 'Apply a pending template update',
+    description:
+      'Only for `source: "compose"` applications created from a template with a newer version in ' +
+      'the catalog. Rewrites the compose file and `expose` from the current template, preserves ' +
+      'every existing variable whose key still exists, generates new secrets on the server, and ' +
+      'blocks with 400 if the new template requires an input that was never answered (the message ' +
+      'names the missing keys). The running version is kept if still valid for the new template, ' +
+      'otherwise it falls back to the default (`versionFellBackToDefault` says so). If the compose ' +
+      'file was edited by hand (`origin.composeHash` no longer matches), the request is rejected ' +
+      'with 409 until `confirmOverwrite: true` is sent — the edit is then discarded. Never removes ' +
+      'a volume, domain or port. Unless `deployNow` is `false`, a deployment is queued right away.',
+    security: bearerOrApiKeyAuth,
+    responses: {
+      200: jsonRes('Template updated.', {
+        type: 'object',
+        properties: {
+          application: applicationSchema,
+          deployment: { type: 'object' },
+          versionFellBackToDefault: { type: 'boolean' },
+        },
+      }),
+      400: errorRes(
+        'Not a template application, template no longer in the catalog or deprecated, already on ' +
+          'the latest version, or a required input is missing.',
+      ),
+      404: errorRes('Application not found.'),
+      409: errorRes('The compose file was edited by hand; resend with "confirmOverwrite: true".'),
     },
   },
   deploy: {
@@ -279,6 +354,26 @@ export const applicationsDocs = {
         properties: { application: applicationSchema, deployment: { type: 'object' } },
       }),
       400: errorRes('Not a template application, or "key" is not a generated secret.'),
+      404: errorRes('Application not found.'),
+    },
+  },
+  changeVersion: {
+    tags: ['Applications'],
+    summary: 'Change the running version of a template application',
+    description:
+      'Only for `source: "compose"` applications created from a template that declares ' +
+      '`versions`. Writes the new value to the version variable and, unless `deployNow` is ' +
+      '`false`, queues a deployment right away — no compose file is edited by hand.',
+    security: bearerOrApiKeyAuth,
+    responses: {
+      200: jsonRes('Version changed.', {
+        type: 'object',
+        properties: { application: applicationSchema, deployment: { type: 'object' } },
+      }),
+      400: errorRes(
+        'Not a template application, template has no selectable versions, invalid version, or ' +
+          'the application is already on that version.',
+      ),
       404: errorRes('Application not found.'),
     },
   },

@@ -30,6 +30,17 @@ export interface TemplateDatabase {
   engine: TemplateDatabaseEngine;
 }
 
+export interface TemplateVersionEntry {
+  value: string;
+  label?: string;
+}
+
+export interface TemplateVersions {
+  key: string;
+  default: string;
+  available: TemplateVersionEntry[];
+}
+
 export interface Template {
   id: string;
   version: number;
@@ -48,6 +59,7 @@ export interface Template {
   databases: TemplateDatabase[];
   inputs: TemplateInput[];
   secrets: TemplateSecret[];
+  versions?: TemplateVersions;
 }
 
 export type TemplateFilter = {
@@ -63,6 +75,7 @@ export interface DeployTemplateBody {
   environmentId: string;
   serverId: string;
   inputs: Record<string, string>;
+  version?: string;
   deployNow?: boolean;
 }
 

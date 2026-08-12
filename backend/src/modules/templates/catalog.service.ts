@@ -25,6 +25,7 @@ export const assertVariablesAreDeclared = (manifest: TemplateManifest, composeCo
   const declared = new Set([
     ...manifest.inputs.map(input => input.key),
     ...manifest.secrets.map(secret => secret.key),
+    ...(manifest.versions ? [manifest.versions.key] : []),
   ]);
 
   for (const variable of referencedVariablesOf(composeContent)) {
@@ -34,6 +35,33 @@ export const assertVariablesAreDeclared = (manifest: TemplateManifest, composeCo
 
     throw new Error(
       `Variable "\${${variable}}" is used in the compose file but is not declared in "inputs" or "secrets"`,
+    );
+  }
+};
+
+export const assertVersionsAreUsed = (manifest: TemplateManifest, parsed: ParsedCompose) => {
+  if (!manifest.versions) {
+    return;
+  }
+
+  const { key } = manifest.versions;
+  const referencePattern = new RegExp(`\\$\\{${key}(:?[-?][^}]*)?\\}`);
+  const referencing = parsed.services.filter(
+    service => service.image && referencePattern.test(service.image),
+  );
+
+  if (referencing.length === 0) {
+    throw new Error(
+      `"versions.key" ("${key}") is declared but no service "image" references "\${${key}}"`,
+    );
+  }
+
+  const withFixedDigest = referencing.find(service => service.image?.includes('@sha256:'));
+
+  if (withFixedDigest) {
+    throw new Error(
+      `Service "${withFixedDigest.name}": image references "\${${key}}" and a fixed digest at the ` +
+        `same time`,
     );
   }
 };
@@ -95,6 +123,7 @@ const loadTemplate = (id: string): Template => {
 
   assertVariablesAreDeclared(manifest, composeContent);
   assertDatabaseCredentialsAreDeclared(manifest);
+  assertVersionsAreUsed(manifest, parsed);
   validateComposeSecurity(parsed);
 
   if (manifest.icon) {
@@ -119,6 +148,12 @@ const loadCatalog = (): Template[] =>
       }
     });
 
-const catalog = loadCatalog();
+let cachedCatalog: Template[] | undefined;
 
-export const allTemplates = (): Template[] => catalog;
+export const allTemplates = (): Template[] => {
+  if (!cachedCatalog) {
+    cachedCatalog = loadCatalog();
+  }
+
+  return cachedCatalog;
+};

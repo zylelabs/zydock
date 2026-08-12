@@ -28,6 +28,7 @@ interface ApplicationOrigin {
   templateId: string;
   templateVersion: number;
   inputs: Record<string, string>;
+  composeHash?: string;
 }
 
 interface ApplicationVariable {
