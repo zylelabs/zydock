@@ -78,6 +78,25 @@
   );
 
   const applications = computed(() => data.value?.applications ?? []);
+  const recentApplications = useRecentApplicationsStore();
+
+  watch(
+    applications,
+    items => {
+      if (!session.organizationId) {
+        return;
+      }
+
+      items.forEach(application => {
+        recentApplications.sync(session.organizationId, {
+          id: application.id,
+          name: application.name,
+          status: application.status,
+        });
+      });
+    },
+    { immediate: true },
+  );
 
   const hasLoadedOnce = ref(false);
 

@@ -3,7 +3,11 @@
   import { useProjects } from '~/composables/services/useProjects';
   import { useServers } from '~/composables/services/useServers';
   import { useBackups } from '~/composables/services/useBackups';
-  import { applicationStatusDot, useApplications } from '~/composables/services/useApplications';
+  import {
+    applicationStatusDot,
+    useApplications,
+    type Application,
+  } from '~/composables/services/useApplications';
   import { useOrganizations } from '~/composables/services/useOrganizations';
   import { installedVersionLabel, useHealth } from '~/composables/services/useHealth';
   import type { AppearanceMode } from '~/stores/appearance.store';
@@ -94,23 +98,41 @@
 
   const isActive = (item: NavItem) => item.match(route.path);
   const isApplicationActive = (applicationId: string) =>
-    route.path === `/applications/${applicationId}`;
+    route.path === `/applications/${applicationId}` ||
+    route.path.startsWith(`/applications/${applicationId}/`);
 
   watch(
     () => route.path,
     async path => {
       const match = path.match(/^\/applications\/([^/]+)/);
 
-      if (!match || match[1] === 'new' || recentApplications.items[0]?.id === match[1]) {
+      if (
+        !match ||
+        match[1] === 'new' ||
+        !session.organizationId ||
+        recentApplications.current[0]?.id === match[1]
+      ) {
         return;
       }
 
-      const { application } = await useApplications()
-        .get(match[1]!)
-        .catch(() => ({ application: null }));
+      const applicationId = match[1]!;
+      const { data: cached } = useNuxtData<Application>(`application-${applicationId}`);
+
+      const application =
+        cached.value ??
+        (await useApplications()
+          .get(applicationId)
+          .then(({ application: item }) => item)
+          .catch((error: { statusCode?: number }) => {
+            if (error.statusCode === 404) {
+              recentApplications.remove(session.organizationId, applicationId);
+            }
+
+            return null;
+          }));
 
       if (application) {
-        recentApplications.push({
+        recentApplications.push(session.organizationId, {
           id: application.id,
           name: application.name,
           status: application.status,
@@ -119,6 +141,14 @@
     },
     { immediate: true },
   );
+
+  const removeRecentApplication = (applicationId: string) => {
+    if (!session.organizationId) {
+      return;
+    }
+
+    recentApplications.remove(session.organizationId, applicationId);
+  };
 
   const appearanceOptions: { label: string; value: AppearanceMode }[] = [
     { label: 'Light', value: 'light' },
@@ -138,7 +168,7 @@
 
     await api.post('/auth/logout').catch(() => undefined);
 
-    session.clear();
+    useSession().endSession();
     await navigateTo('/auth/login');
   };
 </script>
@@ -177,18 +207,26 @@
         </NuxtLink>
       </div>
 
-      <div v-if="recentApplications.items.length" class="flex flex-col gap-0.5">
-        <div class="px-2.5 pb-1.5 text-label text-ink-3 uppercase">Pinned applications</div>
+      <div v-if="recentApplications.current.length" class="flex flex-col gap-0.5">
+        <div class="px-2.5 pb-1.5 text-label text-ink-3 uppercase">Recent applications</div>
         <NuxtLink
-          v-for="app in recentApplications.items"
+          v-for="app in recentApplications.current"
           :key="app.id"
           :to="`/applications/${app.id}`"
-          class="flex items-center gap-2.5 rounded-[9px] px-2.5 py-1.5 text-[13.5px] text-rail-ink hover:bg-rail-hover"
+          class="group flex items-center gap-2.5 rounded-[9px] px-2.5 py-1.5 text-[13.5px] text-rail-ink hover:bg-rail-hover"
           :class="isApplicationActive(app.id) && 'bg-rail-active'"
           @click="close"
         >
           <StatusDot :status="applicationStatusDot(app.status)" />
           <span class="min-w-0 flex-1 truncate">{{ app.name }}</span>
+          <button
+            type="button"
+            title="Remove from recent"
+            class="shrink-0 cursor-pointer text-ink-3 opacity-0 hover:text-failed focus-visible:opacity-100 group-hover:opacity-100 group-focus-within:opacity-100"
+            @click.stop="removeRecentApplication(app.id)"
+          >
+            <Icon name="lucide:x" class="size-3" />
+          </button>
         </NuxtLink>
       </div>
     </nav>

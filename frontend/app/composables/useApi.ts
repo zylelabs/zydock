@@ -52,7 +52,7 @@ export const renewSession = async () => {
       return true;
     })
     .catch(() => {
-      session.clear();
+      useSession().endSession();
 
       return false;
     })
