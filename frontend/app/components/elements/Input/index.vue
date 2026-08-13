@@ -136,7 +136,7 @@
     :class="
       stacked
         ? [
-            'border-t transition-shadow first:border-t-0 focus-within:shadow-[inset_2px_0_0_0_var(--color-accent)]',
+            'border-t transition-shadow first:border-t-0 ',
             errorMessage || callError ? 'border-failed/40' : 'border-hairline',
           ]
         : 'gap-1.5'
@@ -148,12 +148,7 @@
           ? 'flex flex-col items-start gap-0.75 px-3.75 pt-2.25 pb-2.75'
           : [
               'flex in-data-rows:px-4.25',
-              boxed
-                ? 'gap-1.75 py-1.5'
-                : [
-                    'gap-3.5 transition-shadow focus-within:shadow-[inset_2px_0_0_0_var(--color-accent)]',
-                    compact ? 'py-2' : 'py-3',
-                  ],
+              boxed ? 'gap-1.75 py-1.5' : ['gap-3.5 transition-shadow ', compact ? 'py-2' : 'py-3'],
               type === 'textarea' ? 'items-start' : 'items-center',
               !bare && [
                 'border-b',
