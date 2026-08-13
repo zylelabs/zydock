@@ -138,6 +138,9 @@ export const removeDomainsOfApplications = async (applicationIds: string[]) => {
 
 export const hostnameTaken = (hostname: string) => domainModel.exists({ hostname }).then(Boolean);
 
+export const demoteAutoDomain = (domain: Domain) =>
+  domainModel.updateOne({ _id: domain._id }, { $set: { auto: false } });
+
 export const createDomain = (params: {
   organizationId: string;
   applicationId: string;
@@ -145,6 +148,7 @@ export const createDomain = (params: {
   hostname: string;
   pathPrefix?: string;
   tls: boolean;
+  auto?: boolean;
 }) => domainModel.create(params);
 
 export const updateDomain = async (domain: Domain, changes: UpdateDomainChanges) => {
@@ -185,6 +189,7 @@ export const serializeDomain = (domain: Domain) => ({
   hostname: domain.hostname,
   pathPrefix: domain.pathPrefix,
   tls: domain.tls,
+  auto: domain.auto,
   status: domain.status,
   lastError: domain.lastError,
   createdAt: domain.createdAt,

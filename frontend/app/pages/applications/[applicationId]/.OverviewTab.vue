@@ -6,6 +6,7 @@
     useDeployments,
     type Deployment,
   } from '~/composables/services/useDeployments';
+  import { useDomains } from '~/composables/services/useDomains';
   import { useMetrics } from '~/composables/services/useMetrics';
   import { formatDuration } from '~/utils';
 
@@ -16,6 +17,42 @@
   const applicationsApi = useApplications();
   const { list: listDeployments } = useDeployments();
   const metricsApi = useMetrics();
+  const domainsApi = useDomains();
+
+  const emptyDomains = { items: [], total: 0, page: 1, size: 0, pages: 0 };
+
+  const { data: domainsData } = useLazyAsyncData(
+    () => `application-${props.application.id}-overview-domains`,
+    () =>
+      session.organizationId
+        ? domainsApi.list({ applicationId: props.application.id })
+        : Promise.resolve(emptyDomains),
+    {
+      server: false,
+      watch: [() => session.organizationId, () => props.application.id],
+      default: () => emptyDomains,
+    },
+  );
+
+  const primaryDomain = computed(() => {
+    const items = domainsData.value?.items ?? [];
+
+    return items.find(domain => domain.auto) ?? items[0];
+  });
+
+  const domainCopied = ref(false);
+
+  const copyDomainUrl = async () => {
+    if (!primaryDomain.value) {
+      return;
+    }
+
+    await navigator.clipboard.writeText(
+      `${primaryDomain.value.tls ? 'https' : 'http'}://${primaryDomain.value.hostname}`,
+    );
+    domainCopied.value = true;
+    setTimeout(() => (domainCopied.value = false), 2000);
+  };
 
   const { data: servicesData } = useLazyAsyncData(
     () => `application-${props.application.id}-services`,
@@ -280,6 +317,30 @@
       <Icon name="lucide:loader" class="size-4 animate-spin" />
       Deployment in progress — view live logs
     </NuxtLink>
+
+    <div
+      v-if="primaryDomain"
+      class="flex items-center gap-2.5 rounded-card border border-edge bg-card px-4 py-3"
+    >
+      <Icon name="lucide:globe" class="size-4 shrink-0 text-ink-2" />
+      <a
+        :href="`${primaryDomain.tls ? 'https' : 'http'}://${primaryDomain.hostname}`"
+        target="_blank"
+        rel="noopener noreferrer"
+        class="truncate font-mono text-[13.5px] text-ink hover:underline"
+      >
+        {{ primaryDomain.hostname }}
+      </a>
+      <Tag v-if="primaryDomain.auto" color="default">Automatic</Tag>
+      <button
+        type="button"
+        title="Copy URL"
+        class="cursor-pointer rounded-control p-1 text-ink-2 hover:bg-inset hover:text-ink"
+        @click="copyDomainUrl"
+      >
+        <Icon :name="domainCopied ? 'lucide:check' : 'lucide:copy'" class="size-3.5" />
+      </button>
+    </div>
 
     <div class="grid gap-4.5 lg:grid-cols-[1.4fr_1fr]">
       <div class="flex flex-col gap-4.5">

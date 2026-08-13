@@ -5,6 +5,7 @@ interface DomainData {
   hostname: string;
   pathPrefix?: string;
   tls: boolean;
+  auto: boolean;
   status: DomainStatus;
   lastError?: string;
 }

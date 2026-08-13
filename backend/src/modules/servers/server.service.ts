@@ -1,3 +1,4 @@
+import { isIP } from 'node:net';
 import config from '../../config';
 import { resolveSshProvider, type SshCredentials } from '../../providers/ssh';
 import { decryptSecret, encryptSecret } from '../../utils/crypto';
@@ -15,6 +16,48 @@ export const scoped = (organizationId: string) => {
   const localServerId = getLocalServerId();
 
   return localServerId ? { $or: [{ organizationId }, { _id: localServerId }] } : { organizationId };
+};
+
+const isPrivateIpv4 = (value: string) => {
+  const [a, b] = value.split('.').map(Number);
+
+  return (
+    a === 10 ||
+    a === 127 ||
+    a === 0 ||
+    (a === 169 && b === 254) ||
+    (a === 172 && b >= 16 && b <= 31) ||
+    (a === 192 && b === 168) ||
+    (a === 100 && b >= 64 && b <= 127) ||
+    a >= 224
+  );
+};
+
+const isPrivateIpv6 = (value: string) => {
+  const normalized = value.toLowerCase();
+
+  return (
+    normalized === '::' ||
+    normalized === '::1' ||
+    normalized.startsWith('fe80:') ||
+    normalized.startsWith('fc') ||
+    normalized.startsWith('fd') ||
+    normalized.startsWith('::ffff:')
+  );
+};
+
+export const isPublicIp = (value: string) => {
+  const version = isIP(value);
+
+  if (version === 4) {
+    return !isPrivateIpv4(value);
+  }
+
+  if (version === 6) {
+    return !isPrivateIpv6(value);
+  }
+
+  return false;
 };
 
 export const AGENT_TOKEN_BYTES = 32;
@@ -159,6 +202,7 @@ export const serializeServer = (server: Server) => ({
   status: server.status,
   online: isAgentOnline(server),
   managed: isLocalServer(server),
+  publicIp: server.publicIp,
   ssh: {
     host: server.ssh.host,
     port: server.ssh.port,

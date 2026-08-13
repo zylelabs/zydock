@@ -192,6 +192,18 @@
 
   const domainDaysRemaining = (expiresAt?: string) =>
     expiresAt ? Math.ceil((new Date(expiresAt).getTime() - Date.now()) / 86400000) : undefined;
+
+  const copiedDomain = ref('');
+
+  const copyDomainUrl = async (domain: Domain) => {
+    await navigator.clipboard.writeText(`${domain.tls ? 'https' : 'http'}://${domain.hostname}`);
+    copiedDomain.value = domain.id;
+    setTimeout(() => {
+      if (copiedDomain.value === domain.id) {
+        copiedDomain.value = '';
+      }
+    }, 2000);
+  };
 </script>
 
 <template>
@@ -256,6 +268,18 @@
         <span class="truncate font-mono text-[13.5px] text-ink">
           {{ domain.hostname }}{{ domain.pathPrefix }}
         </span>
+        <button
+          type="button"
+          title="Copy URL"
+          class="cursor-pointer rounded-control p-1 text-ink-2 hover:bg-inset hover:text-ink"
+          @click="copyDomainUrl(domain)"
+        >
+          <Icon
+            :name="copiedDomain === domain.id ? 'lucide:check' : 'lucide:copy'"
+            class="size-3.5"
+          />
+        </button>
+        <Tag v-if="domain.auto" color="default">Automatic</Tag>
         <Tag :color="DOMAIN_STATUS[domain.status].color">{{
           DOMAIN_STATUS[domain.status].label
         }}</Tag>
@@ -294,6 +318,12 @@
 
       <p v-if="domain.lastError" class="mt-1.5 truncate text-caption text-failed">
         {{ domain.lastError }}
+      </p>
+      <p
+        v-else-if="domain.tls && domain.status === 'pending'"
+        class="mt-1.5 text-caption text-ink-2"
+      >
+        Issuing the certificate — this can take a minute after the first apply.
       </p>
 
       <form
@@ -358,7 +388,11 @@
     <Confirm
       v-model:open="removeDomainOpen"
       title="Remove domain"
-      :message="`Remove ${domainToRemove?.hostname}? The route stops responding.`"
+      :message="
+        domainToRemove?.auto
+          ? `Remove ${domainToRemove?.hostname}? The route stops responding, and this automatic domain won't be recreated on the next deploy.`
+          : `Remove ${domainToRemove?.hostname}? The route stops responding.`
+      "
       confirm-label="Remove"
       danger
       :loading="removingDomain"

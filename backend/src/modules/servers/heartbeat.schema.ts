@@ -18,6 +18,7 @@ export const heartbeatSchema = z.object({
     .optional(),
   dockerVersion: z.string().max(64).optional(),
   composeVersion: z.string().max(64).optional(),
+  publicIp: z.string().max(45).optional(),
 });
 
 export type HeartbeatDTO = z.infer<typeof heartbeatSchema>;

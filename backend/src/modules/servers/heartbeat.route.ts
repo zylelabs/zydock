@@ -9,6 +9,7 @@ import { publish } from '../websocket/websocket.service';
 import { HeartbeatDTO, heartbeatSchema } from './heartbeat.schema';
 import { getLocalServerId } from './local-server.service';
 import serverModel from './server.model';
+import { isPublicIp } from './server.service';
 import { serversDocs } from './servers.docs';
 
 const { router, get, post } = createRouter();
@@ -47,6 +48,7 @@ post(
     }
 
     const body = c.req.valid('json' as never) as HeartbeatDTO;
+    const reportsNewPublicIp = body.publicIp && !server.publicIp && isPublicIp(body.publicIp);
 
     await serverModel.updateOne(
       { _id: serverId },
@@ -57,6 +59,7 @@ post(
           'agent.lastHeartbeatAt': new Date(),
           ...(body.dockerVersion ? { 'resources.dockerVersion': body.dockerVersion } : {}),
           ...(body.composeVersion ? { 'resources.composeVersion': body.composeVersion } : {}),
+          ...(reportsNewPublicIp ? { publicIp: body.publicIp } : {}),
         },
       },
     );

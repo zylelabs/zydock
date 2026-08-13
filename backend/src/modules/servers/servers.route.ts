@@ -23,6 +23,7 @@ import {
   encryptSshCredentials,
   findServer,
   findServerWithSecrets,
+  isPublicIp,
   probeConnection,
   scoped,
   serializeServer,
@@ -83,6 +84,7 @@ post(
       name: body.name,
       type: 'ssh',
       status: 'pending',
+      publicIp: isPublicIp(body.ssh.host) ? body.ssh.host : undefined,
       ssh: { ...encryptSshCredentials(body.ssh), fingerprint: probe.fingerprint },
       agent: { port: body.agentPort ?? 9000 },
       resources: {
@@ -139,6 +141,7 @@ patch(
     }
 
     const update: Record<string, unknown> = {};
+    const unset: Record<string, unknown> = {};
 
     if (body.name !== undefined) {
       update.name = body.name;
@@ -154,7 +157,29 @@ patch(
       update.ssh = { ...encryptSshCredentials(body.ssh), fingerprint: probe.fingerprint };
     }
 
-    await serverModel.updateOne({ _id: serverId }, { $set: update });
+    if (body.publicIp !== undefined) {
+      if (body.publicIp === '') {
+        unset.publicIp = '';
+      } else if (!isPublicIp(body.publicIp)) {
+        return c.json({ error: 'publicIp must be a routable public IP address' }, 400);
+      } else {
+        update.publicIp = body.publicIp;
+      }
+    }
+
+    const operations: Record<string, unknown> = {};
+
+    if (Object.keys(update).length) {
+      operations.$set = update;
+    }
+
+    if (Object.keys(unset).length) {
+      operations.$unset = unset;
+    }
+
+    if (Object.keys(operations).length) {
+      await serverModel.updateOne({ _id: serverId }, operations);
+    }
 
     const updated = await serverModel.findById(serverId);
 

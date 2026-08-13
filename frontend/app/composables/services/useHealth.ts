@@ -4,6 +4,7 @@ export interface HealthReport {
   commit: string;
   uptime: number;
   timestamp: string;
+  autoDomain: { enabled: boolean; suffix: string };
 }
 
 export const installedVersionLabel = (installed?: { version?: string; commit?: string } | null) => {

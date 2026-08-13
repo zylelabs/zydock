@@ -2,6 +2,7 @@ import config from '../../config';
 import { encryptSecret } from '../../utils/crypto';
 import { logInfo, logWarn } from '../../utils/logger';
 import serverModel from './server.model';
+import { isPublicIp } from './server.service';
 
 let localServerId: string | undefined;
 
@@ -20,18 +21,24 @@ export const ensureLocalServer = async () => {
   const [primary, ...extras] = candidates;
 
   const encryptedToken = encryptSecret(config.localServer.token);
+  const detectedPublicIp = isPublicIp(config.localServer.publicIp)
+    ? config.localServer.publicIp
+    : undefined;
 
   if (primary) {
+    const set: Record<string, unknown> = {
+      'agent.host': config.localServer.agentHost,
+      'agent.port': config.localServer.agentPort,
+      'agent.token': encryptedToken,
+    };
+
+    if (detectedPublicIp && !primary.publicIp) {
+      set.publicIp = detectedPublicIp;
+    }
+
     await serverModel.updateOne(
       { _id: primary._id },
-      {
-        $set: {
-          'agent.host': config.localServer.agentHost,
-          'agent.port': config.localServer.agentPort,
-          'agent.token': encryptedToken,
-        },
-        $unset: { organizationId: '' },
-      },
+      { $set: set, $unset: { organizationId: '' } },
     );
 
     localServerId = String(primary._id);
@@ -41,6 +48,7 @@ export const ensureLocalServer = async () => {
       name: config.localServer.name,
       type: 'local',
       status: 'pending',
+      publicIp: detectedPublicIp,
       agent: {
         host: config.localServer.agentHost,
         port: config.localServer.agentPort,

@@ -13,6 +13,7 @@
   const editSchema = z
     .object({
       name: z.string().trim().min(1, 'Enter a name'),
+      publicIp: z.string().trim(),
       changeSsh: z.boolean(),
       host: z.string(),
       port: z.string(),
@@ -52,6 +53,7 @@
     editSchema,
     {
       name: '',
+      publicIp: '',
       changeSsh: false,
       host: '',
       port: '22',
@@ -84,6 +86,7 @@
   const handleSave = form.submit(async values => {
     await update(props.server.id, {
       name: values.name,
+      publicIp: values.publicIp,
       ...(values.changeSsh ? { ssh: buildSsh(values) } : {}),
     });
 
@@ -98,6 +101,7 @@
 
     form.reset();
     form.values.name = props.server.name;
+    form.values.publicIp = props.server.publicIp ?? '';
     form.values.host = props.server.ssh.host ?? '';
     form.values.username = props.server.ssh.username ?? 'root';
     form.values.port = String(props.server.ssh.port ?? 22);
@@ -114,6 +118,20 @@
         bare
         :call-error="form.errors.value.name"
       />
+
+      <Input
+        v-model="form.values.publicIp"
+        label="Public IP (optional)"
+        placeholder="Auto-detected"
+        mono
+        boxed
+        bare
+        :call-error="form.errors.value.publicIp"
+      />
+      <p class="-mt-2 text-caption text-ink-2">
+        Set this when the server sits behind NAT and its public IP can't be auto-detected. Leave
+        blank to auto-detect.
+      </p>
 
       <template v-if="server.type === 'ssh'">
         <Switch v-model="form.values.changeSsh" label="Change SSH credentials" />

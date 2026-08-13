@@ -106,6 +106,7 @@ const applicationSchema = new Schema(
       default: 'unless-stopped',
     },
     lastError: { type: String },
+    autoDomainDisabled: { type: Boolean, required: true, default: false },
   },
   {
     versionKey: false,

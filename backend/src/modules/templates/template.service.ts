@@ -15,6 +15,7 @@ import type { CreateApplicationDTO } from '../applications/application.schema';
 import { findHostPortConflict } from '../applications/port-guard.service';
 import { registryReferenceOf, validateComposeSecurity } from '../compose/compose.schema';
 import { parseComposeDocument, publishedPortsOf } from '../compose/compose.service';
+import { ensureAutoDomain } from '../domains/auto-domain.service';
 import {
   findDatabasesOfApplication,
   registerComposeDatabases,
@@ -833,6 +834,7 @@ export const deployTemplateApplication = async (params: {
     });
 
     await registerComposeDatabases(application, template.databases);
+    await ensureAutoDomain(application);
 
     const deployment = body.deployNow
       ? await enqueueDeployment({ application, trigger: 'manual', triggeredBy })

@@ -23,6 +23,13 @@ export const serverSchema = {
       type: 'boolean',
       description: 'True for the local server that comes installed with the system.',
     },
+    publicIp: {
+      type: 'string',
+      nullable: true,
+      description:
+        'Routable public IP address, derived from the SSH host or the agent heartbeat, or set ' +
+        'manually when the server sits behind NAT.',
+    },
     ssh: {
       type: 'object',
       properties: {
@@ -150,11 +157,15 @@ export const serversDocs = {
   update: {
     tags: ['Servers'],
     summary: 'Update a server',
-    description: 'Updates the name and/or the SSH credentials. Admin or owner.',
+    description:
+      'Updates the name, the SSH credentials and/or the public IP. Admin or owner. Set `publicIp` ' +
+      'to an empty string to clear a manual override and fall back to auto-detection.',
     security: bearerOrApiKeyAuth,
     responses: {
       200: jsonRes('Updated server.', serverWrapped),
-      400: errorRes('The SSH connection failed, or the target is the local server.'),
+      400: errorRes(
+        'The SSH connection failed, the public IP is not a routable address, or the target is the local server.',
+      ),
       403: errorRes('Permission denied.'),
       404: errorRes('Server not found.'),
     },
@@ -204,8 +215,9 @@ export const serversDocs = {
     summary: 'Agent heartbeat',
     description:
       'Called by the agent installed on the server, authenticated with its own token via the ' +
-      '`X-Agent-Token` header. Updates the status and the reported metrics, and republishes them ' +
-      'to the `server:<id>:metrics` WebSocket topic.',
+      '`X-Agent-Token` header. Updates the status and the reported metrics, republishes them to ' +
+      'the `server:<id>:metrics` WebSocket topic, and fills `publicIp` from the reported address ' +
+      'when the server does not have one yet.',
     responses: {
       200: messageRes('Heartbeat accepted.'),
       401: errorRes('Invalid agent token.'),

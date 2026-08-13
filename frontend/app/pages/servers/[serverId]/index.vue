@@ -174,6 +174,12 @@
           <StatusDot :status="serverStatusDot(server.status)" />
           {{ STATUS_LABEL[server.status] }}
         </div>
+        <div
+          v-if="server.publicIp"
+          class="flex items-center gap-1.5 rounded-full border border-edge bg-card px-2.75 py-1.25 font-mono text-[12.5px] text-ink-2"
+        >
+          {{ server.publicIp }}
+        </div>
 
         <div class="flex-1" />
 

@@ -234,6 +234,9 @@ export const removeApplicationsOfProject = (projectId: string) =>
 export const countApplicationsOfServer = (serverId: string) =>
   applicationModel.countDocuments({ serverId });
 
+export const disableAutoDomain = (applicationId: string) =>
+  applicationModel.updateOne({ _id: applicationId }, { $set: { autoDomainDisabled: true } });
+
 export const countApplicationsOfGitSource = (gitSourceId: string) =>
   applicationModel.countDocuments({ 'git.gitSourceId': gitSourceId });
 
@@ -351,6 +354,7 @@ export const serializeApplication = (application: Application) => ({
   version: currentVersionOf(application),
   templateStatus: templateStatusOf(application),
   lastError: application.lastError,
+  autoDomainDisabled: application.autoDomainDisabled,
   createdAt: application.createdAt,
   updatedAt: application.updatedAt,
 });

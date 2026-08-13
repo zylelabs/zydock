@@ -28,6 +28,7 @@ import {
   secretValuesOf,
 } from '../compose/compose.service';
 import { renderOverrideDocument } from '../compose/override.service';
+import { ensureAutoDomain } from '../domains/auto-domain.service';
 import { applyApplicationDomains } from '../domains/domain.service';
 import { enqueueJob, registerJobHandler } from '../queue/queue.service';
 import { buildAgentConnection, findServerById } from '../servers/server.service';
@@ -431,6 +432,8 @@ export const runDeployment = async (deploymentId: string) => {
 
       startStep('proxy');
 
+      await ensureAutoDomain(application);
+
       const domains = await applyApplicationDomains(application, connection);
 
       if (domains.length === 0) {
@@ -554,6 +557,8 @@ export const runDeployment = async (deploymentId: string) => {
 
       try {
         startStep('proxy');
+
+        await ensureAutoDomain(application);
 
         const domains = await applyApplicationDomains(application, connection);
 

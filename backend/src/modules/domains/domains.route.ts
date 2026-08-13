@@ -3,7 +3,7 @@ import { createRouter, validator } from 'hono-route-docs';
 import { errorMessage } from '../../utils';
 import { agentFailureStatus } from '../../utils/agent';
 import { paginationQuery } from '../../utils/pagination';
-import { findApplication } from '../applications/application.service';
+import { disableAutoDomain, findApplication } from '../applications/application.service';
 import { authMiddleware } from '../auth/auth.middleware';
 import { OrganizationIdParam, organizationIdParamSchema } from '../organizations/membership.schema';
 import { createOrganizationRoleGuard } from '../organizations/organizations.middleware';
@@ -220,6 +220,10 @@ del(
 
     if (!domain) {
       return c.json({ error: 'Domain not found' }, 404);
+    }
+
+    if (domain.auto) {
+      await disableAutoDomain(String(domain.applicationId));
     }
 
     await removeDomain(domain);

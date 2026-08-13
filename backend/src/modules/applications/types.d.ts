@@ -83,6 +83,7 @@ interface ApplicationData {
   resources?: ApplicationResources;
   restartPolicy: import('./application.schema').ApplicationRestartPolicy;
   lastError?: string;
+  autoDomainDisabled: boolean;
 }
 
 type Application = BaseDocument<ApplicationData>;

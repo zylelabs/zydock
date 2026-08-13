@@ -12,6 +12,7 @@ const serverSchema = new Schema(
     name: { type: String, required: true, trim: true },
     type: { type: String, required: true, enum: SERVER_TYPES, default: 'ssh' },
     status: { type: String, required: true, enum: SERVER_STATUSES, default: 'pending' },
+    publicIp: { type: String, trim: true },
     ssh: {
       host: { type: String, trim: true },
       port: { type: Number, default: 22 },

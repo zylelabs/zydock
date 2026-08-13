@@ -35,6 +35,7 @@ export interface Server {
   status: ServerStatus;
   online: boolean;
   managed: boolean;
+  publicIp?: string;
   ssh: { host?: string; port?: number; username?: string; fingerprint?: string };
   agent: {
     host?: string;
@@ -75,6 +76,7 @@ export interface CreateServerBody {
 export interface UpdateServerBody {
   name?: string;
   ssh?: SshCredentials;
+  publicIp?: string;
 }
 
 export type ProvisioningStepName =
