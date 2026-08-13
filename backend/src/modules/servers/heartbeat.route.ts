@@ -1,6 +1,7 @@
 import type { Context } from 'hono';
 import { timingSafeEqual } from 'node:crypto';
 import { createRouter, validator } from 'hono-route-docs';
+import { getConnInfo } from 'hono/bun';
 import config from '../../config';
 import applicationModel from '../applications/application.model';
 import { decryptSecret } from '../../utils/crypto';
@@ -9,7 +10,7 @@ import { publish } from '../websocket/websocket.service';
 import { HeartbeatDTO, heartbeatSchema } from './heartbeat.schema';
 import { getLocalServerId } from './local-server.service';
 import serverModel from './server.model';
-import { isPublicIp } from './server.service';
+import { resolveHeartbeatPublicIp } from './server.service';
 import { serversDocs } from './servers.docs';
 
 const { router, get, post } = createRouter();
@@ -23,6 +24,14 @@ const matchesLocalToken = (candidate: string) => {
   }
 
   return timingSafeEqual(provided, expected);
+};
+
+const resolveConnectionIp = (c: Context) => {
+  try {
+    return getConnInfo(c).remote.address;
+  } catch {
+    return undefined;
+  }
 };
 
 post(
@@ -48,7 +57,17 @@ post(
     }
 
     const body = c.req.valid('json' as never) as HeartbeatDTO;
-    const reportsNewPublicIp = body.publicIp && !server.publicIp && isPublicIp(body.publicIp);
+
+    const forwardedFor = c.req.header('X-Forwarded-For');
+    const connectionIp = forwardedFor
+      ? forwardedFor
+          .split(',')
+          .map(part => part.trim())
+          .filter(Boolean)
+          .pop()
+      : resolveConnectionIp(c);
+
+    const resolvedPublicIp = resolveHeartbeatPublicIp(connectionIp, body.publicIp);
 
     await serverModel.updateOne(
       { _id: serverId },
@@ -59,7 +78,7 @@ post(
           'agent.lastHeartbeatAt': new Date(),
           ...(body.dockerVersion ? { 'resources.dockerVersion': body.dockerVersion } : {}),
           ...(body.composeVersion ? { 'resources.composeVersion': body.composeVersion } : {}),
-          ...(reportsNewPublicIp ? { publicIp: body.publicIp } : {}),
+          ...(resolvedPublicIp && !server.publicIp ? { publicIp: resolvedPublicIp } : {}),
         },
       },
     );

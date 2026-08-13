@@ -17,6 +17,47 @@ fail() {
   exit 1
 }
 
+is_private_ipv4() {
+  local ip="$1" a b
+  a="${ip%%.*}"
+  b="$(echo "${ip}" | cut -d. -f2)"
+
+  case "${a}" in
+  10 | 127 | 0) return 0 ;;
+  169) [ "${b}" = 254 ] && return 0 ;;
+  172) [ "${b}" -ge 16 ] 2>/dev/null && [ "${b}" -le 31 ] && return 0 ;;
+  192) [ "${b}" = 168 ] && return 0 ;;
+  100) [ "${b}" -ge 64 ] 2>/dev/null && [ "${b}" -le 127 ] && return 0 ;;
+  esac
+
+  return 1
+}
+
+detect_public_ip() {
+  local ip_regex='^[0-9]{1,3}\.[0-9]{1,3}\.[0-9]{1,3}\.[0-9]{1,3}$'
+  local candidate="" addr host
+
+  while read -r addr; do
+    if [ -n "${addr}" ] && ! is_private_ipv4 "${addr}"; then
+      candidate="${addr}"
+      break
+    fi
+  done < <(ip -4 -o addr show scope global 2>/dev/null | awk '{print $4}' | cut -d/ -f1)
+
+  if [ -z "${candidate}" ] && command -v dig >/dev/null 2>&1; then
+    candidate="$(dig +short myip.opendns.com @resolver1.opendns.com 2>/dev/null | tail -n1 | tr -d '[:space:]')"
+  fi
+
+  if [ -z "${candidate}" ]; then
+    for host in https://checkip.amazonaws.com https://icanhazip.com https://api.ipify.org; do
+      candidate="$(curl -fsS "${host}" 2>/dev/null | tr -d '[:space:]')"
+      [ -n "${candidate}" ] && break
+    done
+  fi
+
+  echo "${candidate}" | grep -qE "${ip_regex}" && echo "${candidate}"
+}
+
 ensure_env() {
   local key="$1" value="$2"
 
@@ -133,13 +174,12 @@ fi
 cd "${ZYDOCK_INSTALL_DIR}"
 
 git fetch --tags origin "${BRANCH}"
-# This directory is a deployed instance, not a workspace: any local edit is discarded on update.
 git reset --hard "$(channel_ref "${CHANNEL}")"
 
 if [ ! -f .env ]; then
   log "Generating secrets"
 
-  ZYDOCK_HOST="${ZYDOCK_HOST:-$(curl -fsS https://api.ipify.org || true)}"
+  ZYDOCK_HOST="${ZYDOCK_HOST:-$(detect_public_ip || true)}"
   [ -n "${ZYDOCK_HOST}" ] || [ -n "${ZYDOCK_DOMAIN}" ] || fail "Could not autodetect the public IP — set ZYDOCK_HOST or ZYDOCK_DOMAIN explicitly."
 
   ZYDOCK_SUPERUSER_EMAIL="${ZYDOCK_SUPERUSER_EMAIL:-admin@${ZYDOCK_DOMAIN:-zydock.local}}"
@@ -185,7 +225,7 @@ EOF
 else
   log "Existing install found — reusing .env, updating in place"
   ensure_env LOCAL_AGENT_TOKEN "$(openssl rand -hex 32)"
-  ensure_env PUBLIC_IP "$(curl -fsS https://api.ipify.org || true)"
+  ensure_env PUBLIC_IP "$(detect_public_ip || true)"
   migrate_port_urls
 fi
 

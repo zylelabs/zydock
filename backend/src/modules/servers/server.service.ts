@@ -60,6 +60,18 @@ export const isPublicIp = (value: string) => {
   return false;
 };
 
+export const resolveHeartbeatPublicIp = (connectionIp?: string, reportedIp?: string) => {
+  if (connectionIp && isPublicIp(connectionIp)) {
+    return connectionIp;
+  }
+
+  if (reportedIp && isPublicIp(reportedIp)) {
+    return reportedIp;
+  }
+
+  return undefined;
+};
+
 export const AGENT_TOKEN_BYTES = 32;
 
 export const generateAgentToken = () => generateToken(AGENT_TOKEN_BYTES);
