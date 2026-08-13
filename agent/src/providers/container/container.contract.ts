@@ -118,12 +118,14 @@ export type NetworkInfo = {
   id: string;
   name: string;
   driver: string;
+  labels: Record<string, string>;
 };
 
 export type VolumeInfo = {
   name: string;
   driver: string;
   mountpoint: string;
+  labels: Record<string, string>;
 };
 
 export type ConsoleRequest = {

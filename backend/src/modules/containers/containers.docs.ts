@@ -25,12 +25,17 @@ export const containerSchema = {
       },
     },
     labels: { type: 'object', additionalProperties: { type: 'string' } },
+    protected: { type: 'boolean' },
   },
 };
 
 const unreachable = errorRes('The agent of this server could not be reached.');
 
 const notProvisioned = errorRes('This server has no agent yet.');
+
+const protectedRes = errorRes(
+  'The resource is part of the Zydock platform and cannot be stopped or removed.',
+);
 
 export const containersDocs = {
   list: {
@@ -102,6 +107,7 @@ export const containersDocs = {
     responses: {
       200: messageRes('Container stopped.'),
       404: errorRes('Container not found.'),
+      423: protectedRes,
       502: unreachable,
     },
   },
@@ -112,6 +118,7 @@ export const containersDocs = {
     responses: {
       200: messageRes('Container restarted.'),
       404: errorRes('Container not found.'),
+      423: protectedRes,
       502: unreachable,
     },
   },
@@ -126,6 +133,7 @@ export const containersDocs = {
     responses: {
       200: messageRes('Container removed.'),
       404: errorRes('Container not found.'),
+      423: protectedRes,
       502: unreachable,
     },
   },

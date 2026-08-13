@@ -7,10 +7,14 @@ const networkSchema = {
     id: { type: 'string' },
     name: { type: 'string' },
     driver: { type: 'string' },
+    labels: { type: 'object', additionalProperties: { type: 'string' } },
+    protected: { type: 'boolean' },
   },
 };
 
 const unreachable = errorRes('The agent of this server could not be reached.');
+
+const protectedRes = errorRes('The network is part of the Zydock platform and cannot be removed.');
 
 export const networksDocs = {
   list: {
@@ -46,6 +50,7 @@ export const networksDocs = {
       200: messageRes('Network removed.'),
       400: errorRes('The network is still in use by a container.'),
       404: errorRes('Server not found.'),
+      423: protectedRes,
       502: unreachable,
     },
   },

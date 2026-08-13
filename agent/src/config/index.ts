@@ -22,6 +22,16 @@ const readNumber = (name: string, fallback: number) => {
   return value;
 };
 
+const readBoolean = (name: string, fallback: boolean) => {
+  const value = process.env[name];
+
+  if (value === undefined || value.trim() === '') {
+    return fallback;
+  }
+
+  return value.trim().toLowerCase() === 'true';
+};
+
 const readRequired = (name: string) => {
   const value = process.env[name];
 
@@ -56,6 +66,7 @@ export default {
   metricsCacheTtlSeconds: readNumber('METRICS_CACHE_TTL_SECONDS', 5),
   workspacePath: readString('WORKSPACE_PATH', '/var/lib/zydock/builds'),
   dockerSocketPath: readString('DOCKER_SOCKET_PATH', '/var/run/docker.sock'),
+  allowSystemContainerRemoval: readBoolean('ALLOW_SYSTEM_CONTAINER_REMOVAL', false),
   installPath: readString('ZYDOCK_INSTALL_DIR', '/data/zydock'),
   updaterImage: readString('UPDATER_IMAGE', 'docker:cli'),
   proxy: {

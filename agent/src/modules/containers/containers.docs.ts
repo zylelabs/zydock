@@ -12,8 +12,13 @@ const containerSchema = {
     startedAt: { type: 'string', nullable: true },
     restartCount: { type: 'integer' },
     labels: { type: 'object', additionalProperties: { type: 'string' } },
+    protected: { type: 'boolean' },
   },
 };
+
+const protectedRes = errorRes(
+  'The container is part of the Zydock platform and cannot be changed.',
+);
 
 export const containersDocs = {
   list: {
@@ -63,19 +68,31 @@ export const containersDocs = {
     tags: ['Containers'],
     summary: 'Stop a container',
     security: agentAuth,
-    responses: { 200: messageRes('Container stopped.'), 400: errorRes('Operation failed.') },
+    responses: {
+      200: messageRes('Container stopped.'),
+      400: errorRes('Operation failed.'),
+      423: protectedRes,
+    },
   },
   restart: {
     tags: ['Containers'],
     summary: 'Restart a container',
     security: agentAuth,
-    responses: { 200: messageRes('Container restarted.'), 400: errorRes('Operation failed.') },
+    responses: {
+      200: messageRes('Container restarted.'),
+      400: errorRes('Operation failed.'),
+      423: protectedRes,
+    },
   },
   remove: {
     tags: ['Containers'],
     summary: 'Remove a container',
     security: agentAuth,
-    responses: { 200: messageRes('Container removed.'), 400: errorRes('Operation failed.') },
+    responses: {
+      200: messageRes('Container removed.'),
+      400: errorRes('Operation failed.'),
+      423: protectedRes,
+    },
   },
   logs: {
     tags: ['Containers'],

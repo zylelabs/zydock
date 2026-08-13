@@ -6,6 +6,7 @@ import { openAPIDoc } from 'hono-route-docs';
 import config from './config';
 import { startHeartbeat, stopHeartbeat } from './modules/agent/heartbeat.service';
 import { startHealthMonitor, stopHealthMonitor } from './modules/agent/monitor.service';
+import { resolveOwnContainer } from './modules/containers/protection.service';
 import {
   startAccessAggregation,
   stopAccessAggregation,
@@ -87,6 +88,7 @@ export const createApp = () => {
   loadMiddlewares(app);
   loadRoutes(app);
 
+  resolveOwnContainer();
   startHeartbeat();
   startHealthMonitor();
   startAccessAggregation();

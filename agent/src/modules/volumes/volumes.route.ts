@@ -3,6 +3,11 @@ import { createRouter, validator } from 'hono-route-docs';
 import { resolveContainerProvider } from '../../providers/container';
 import { errorMessage } from '../../utils';
 import { agentAuthMiddleware } from '../agent/agent.middleware';
+import {
+  assertUnprotected,
+  isProtectedResource,
+  protectedResourceStatus,
+} from '../containers/protection.service';
 import { volumesDocs } from './volumes.docs';
 import {
   CreateVolumeDTO,
@@ -15,9 +20,11 @@ const { router, get, post, delete: del } = createRouter();
 
 const containers = resolveContainerProvider();
 
-get('/', volumesDocs.list, agentAuthMiddleware, async (c: Context) =>
-  c.json(await containers.listVolumes()),
-);
+get('/', volumesDocs.list, agentAuthMiddleware, async (c: Context) => {
+  const list = await containers.listVolumes();
+
+  return c.json(list.map(volume => ({ ...volume, protected: isProtectedResource(volume.labels) })));
+});
 
 post(
   '/',
@@ -44,11 +51,12 @@ del(
     const { name } = c.req.valid('param' as never) as VolumeNameParam;
 
     try {
+      await assertUnprotected('volume', name);
       await containers.removeVolume(name);
 
       return c.json({ message: 'Volume removed' });
     } catch (error) {
-      return c.json({ error: errorMessage(error) }, 400);
+      return c.json({ error: errorMessage(error) }, protectedResourceStatus(error) ?? 400);
     }
   },
 );

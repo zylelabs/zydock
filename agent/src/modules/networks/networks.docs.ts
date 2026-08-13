@@ -7,6 +7,8 @@ const networkSchema = {
     id: { type: 'string' },
     name: { type: 'string' },
     driver: { type: 'string' },
+    labels: { type: 'object', additionalProperties: { type: 'string' } },
+    protected: { type: 'boolean' },
   },
 };
 
@@ -37,6 +39,7 @@ export const networksDocs = {
     responses: {
       200: messageRes('Network removed.'),
       400: errorRes('Operation failed.'),
+      423: errorRes('The network is part of the Zydock platform and cannot be removed.'),
     },
   },
 } satisfies Record<string, DocOptions>;
