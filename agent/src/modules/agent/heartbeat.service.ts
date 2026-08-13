@@ -1,3 +1,4 @@
+import { networkInterfaces } from 'node:os';
 import config from '../../config';
 import { logDebug, logWarn } from '../../utils/logger';
 import { composeVersion } from '../compose/compose.service';
@@ -17,32 +18,41 @@ const readComposeVersion = async () => {
   }
 };
 
-const readPublicIp = async () => {
+const isPrivateIpv4 = (value: string) => {
+  const [a, b] = value.split('.').map(Number);
+
+  return (
+    a === 10 ||
+    a === 127 ||
+    (a === 169 && b === 254) ||
+    (a === 172 && b >= 16 && b <= 31) ||
+    (a === 192 && b === 168) ||
+    (a === 100 && b >= 64 && b <= 127)
+  );
+};
+
+const detectPublicIp = () => {
   if (detectedPublicIp) {
     return detectedPublicIp;
   }
 
-  try {
-    const response = await fetch('https://api.ipify.org', { signal: AbortSignal.timeout(5000) });
+  const interfaces = Object.values(networkInterfaces()).flat();
 
-    if (!response.ok) {
-      return undefined;
-    }
+  const found = interfaces.find(
+    entry => entry && entry.family === 'IPv4' && !entry.internal && !isPrivateIpv4(entry.address),
+  );
 
-    detectedPublicIp = (await response.text()).trim() || undefined;
+  detectedPublicIp = found?.address;
 
-    return detectedPublicIp;
-  } catch {
-    return undefined;
-  }
+  return detectedPublicIp;
 };
 
 const sendHeartbeat = async () => {
   const serverId = await resolveServerId();
-  const [metrics, composeVersionReported, publicIp] = await Promise.all([
+  const publicIp = detectPublicIp();
+  const [metrics, composeVersionReported] = await Promise.all([
     collectSystemMetrics(),
     readComposeVersion(),
-    readPublicIp(),
   ]);
 
   const response = await fetch(`${config.backendUrl}/api/agent/heartbeat/${serverId}`, {

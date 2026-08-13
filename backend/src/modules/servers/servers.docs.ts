@@ -27,8 +27,8 @@ export const serverSchema = {
       type: 'string',
       nullable: true,
       description:
-        'Routable public IP address, derived from the SSH host or the agent heartbeat, or set ' +
-        'manually when the server sits behind NAT.',
+        'Routable public IP address, derived from the SSH host or the source address of the ' +
+        'agent heartbeat request, or set manually when the server sits behind NAT.',
     },
     ssh: {
       type: 'object',
@@ -216,8 +216,9 @@ export const serversDocs = {
     description:
       'Called by the agent installed on the server, authenticated with its own token via the ' +
       '`X-Agent-Token` header. Updates the status and the reported metrics, republishes them to ' +
-      'the `server:<id>:metrics` WebSocket topic, and fills `publicIp` from the reported address ' +
-      'when the server does not have one yet.',
+      "the `server:<id>:metrics` WebSocket topic, and fills `publicIp` from the connection's " +
+      'source address (falling back to the address reported in the body) when the server does ' +
+      'not have one yet.',
     responses: {
       200: messageRes('Heartbeat accepted.'),
       401: errorRes('Invalid agent token.'),
