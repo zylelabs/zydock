@@ -6,8 +6,8 @@
 
 <template>
   <span :class="props.class">
-    <span v-for="(segment, index) in segments" :key="index" :style="segment.style"
-      >{{ segment.text }}
+    <span v-for="(segment, index) in segments" :key="index" :style="segment.style">
+      {{ segment.text }}
     </span>
   </span>
 </template>
