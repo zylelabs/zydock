@@ -1400,6 +1400,39 @@ describe('POST /applications/:applicationId/version', () => {
     expect(body.error).toContain('no longer in the catalog');
   });
 
+  test('exposes the running version when reading the application', async () => {
+    const response = await json(
+      `/organizations/${organizationId}/applications/${versionedApplicationId}`,
+      'GET',
+      undefined,
+      token,
+    );
+    const body = (await response.json()) as {
+      application: { version?: { key: string; current: string } };
+    };
+
+    expect(response.status).toBe(200);
+    expect(body.application.version).toEqual({ key: 'APP_VERSION', current: '1' });
+  });
+
+  test('exposes the running version when listing applications', async () => {
+    const response = await json(
+      `/organizations/${organizationId}/applications`,
+      'GET',
+      undefined,
+      token,
+    );
+    const body = (await response.json()) as {
+      items: Array<{ id: string; version?: { key: string; current: string } }>;
+    };
+
+    expect(response.status).toBe(200);
+    expect(body.items.find(item => item.id === versionedApplicationId)?.version).toEqual({
+      key: 'APP_VERSION',
+      current: '1',
+    });
+  });
+
   test('rejects when the template has no selectable versions', async () => {
     const response = await json(
       `/organizations/${organizationId}/applications/${noVersionsApplicationId}/version`,
