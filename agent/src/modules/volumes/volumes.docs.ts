@@ -7,6 +7,8 @@ const volumeSchema = {
     name: { type: 'string' },
     driver: { type: 'string' },
     mountpoint: { type: 'string' },
+    labels: { type: 'object', additionalProperties: { type: 'string' } },
+    protected: { type: 'boolean' },
   },
 };
 
@@ -37,6 +39,7 @@ export const volumesDocs = {
     responses: {
       200: messageRes('Volume removed.'),
       400: errorRes('Operation failed.'),
+      423: errorRes('The volume is part of the Zydock platform and cannot be removed.'),
     },
   },
 } satisfies Record<string, DocOptions>;

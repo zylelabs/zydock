@@ -50,10 +50,16 @@
 
   const ownerOf = (container: ContainerInfo) => container.labels?.[APPLICATION_LABEL];
 
+  const PROTECTED_TITLE = 'System resource of the Zydock platform — cannot be stopped or removed.';
+
   const handleAction = async (
     container: ContainerInfo,
     action: 'start' | 'stop' | 'restart' | 'remove',
   ) => {
+    if (action !== 'start' && container.protected) {
+      return;
+    }
+
     busy.value = `${container.id}:${action}`;
 
     try {
@@ -110,6 +116,9 @@
             (item as unknown as ContainerInfo).name
           }}</span>
           <Tag v-if="ownerOf(item as unknown as ContainerInfo)">app-managed</Tag>
+          <Tag v-if="(item as unknown as ContainerInfo).protected" :title="PROTECTED_TITLE"
+            >system</Tag
+          >
         </div>
       </template>
 
@@ -153,7 +162,11 @@
               v-else
               theme="secondary"
               size="xs"
-              :disabled="busy === `${(item as unknown as ContainerInfo).id}:stop`"
+              :title="(item as unknown as ContainerInfo).protected ? PROTECTED_TITLE : undefined"
+              :disabled="
+                busy === `${(item as unknown as ContainerInfo).id}:stop` ||
+                (item as unknown as ContainerInfo).protected
+              "
               @click="handleAction(item as unknown as ContainerInfo, 'stop')"
             >
               <Icon
@@ -166,7 +179,11 @@
             <Button
               theme="secondary"
               size="xs"
-              :disabled="busy === `${(item as unknown as ContainerInfo).id}:restart`"
+              :title="(item as unknown as ContainerInfo).protected ? PROTECTED_TITLE : undefined"
+              :disabled="
+                busy === `${(item as unknown as ContainerInfo).id}:restart` ||
+                (item as unknown as ContainerInfo).protected
+              "
               @click="handleAction(item as unknown as ContainerInfo, 'restart')"
             >
               <Icon
@@ -178,8 +195,11 @@
             </Button>
             <button
               type="button"
-              title="Remove container"
-              class="cursor-pointer rounded-button p-1.5 text-ink-2 hover:bg-inset hover:text-failed"
+              :title="
+                (item as unknown as ContainerInfo).protected ? PROTECTED_TITLE : 'Remove container'
+              "
+              class="cursor-pointer rounded-button p-1.5 text-ink-2 hover:bg-inset hover:text-failed disabled:cursor-not-allowed disabled:opacity-40 disabled:hover:bg-transparent disabled:hover:text-ink-2"
+              :disabled="(item as unknown as ContainerInfo).protected"
               @click="handleAction(item as unknown as ContainerInfo, 'remove')"
             >
               <Icon name="lucide:trash-2" class="size-4" />

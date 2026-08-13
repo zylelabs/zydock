@@ -106,10 +106,10 @@ export const isAbortError = (error: unknown) =>
 
 type AgentFailure = Error & { agentStatus?: number };
 
-export const agentFailureStatus = (error: unknown): 400 | 404 | 409 | 502 => {
+export const agentFailureStatus = (error: unknown): 400 | 404 | 409 | 423 | 502 => {
   const status = error instanceof Error ? (error as AgentFailure).agentStatus : undefined;
 
-  return status === 400 || status === 404 || status === 409 ? status : 502;
+  return status === 400 || status === 404 || status === 409 || status === 423 ? status : 502;
 };
 
 export const createAgentClient = (connection: AgentConnection) => {

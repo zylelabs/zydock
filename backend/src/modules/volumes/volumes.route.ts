@@ -4,6 +4,11 @@ import { errorMessage } from '../../utils';
 import { agentFailureStatus } from '../../utils/agent';
 import { authMiddleware } from '../auth/auth.middleware';
 import { serverRuntimeMiddleware } from '../containers/container.middleware';
+import {
+  isResourceProtected,
+  PROTECTED_RESOURCE_MESSAGE,
+  PROTECTED_RESOURCE_STATUS,
+} from '../containers/protection.service';
 import { createOrganizationRoleGuard } from '../organizations/organizations.middleware';
 import { serverIdParamSchema } from '../servers/server.schema';
 import { volumesDocs } from './volumes.docs';
@@ -63,9 +68,14 @@ del(
   serverRuntimeMiddleware,
   async (c: Context) => {
     const { name } = c.req.valid('param' as never) as VolumeNameParam;
+    const runtime = c.get('runtime');
 
     try {
-      await c.get('runtime').removeVolume(name);
+      if (await isResourceProtected(runtime, 'volume', name)) {
+        return c.json({ error: PROTECTED_RESOURCE_MESSAGE }, PROTECTED_RESOURCE_STATUS);
+      }
+
+      await runtime.removeVolume(name);
 
       return c.json({ message: 'Volume removed' });
     } catch (error) {

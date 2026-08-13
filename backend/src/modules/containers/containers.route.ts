@@ -11,6 +11,11 @@ import { serverIdParamSchema } from '../servers/server.schema';
 import { serverRuntimeMiddleware } from './container.middleware';
 import { containersDocs } from './containers.docs';
 import {
+  isResourceProtected,
+  PROTECTED_RESOURCE_MESSAGE,
+  PROTECTED_RESOURCE_STATUS,
+} from './protection.service';
+import {
   ContainerIdParam,
   containerIdParamSchema,
   CreateContainerDTO,
@@ -258,9 +263,14 @@ del(
   async (c: Context) => {
     const { containerId } = c.req.valid('param' as never) as ContainerIdParam;
     const { volumes } = c.req.valid('query' as never) as RemoveContainerQuery;
+    const runtime = c.get('runtime');
 
     try {
-      await c.get('runtime').removeContainer(containerId, volumes);
+      if (await isResourceProtected(runtime, 'container', containerId)) {
+        return c.json({ error: PROTECTED_RESOURCE_MESSAGE }, PROTECTED_RESOURCE_STATUS);
+      }
+
+      await runtime.removeContainer(containerId, volumes);
 
       return c.json({ message: 'Container removed' });
     } catch (error) {

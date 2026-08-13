@@ -2,6 +2,7 @@ import config from '../../config';
 import type { ContainerInfo } from '../../providers/container/container.contract';
 import { resolveContainerProvider } from '../../providers/container';
 import { logError, logInfo, logWarn } from '../../utils/logger';
+import { isProtectedContainer } from '../containers/protection.service';
 
 export const AUTOHEAL_LABEL = 'zydock.autoheal';
 
@@ -74,6 +75,11 @@ export const runHealthSweep = async () => {
   const healed: string[] = [];
 
   for (const container of watched) {
+    if (isProtectedContainer(container)) {
+      logWarn('Auto-heal skipped a protected container', { container: container.name });
+      continue;
+    }
+
     if (!(await needsHealing(container))) {
       continue;
     }

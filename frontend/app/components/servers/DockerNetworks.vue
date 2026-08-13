@@ -48,7 +48,13 @@
     }
   };
 
+  const PROTECTED_TITLE = 'System resource of the Zydock platform — cannot be removed.';
+
   const handleRemove = async (network: NetworkInfo) => {
+    if (network.protected) {
+      return;
+    }
+
     busy.value = network.id;
 
     try {
@@ -85,8 +91,13 @@
       :loading="loading"
       empty-label="No networks found."
     >
-      <template #name="{ value }">
-        <span class="truncate font-mono text-[13px] text-ink">{{ value }}</span>
+      <template #name="{ item, value }">
+        <div class="flex min-w-0 items-center gap-2">
+          <span class="truncate font-mono text-[13px] text-ink">{{ value }}</span>
+          <Tag v-if="(item as unknown as NetworkInfo).protected" :title="PROTECTED_TITLE"
+            >system</Tag
+          >
+        </div>
       </template>
       <template #driver="{ value }">
         <span class="text-[12.5px] text-ink-2">{{ value }}</span>
@@ -96,9 +107,12 @@
           <button
             v-if="canManage"
             type="button"
-            title="Remove network"
-            class="cursor-pointer rounded-button p-1.5 text-ink-2 hover:bg-inset hover:text-failed"
-            :disabled="busy === (item as unknown as NetworkInfo).id"
+            :title="(item as unknown as NetworkInfo).protected ? PROTECTED_TITLE : 'Remove network'"
+            class="cursor-pointer rounded-button p-1.5 text-ink-2 hover:bg-inset hover:text-failed disabled:cursor-not-allowed disabled:opacity-40 disabled:hover:bg-transparent disabled:hover:text-ink-2"
+            :disabled="
+              busy === (item as unknown as NetworkInfo).id ||
+              (item as unknown as NetworkInfo).protected
+            "
             @click="handleRemove(item as unknown as NetworkInfo)"
           >
             <Icon name="lucide:trash-2" class="size-4" />

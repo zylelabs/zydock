@@ -7,10 +7,14 @@ const volumeSchema = {
     name: { type: 'string' },
     driver: { type: 'string' },
     mountpoint: { type: 'string' },
+    labels: { type: 'object', additionalProperties: { type: 'string' } },
+    protected: { type: 'boolean' },
   },
 };
 
 const unreachable = errorRes('The agent of this server could not be reached.');
+
+const protectedRes = errorRes('The volume is part of the Zydock platform and cannot be removed.');
 
 export const volumesDocs = {
   list: {
@@ -47,6 +51,7 @@ export const volumesDocs = {
       200: messageRes('Volume removed.'),
       400: errorRes('The volume is still in use by a container.'),
       404: errorRes('Server not found.'),
+      423: protectedRes,
       502: unreachable,
     },
   },

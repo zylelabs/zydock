@@ -181,6 +181,18 @@ const attachExec = async (execId: string, request: ConsoleRequest) => {
   });
 };
 
+const parseLabelsJson = (raw: string | undefined): Record<string, string> => {
+  if (!raw) {
+    return {};
+  }
+
+  try {
+    return (JSON.parse(raw) as Record<string, string> | null) ?? {};
+  } catch {
+    return {};
+  }
+};
+
 const parseHealth = (raw: unknown): ContainerHealth => {
   if (raw === 'healthy' || raw === 'unhealthy' || raw === 'starting') {
     return raw;
@@ -657,17 +669,28 @@ export const createDockerProvider = (): ContainerProvider => ({
   },
 
   createNetwork: async (name): Promise<NetworkInfo> => {
-    const existing = await run(['network', 'inspect', name, '--format', '{{.Id}}|{{.Driver}}']);
+    const existing = await run([
+      'network',
+      'inspect',
+      name,
+      '--format',
+      '{{.Id}}|{{.Driver}}|{{json .Labels}}',
+    ]);
 
     if (existing.code === 0) {
-      const [id, driver] = existing.stdout.trim().split('|');
+      const [id, driver, ...labelParts] = existing.stdout.trim().split('|');
 
-      return { id: id ?? name, name, driver: driver ?? 'bridge' };
+      return {
+        id: id ?? name,
+        name,
+        driver: driver ?? 'bridge',
+        labels: parseLabelsJson(labelParts.join('|')),
+      };
     }
 
     const id = await runChecked(['network', 'create', name], `Failed to create network ${name}`);
 
-    return { id, name, driver: 'bridge' };
+    return { id, name, driver: 'bridge', labels: {} };
   },
 
   removeNetwork: async name => {
@@ -676,7 +699,7 @@ export const createDockerProvider = (): ContainerProvider => ({
 
   listNetworks: async () => {
     const raw = await runChecked(
-      ['network', 'ls', '--format', '{{.ID}}|{{.Name}}|{{.Driver}}'],
+      ['network', 'ls', '--format', '{{.ID}}|{{.Name}}|{{.Driver}}|{{json .Labels}}'],
       'Failed to list networks',
     );
 
@@ -684,9 +707,14 @@ export const createDockerProvider = (): ContainerProvider => ({
       .split('\n')
       .filter(Boolean)
       .map(line => {
-        const [id, name, driver] = line.split('|');
+        const [id, name, driver, ...labelParts] = line.split('|');
 
-        return { id: id ?? '', name: name ?? '', driver: driver ?? '' };
+        return {
+          id: id ?? '',
+          name: name ?? '',
+          driver: driver ?? '',
+          labels: parseLabelsJson(labelParts.join('|')),
+        };
       });
   },
 
@@ -694,13 +722,18 @@ export const createDockerProvider = (): ContainerProvider => ({
     await runChecked(['volume', 'create', name], `Failed to create volume ${name}`);
 
     const raw = await runChecked(
-      ['volume', 'inspect', name, '--format', '{{.Driver}}|{{.Mountpoint}}'],
+      ['volume', 'inspect', name, '--format', '{{.Driver}}|{{.Mountpoint}}|{{json .Labels}}'],
       `Failed to inspect volume ${name}`,
     );
 
-    const [driver, mountpoint] = raw.split('|');
+    const [driver, mountpoint, ...labelParts] = raw.split('|');
 
-    return { name, driver: driver ?? 'local', mountpoint: mountpoint ?? '' };
+    return {
+      name,
+      driver: driver ?? 'local',
+      mountpoint: mountpoint ?? '',
+      labels: parseLabelsJson(labelParts.join('|')),
+    };
   },
 
   removeVolume: async name => {
@@ -709,7 +742,7 @@ export const createDockerProvider = (): ContainerProvider => ({
 
   listVolumes: async () => {
     const raw = await runChecked(
-      ['volume', 'ls', '--format', '{{.Name}}|{{.Driver}}|{{.Mountpoint}}'],
+      ['volume', 'ls', '--format', '{{.Name}}|{{.Driver}}|{{.Mountpoint}}|{{json .Labels}}'],
       'Failed to list volumes',
     );
 
@@ -717,9 +750,14 @@ export const createDockerProvider = (): ContainerProvider => ({
       .split('\n')
       .filter(Boolean)
       .map(line => {
-        const [name, driver, mountpoint] = line.split('|');
+        const [name, driver, mountpoint, ...labelParts] = line.split('|');
 
-        return { name: name ?? '', driver: driver ?? '', mountpoint: mountpoint ?? '' };
+        return {
+          name: name ?? '',
+          driver: driver ?? '',
+          mountpoint: mountpoint ?? '',
+          labels: parseLabelsJson(labelParts.join('|')),
+        };
       });
   },
 

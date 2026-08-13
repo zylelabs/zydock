@@ -2,6 +2,7 @@ export interface VolumeInfo {
   name: string;
   driver: string;
   mountpoint: string;
+  protected: boolean;
 }
 
 export const useVolumes = () => {

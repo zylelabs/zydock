@@ -2,6 +2,7 @@ export interface NetworkInfo {
   id: string;
   name: string;
   driver: string;
+  protected: boolean;
 }
 
 export const useNetworks = () => {

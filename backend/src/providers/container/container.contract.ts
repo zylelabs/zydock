@@ -67,6 +67,7 @@ export type ContainerInfo = {
   restartCount: number;
   ports: PortBinding[];
   labels: Record<string, string>;
+  protected: boolean;
 };
 
 export type ContainerFilter = {
@@ -125,12 +126,16 @@ export type NetworkInfo = {
   id: string;
   name: string;
   driver: string;
+  labels: Record<string, string>;
+  protected: boolean;
 };
 
 export type VolumeInfo = {
   name: string;
   driver: string;
   mountpoint: string;
+  labels: Record<string, string>;
+  protected: boolean;
 };
 
 export type ArchiveStream = ReadableStream<Uint8Array>;

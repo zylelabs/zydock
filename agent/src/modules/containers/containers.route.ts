@@ -15,6 +15,11 @@ import {
   ExecDTO,
   execSchema,
 } from './containers.schema';
+import {
+  assertUnprotected,
+  isProtectedContainer,
+  protectedResourceStatus,
+} from './protection.service';
 
 const { router, get, post, delete: del } = createRouter();
 
@@ -33,17 +38,24 @@ const parseLabels = (values: string[]) =>
     }),
   );
 
+const withProtection = <T extends { id: string; labels: Record<string, string> }>(
+  container: T,
+) => ({
+  ...container,
+  protected: isProtectedContainer(container),
+});
+
 get('/', containersDocs.list, agentAuthMiddleware, async (c: Context) => {
   const state = c.req.query('state');
   const namePrefix = c.req.query('namePrefix');
 
-  return c.json(
-    await containers.listContainers({
-      state: state as never,
-      namePrefix,
-      labels: parseLabels(c.req.queries('label') ?? []),
-    }),
-  );
+  const list = await containers.listContainers({
+    state: state as never,
+    namePrefix,
+    labels: parseLabels(c.req.queries('label') ?? []),
+  });
+
+  return c.json(list.map(withProtection));
 });
 
 post(
@@ -76,7 +88,7 @@ get(
       return c.json({ error: 'Container not found' }, 404);
     }
 
-    return c.json(container);
+    return c.json(withProtection(container));
   },
 );
 
@@ -108,12 +120,13 @@ post(
     const { id } = c.req.valid('param' as never) as ContainerIdParam;
 
     try {
+      await assertUnprotected('container', id);
       await containers.stopContainer(id, Number(c.req.query('timeout')) || undefined);
       markManuallyStopped(id);
 
       return c.json({ message: 'Container stopped' });
     } catch (error) {
-      return c.json({ error: errorMessage(error) }, 400);
+      return c.json({ error: errorMessage(error) }, protectedResourceStatus(error) ?? 400);
     }
   },
 );
@@ -127,12 +140,13 @@ post(
     const { id } = c.req.valid('param' as never) as ContainerIdParam;
 
     try {
+      await assertUnprotected('container', id);
       await containers.restartContainer(id);
       clearManualStop(id);
 
       return c.json({ message: 'Container restarted' });
     } catch (error) {
-      return c.json({ error: errorMessage(error) }, 400);
+      return c.json({ error: errorMessage(error) }, protectedResourceStatus(error) ?? 400);
     }
   },
 );
@@ -228,12 +242,13 @@ del(
     const { id } = c.req.valid('param' as never) as ContainerIdParam;
 
     try {
+      await assertUnprotected('container', id);
       await containers.removeContainer(id, c.req.query('volumes') === 'true');
       clearManualStop(id);
 
       return c.json({ message: 'Container removed' });
     } catch (error) {
-      return c.json({ error: errorMessage(error) }, 400);
+      return c.json({ error: errorMessage(error) }, protectedResourceStatus(error) ?? 400);
     }
   },
 );

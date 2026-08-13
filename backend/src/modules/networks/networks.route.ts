@@ -4,6 +4,11 @@ import { errorMessage } from '../../utils';
 import { agentFailureStatus } from '../../utils/agent';
 import { authMiddleware } from '../auth/auth.middleware';
 import { serverRuntimeMiddleware } from '../containers/container.middleware';
+import {
+  isResourceProtected,
+  PROTECTED_RESOURCE_MESSAGE,
+  PROTECTED_RESOURCE_STATUS,
+} from '../containers/protection.service';
 import { createOrganizationRoleGuard } from '../organizations/organizations.middleware';
 import { serverIdParamSchema } from '../servers/server.schema';
 import { networksDocs } from './networks.docs';
@@ -63,9 +68,14 @@ del(
   serverRuntimeMiddleware,
   async (c: Context) => {
     const { name } = c.req.valid('param' as never) as NetworkNameParam;
+    const runtime = c.get('runtime');
 
     try {
-      await c.get('runtime').removeNetwork(name);
+      if (await isResourceProtected(runtime, 'network', name)) {
+        return c.json({ error: PROTECTED_RESOURCE_MESSAGE }, PROTECTED_RESOURCE_STATUS);
+      }
+
+      await runtime.removeNetwork(name);
 
       return c.json({ message: 'Network removed' });
     } catch (error) {

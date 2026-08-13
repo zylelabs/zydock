@@ -30,6 +30,7 @@ export interface ContainerInfo {
   restartCount: number;
   ports: PortBinding[];
   labels: Record<string, string>;
+  protected: boolean;
 }
 
 export interface ContainerFilter {
