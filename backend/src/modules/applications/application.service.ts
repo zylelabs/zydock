@@ -34,8 +34,12 @@ export const decryptVariables = (variables: ApplicationVariable[]) =>
     secret: variable.secret,
   }));
 
+export const VERSION_VARIABLE_PROJECTION = '+variables.value';
+
 export const findApplication = (organizationId: string, applicationId: string) =>
-  applicationModel.findOne({ _id: applicationId, organizationId });
+  applicationModel
+    .findOne({ _id: applicationId, organizationId })
+    .select(VERSION_VARIABLE_PROJECTION);
 
 export const findApplicationNames = (applicationIds: string[]) =>
   applicationModel.find({ _id: { $in: applicationIds } }).select('name');
@@ -200,7 +204,7 @@ export const updateApplication = async (
     },
   );
 
-  return applicationModel.findById(application._id);
+  return applicationModel.findById(application._id).select(VERSION_VARIABLE_PROJECTION);
 };
 
 const removeApplicationsWhere = async (filter: Record<string, unknown>) => {
@@ -267,7 +271,10 @@ const authorizeApplicationTopic = async (auth: AuthPayload, applicationId: strin
 registerTopicAuthorizer('application', authorizeApplicationTopic);
 
 export const listApplicationsOfOrganization = (organizationId: string) =>
-  applicationModel.find({ organizationId }).sort({ createdAt: 1 });
+  applicationModel
+    .find({ organizationId })
+    .select(VERSION_VARIABLE_PROJECTION)
+    .sort({ createdAt: 1 });
 
 const currentVersionOf = (application: Application) => {
   if (application.source !== 'compose' || !application.origin?.templateId) {

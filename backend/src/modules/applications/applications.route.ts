@@ -59,6 +59,7 @@ import {
   replaceVariables,
   serializeApplication,
   updateApplication,
+  VERSION_VARIABLE_PROJECTION,
 } from './application.service';
 import { applicationsDocs } from './applications.docs';
 import { LifecycleAction, runLifecycleAction } from './lifecycle.service';
@@ -116,6 +117,7 @@ get(
         ...(serverId ? { serverId } : {}),
       },
       { page, size, sort, order },
+      VERSION_VARIABLE_PROJECTION,
     );
 
     return c.json({ ...result, items: result.items.map(serializeApplication) });
