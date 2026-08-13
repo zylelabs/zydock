@@ -1,6 +1,8 @@
 import { describe, expect, test } from 'bun:test';
 import {
   formatBytes,
+  parseAnsi,
+  stripAnsi,
   formatDuration,
   hasValue,
   mergeClasses,
@@ -89,5 +91,37 @@ describe('removeUndefinedKeys', () => {
 
   test('filters undefined out of arrays', () => {
     expect(removeUndefinedKeys([1, undefined, 2])).toEqual([1, 2]);
+  });
+});
+
+describe('parseAnsi', () => {
+  const ESC = '\u001B';
+
+  test('plain text becomes a single unstyled segment', () => {
+    expect(parseAnsi('building image')).toEqual([{ text: 'building image', style: '' }]);
+  });
+
+  test('SGR codes turn into styled segments without leaking the escape', () => {
+    const segments = parseAnsi(`${ESC}[1;36m\u25B8 install${ESC}[0m done`);
+
+    expect(segments).toEqual([
+      { text: '\u25B8 install', style: 'color:#42b3c2;font-weight:600' },
+      { text: ' done', style: '' },
+    ]);
+  });
+
+  test('256-color and truecolor sequences resolve to a color', () => {
+    expect(parseAnsi(`${ESC}[38;5;196mred`)[0]?.style).toBe('color:rgb(255 0 0)');
+    expect(parseAnsi(`${ESC}[38;2;10;20;30mrgb`)[0]?.style).toBe('color:rgb(10 20 30)');
+  });
+
+  test('non-color sequences are dropped and progress rewrites collapse', () => {
+    expect(parseAnsi(`${ESC}[2K${ESC}[1G50%\r100%`)).toEqual([{ text: '100%', style: '' }]);
+  });
+});
+
+describe('stripAnsi', () => {
+  test('removes every escape sequence', () => {
+    expect(stripAnsi('\u001B[1;36m\u25B8 build\u001B[0m')).toBe('\u25B8 build');
   });
 });

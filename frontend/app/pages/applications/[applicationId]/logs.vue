@@ -82,7 +82,10 @@
         return false;
       }
 
-      if (filters.search && !entry.message.toLowerCase().includes(filters.search.toLowerCase())) {
+      if (
+        filters.search &&
+        !stripAnsi(entry.message).toLowerCase().includes(filters.search.toLowerCase())
+      ) {
         return false;
       }
 
@@ -192,7 +195,7 @@
           class="flex gap-3.5 whitespace-pre-wrap"
         >
           <span v-if="entry.timestamp" class="shrink-0 text-white/50">{{ entry.timestamp }}</span>
-          <span :class="LEVEL_CLASS[entry.level]">{{ entry.message }}</span>
+          <AnsiText :text="entry.message" :class="LEVEL_CLASS[entry.level]" />
         </div>
         <div v-if="live" class="text-white/75">
           <span class="animate-pulse motion-reduce:animate-none">▋</span>

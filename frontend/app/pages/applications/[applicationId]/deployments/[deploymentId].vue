@@ -248,7 +248,7 @@
         </p>
         <div v-for="(entry, index) in entries" :key="index" class="flex gap-2 whitespace-pre-wrap">
           <span v-if="entry.timestamp" class="shrink-0 text-white/50">{{ entry.timestamp }}</span>
-          <span :class="LEVEL_CLASS[entry.level]">{{ entry.message }}</span>
+          <AnsiText :text="entry.message" :class="LEVEL_CLASS[entry.level]" />
         </div>
       </div>
 

@@ -117,6 +117,178 @@ export const hasValue = (value: any) => {
 export const orDash = (value: any) =>
   value === null || value === undefined || value === '' ? '-' : value;
 
+export type AnsiSegment = { text: string; style: string };
+
+type AnsiState = {
+  color?: string;
+  background?: string;
+  bold: boolean;
+  dim: boolean;
+  italic: boolean;
+  underline: boolean;
+};
+
+const ANSI_PALETTE = [
+  '#4f5666',
+  '#e05561',
+  '#8cc265',
+  '#d18f52',
+  '#4aa5f0',
+  '#c162de',
+  '#42b3c2',
+  '#d7dae0',
+  '#6b7385',
+  '#ff616e',
+  '#a5e075',
+  '#f0a45d',
+  '#4dc4ff',
+  '#de73ff',
+  '#4cd1e0',
+  '#ffffff',
+];
+
+const ANSI_SEQUENCE =
+  // eslint-disable-next-line no-control-regex
+  /\u001B(?:\[[0-9;?]*[ -/]*[@-~]|\][\s\S]*?(?:\u0007|\u001B\\)|[@-Z\\-_])/g;
+
+const emptyAnsiState = (): AnsiState => ({
+  color: undefined,
+  background: undefined,
+  bold: false,
+  dim: false,
+  italic: false,
+  underline: false,
+});
+
+const ansi256Color = (code = 0) => {
+  if (code < 16) {
+    return ANSI_PALETTE[code];
+  }
+
+  if (code > 231) {
+    const level = 8 + (code - 232) * 10;
+
+    return `rgb(${level} ${level} ${level})`;
+  }
+
+  const steps = [0, 95, 135, 175, 215, 255];
+  const offset = code - 16;
+
+  return `rgb(${steps[Math.floor(offset / 36)]} ${steps[Math.floor(offset / 6) % 6]} ${steps[offset % 6]})`;
+};
+
+const applyAnsiCodes = (state: AnsiState, codes: number[]) => {
+  let index = 0;
+
+  while (index < codes.length) {
+    const code = codes[index] ?? 0;
+
+    if (code === 0) {
+      Object.assign(state, emptyAnsiState());
+    } else if (code === 1) {
+      state.bold = true;
+    } else if (code === 2) {
+      state.dim = true;
+    } else if (code === 3) {
+      state.italic = true;
+    } else if (code === 4) {
+      state.underline = true;
+    } else if (code === 22) {
+      state.bold = false;
+      state.dim = false;
+    } else if (code === 23) {
+      state.italic = false;
+    } else if (code === 24) {
+      state.underline = false;
+    } else if (code === 39) {
+      state.color = undefined;
+    } else if (code === 49) {
+      state.background = undefined;
+    } else if (code >= 30 && code <= 37) {
+      state.color = ANSI_PALETTE[code - 30];
+    } else if (code >= 90 && code <= 97) {
+      state.color = ANSI_PALETTE[code - 82];
+    } else if (code >= 40 && code <= 47) {
+      state.background = ANSI_PALETTE[code - 40];
+    } else if (code >= 100 && code <= 107) {
+      state.background = ANSI_PALETTE[code - 92];
+    } else if (code === 38 || code === 48) {
+      const mode = codes[index + 1];
+      const extended =
+        mode === 5
+          ? ansi256Color(codes[index + 2])
+          : mode === 2
+            ? `rgb(${codes[index + 2] ?? 0} ${codes[index + 3] ?? 0} ${codes[index + 4] ?? 0})`
+            : undefined;
+
+      if (code === 38) {
+        state.color = extended;
+      } else {
+        state.background = extended;
+      }
+
+      index += mode === 5 ? 2 : mode === 2 ? 4 : 0;
+    }
+
+    index += 1;
+  }
+};
+
+const ansiStateToStyle = (state: AnsiState) =>
+  [
+    state.color ? `color:${state.color}` : '',
+    state.background ? `background-color:${state.background}` : '',
+    state.bold ? 'font-weight:600' : '',
+    state.dim ? 'opacity:0.65' : '',
+    state.italic ? 'font-style:italic' : '',
+    state.underline ? 'text-decoration:underline' : '',
+  ]
+    .filter(Boolean)
+    .join(';');
+
+const collapseCarriageReturns = (text: string) =>
+  text
+    .replace(/\r\n/g, '\n')
+    .split('\n')
+    .map(line => line.slice(line.lastIndexOf('\r') + 1))
+    .join('\n');
+
+export const parseAnsi = (input: string): AnsiSegment[] => {
+  const text = collapseCarriageReturns(input ?? '');
+  const state = emptyAnsiState();
+  const segments: AnsiSegment[] = [];
+
+  let cursor = 0;
+
+  const push = (value: string) => {
+    if (value) {
+      segments.push({ text: value, style: ansiStateToStyle(state) });
+    }
+  };
+
+  for (const match of text.matchAll(ANSI_SEQUENCE)) {
+    push(text.slice(cursor, match.index));
+    cursor = match.index + match[0].length;
+
+    if (match[0].endsWith('m')) {
+      applyAnsiCodes(
+        state,
+        match[0]
+          .slice(2, -1)
+          .split(';')
+          .map(part => Number(part) || 0),
+      );
+    }
+  }
+
+  push(text.slice(cursor));
+
+  return segments;
+};
+
+export const stripAnsi = (input: string) =>
+  collapseCarriageReturns(input ?? '').replace(ANSI_SEQUENCE, '');
+
 const hashName = (name: string) => {
   let hash = 0;
   for (let i = 0; i < name.length; i++) {
