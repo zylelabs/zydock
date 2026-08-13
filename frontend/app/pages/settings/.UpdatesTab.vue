@@ -576,7 +576,7 @@
           class="max-h-80 overflow-auto rounded-card bg-terminal p-4 font-mono text-[12.5px] leading-[1.8] whitespace-pre-wrap text-white/80"
         >
           <p v-if="!logLines.length" class="text-white/50">Waiting for output…</p>
-          <div v-for="(line, index) in logLines" :key="index">{{ line }}</div>
+          <AnsiText v-for="(line, index) in logLines" :key="index" :text="line" class="block" />
         </div>
       </Card>
     </template>
