@@ -3,6 +3,12 @@ services:
     image: louislam/uptime-kuma:${VERSION}
     volumes:
       - uptime-kuma-data:/app/data
+    healthcheck:
+      test: ['CMD', 'extra/healthcheck']
+      interval: 10s
+      timeout: 10s
+      retries: 10
+      start_period: 15s
 
 volumes:
   uptime-kuma-data:

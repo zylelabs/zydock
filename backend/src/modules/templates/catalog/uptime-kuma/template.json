@@ -1,6 +1,6 @@
 {
   "id": "uptime-kuma",
-  "version": 3,
+  "version": 4,
   "name": "Uptime Kuma",
   "tagline": "Self-hosted monitoring tool with a slick status page",
   "category": "monitoring",
