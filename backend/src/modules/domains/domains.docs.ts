@@ -17,6 +17,7 @@ const domainSchema = {
     hostname: { type: 'string' },
     pathPrefix: { type: 'string', nullable: true },
     tls: { type: 'boolean' },
+    auto: { type: 'boolean' },
     status: { type: 'string', enum: ['pending', 'active', 'error'] },
     lastError: { type: 'string', nullable: true },
     createdAt: { type: 'string', format: 'date-time' },
@@ -86,7 +87,9 @@ export const domainsDocs = {
   remove: {
     tags: ['Domains'],
     summary: 'Remove a domain',
-    description: 'Removes the route from the proxy and deletes the domain.',
+    description:
+      'Removes the route from the proxy and deletes the domain. Removing an automatic domain ' +
+      '(`auto: true`) marks the application so it is not recreated on the next deploy.',
     security: bearerOrApiKeyAuth,
     responses: {
       200: messageRes('Domain removed.'),

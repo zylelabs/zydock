@@ -176,6 +176,7 @@ LOCAL_AGENT_TOKEN="${LOCAL_AGENT_TOKEN}"
 SUPERUSER_EMAILS="${ZYDOCK_SUPERUSER_EMAIL}"
 
 ZYDOCK_DOMAIN="${ZYDOCK_DOMAIN}"
+PUBLIC_IP="${ZYDOCK_HOST}"
 URL_API="http://backend:8000"
 NUXT_PUBLIC_WS_URL="${WS_URL}"
 EOF
@@ -184,6 +185,7 @@ EOF
 else
   log "Existing install found — reusing .env, updating in place"
   ensure_env LOCAL_AGENT_TOKEN "$(openssl rand -hex 32)"
+  ensure_env PUBLIC_IP "$(curl -fsS https://api.ipify.org || true)"
   migrate_port_urls
 fi
 

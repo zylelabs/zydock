@@ -18,6 +18,14 @@ const healthSchema = {
     commit: { type: 'string' },
     uptime: { type: 'integer' },
     timestamp: { type: 'string', format: 'date-time' },
+    autoDomain: {
+      type: 'object',
+      description: 'Whether automatic domains are enabled, and the suffix used to build them.',
+      properties: {
+        enabled: { type: 'boolean' },
+        suffix: { type: 'string' },
+      },
+    },
     dependencies: {
       type: 'object',
       properties: {

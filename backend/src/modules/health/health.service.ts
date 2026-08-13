@@ -13,6 +13,10 @@ export const getHealthReport = () => {
     commit: config.commit,
     uptime: Math.floor((Date.now() - startedAt) / 1000),
     timestamp: new Date().toISOString(),
+    autoDomain: {
+      enabled: config.autoDomain.enabled,
+      suffix: config.autoDomain.suffix,
+    },
     dependencies: {
       database: {
         status: database.connected ? 'up' : 'down',

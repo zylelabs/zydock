@@ -110,6 +110,7 @@ export default {
     name: readString('LOCAL_SERVER_NAME', 'Local'),
     agentHost: readString('LOCAL_AGENT_HOST', 'agent'),
     agentPort: readNumber('LOCAL_AGENT_PORT', 9000),
+    publicIp: readString('PUBLIC_IP', ''),
   },
   defaultOrganization: {
     name: readString('DEFAULT_ORGANIZATION_NAME', 'My organization'),
@@ -133,6 +134,10 @@ export default {
   proxy: {
     network: readString('PROXY_NETWORK', 'zydock'),
     accessRetentionHours: readNumber('PROXY_ACCESS_RETENTION_HOURS', 168),
+  },
+  autoDomain: {
+    enabled: readBoolean('AUTO_DOMAIN_ENABLED', true),
+    suffix: readString('AUTO_DOMAIN_SUFFIX', 'backname.io'),
   },
   compose: {
     registryAllowlist: (() => {

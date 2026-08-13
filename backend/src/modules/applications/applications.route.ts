@@ -17,6 +17,7 @@ import {
   parseComposeDocument,
   publishedPortsOf,
 } from '../compose/compose.service';
+import { ensureAutoDomain, refreshAutoDomainAfterUpdate } from '../domains/auto-domain.service';
 import { findGitSource } from '../git-sources/git-source.service';
 import { OrganizationIdParam, organizationIdParamSchema } from '../organizations/membership.schema';
 import { createOrganizationRoleGuard } from '../organizations/organizations.middleware';
@@ -200,6 +201,8 @@ post(
       body,
     );
 
+    await ensureAutoDomain(application);
+
     return c.json({ application: serializeApplication(application) }, 201);
   },
 );
@@ -296,6 +299,11 @@ patch(
     }
 
     const updated = await updateApplication(application, body);
+
+    await refreshAutoDomainAfterUpdate(
+      { slug: application.slug, serverId: String(application.serverId) },
+      updated!,
+    );
 
     return c.json({ application: serializeApplication(updated!) });
   },

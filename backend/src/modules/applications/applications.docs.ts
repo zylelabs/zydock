@@ -73,6 +73,11 @@ const applicationSchema = {
       enum: ['up-to-date', 'update-available', 'deprecated', 'unknown'],
       description: 'Only for compose applications created from a template.',
     },
+    autoDomainDisabled: {
+      type: 'boolean',
+      description:
+        'True once the user removed the automatic domain — it is not recreated on the next deploy.',
+    },
     createdAt: { type: 'string', format: 'date-time' },
   },
 };

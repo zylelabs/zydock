@@ -157,6 +157,7 @@ export interface Application {
   version?: ApplicationVersion;
   templateStatus?: TemplateStatus;
   lastError?: string;
+  autoDomainDisabled: boolean;
   createdAt: string;
   updatedAt: string;
 }

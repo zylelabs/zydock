@@ -7,6 +7,7 @@ import { resolveServerId } from './identity.service';
 const AGENT_VERSION = '0.1.0';
 
 let timer: ReturnType<typeof setInterval> | undefined;
+let detectedPublicIp: string | undefined;
 
 const readComposeVersion = async () => {
   try {
@@ -16,11 +17,32 @@ const readComposeVersion = async () => {
   }
 };
 
+const readPublicIp = async () => {
+  if (detectedPublicIp) {
+    return detectedPublicIp;
+  }
+
+  try {
+    const response = await fetch('https://api.ipify.org', { signal: AbortSignal.timeout(5000) });
+
+    if (!response.ok) {
+      return undefined;
+    }
+
+    detectedPublicIp = (await response.text()).trim() || undefined;
+
+    return detectedPublicIp;
+  } catch {
+    return undefined;
+  }
+};
+
 const sendHeartbeat = async () => {
   const serverId = await resolveServerId();
-  const [metrics, composeVersionReported] = await Promise.all([
+  const [metrics, composeVersionReported, publicIp] = await Promise.all([
     collectSystemMetrics(),
     readComposeVersion(),
+    readPublicIp(),
   ]);
 
   const response = await fetch(`${config.backendUrl}/api/agent/heartbeat/${serverId}`, {
@@ -33,6 +55,7 @@ const sendHeartbeat = async () => {
       version: AGENT_VERSION,
       metrics,
       composeVersion: composeVersionReported,
+      publicIp,
     }),
   });
 

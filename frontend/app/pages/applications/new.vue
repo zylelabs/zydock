@@ -2,6 +2,7 @@
   import { z } from 'zod';
   import type { GitSourceSelection } from '~/components/git/GitSourcePicker.vue';
   import { useApplications } from '~/composables/services/useApplications';
+  import { useHealth } from '~/composables/services/useHealth';
   import { useOrganizations } from '~/composables/services/useOrganizations';
   import { useProjects, type Environment, type Project } from '~/composables/services/useProjects';
   import { useServers, type Server } from '~/composables/services/useServers';
@@ -12,6 +13,7 @@
     type Template,
     type TemplateVersionsListing,
   } from '~/composables/services/useTemplates';
+  import { slugify } from '~/utils';
   import ResourcesStep from './.ResourcesStep.vue';
 
   useHead({ title: 'New application' });
@@ -26,6 +28,12 @@
   const { list: listServers } = useServers();
   const { create } = useApplications();
   const { deploy: deployTemplate, listVersions: listTemplateVersions } = useTemplates();
+  const { get: getHealth } = useHealth();
+
+  const { data: health } = useLazyAsyncData('platform-health', () => getHealth(), {
+    server: false,
+    default: () => null,
+  });
 
   const messageOf = (error: unknown, fallback: string) =>
     (error as { message?: string }).message || fallback;
@@ -290,9 +298,21 @@
       environments.value.find(environment => environment.id === form.values.environmentId)?.name ??
       '—',
   );
-  const serverName = computed(
-    () => servers.value.find(server => server.id === form.values.serverId)?.name ?? '—',
+  const selectedServer = computed(() =>
+    servers.value.find(server => server.id === form.values.serverId),
   );
+  const serverName = computed(() => selectedServer.value?.name ?? '—');
+
+  const autoDomainPreview = computed(() => {
+    if (!health.value?.autoDomain.enabled || !selectedServer.value?.publicIp) {
+      return null;
+    }
+
+    const slug = slugify(form.values.name) || 'app';
+    const ipLabel = selectedServer.value.publicIp.replace(/[.:]/g, '-');
+
+    return `${slug}.${ipLabel}.${health.value.autoDomain.suffix}`;
+  });
 
   const gitSourcePicker = ref<{ reset: () => void } | null>(null);
 
@@ -867,6 +887,21 @@
         </template>
 
         <template v-else>
+          <div
+            v-if="autoDomainPreview"
+            class="mb-3.5 flex items-center gap-2 rounded-card border border-edge bg-inset px-4 py-3 text-[13.5px]"
+          >
+            <Icon name="lucide:globe" class="size-4 shrink-0 text-ink-2" />
+            <span class="text-ink-2">Your application will be reachable at</span>
+            <span class="truncate font-mono text-ink">{{ autoDomainPreview }}</span>
+          </div>
+          <p
+            v-else-if="health?.autoDomain.enabled && form.values.serverId"
+            class="mb-3.5 text-caption text-ink-3"
+          >
+            No automatic URL — the selected server has no public IP configured.
+          </p>
+
           <div class="rounded-card border border-edge bg-card">
             <div
               v-for="row in reviewRows"

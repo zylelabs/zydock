@@ -20,6 +20,7 @@ const domainSchema = new Schema(
     hostname: { type: String, required: true, trim: true, lowercase: true },
     pathPrefix: { type: String, trim: true },
     tls: { type: Boolean, required: true, default: true },
+    auto: { type: Boolean, required: true, default: false },
     status: { type: String, required: true, enum: DOMAIN_STATUSES, default: 'pending' },
     lastError: { type: String },
   },

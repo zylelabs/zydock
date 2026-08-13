@@ -329,6 +329,15 @@ export const getHueFromName = (name: string) => {
   };
 };
 
+export const slugify = (value: string) =>
+  value
+    .toLowerCase()
+    .normalize('NFD')
+    .replace(/[\u0300-\u036f]/g, '')
+    .trim()
+    .replace(/[^a-z0-9]+/g, '-')
+    .replace(/^-+|-+$/g, '');
+
 export const getColorFromName = (name: string) => {
   if (!name?.trim()) return `hsl(0 0% 55%)`;
 

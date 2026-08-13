@@ -47,6 +47,7 @@ export type CreateServerDTO = z.infer<typeof createServerSchema>;
 export const updateServerSchema = z.object({
   name: z.string().trim().min(1).max(120).optional(),
   ssh: sshCredentialsSchema.optional(),
+  publicIp: z.string().trim().max(45).optional(),
 });
 
 export type UpdateServerDTO = z.infer<typeof updateServerSchema>;

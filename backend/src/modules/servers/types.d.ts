@@ -32,6 +32,7 @@ interface ServerData {
   name: string;
   type: import('./server.schema').ServerType;
   status: import('./server.schema').ServerStatus;
+  publicIp?: string;
   ssh: ServerSshCredentials;
   agent: ServerAgent;
   resources: ServerResources;
