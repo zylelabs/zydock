@@ -5,7 +5,13 @@
   import { useOrganizations } from '~/composables/services/useOrganizations';
   import { useProjects, type Environment, type Project } from '~/composables/services/useProjects';
   import { useServers, type Server } from '~/composables/services/useServers';
-  import { useTemplates, type Template } from '~/composables/services/useTemplates';
+  import {
+    mergeVersionOptions,
+    templateVersionSelectOptions,
+    useTemplates,
+    type Template,
+    type TemplateVersionsListing,
+  } from '~/composables/services/useTemplates';
   import ResourcesStep from './.ResourcesStep.vue';
 
   useHead({ title: 'New application' });
@@ -19,7 +25,10 @@
   const { list: listProjects, listEnvironments } = useProjects();
   const { list: listServers } = useServers();
   const { create } = useApplications();
-  const { deploy: deployTemplate } = useTemplates();
+  const { deploy: deployTemplate, listVersions: listTemplateVersions } = useTemplates();
+
+  const messageOf = (error: unknown, fallback: string) =>
+    (error as { message?: string }).message || fallback;
 
   const { data } = useLazyAsyncData(
     'wizard-context',
@@ -128,19 +137,52 @@
   const templateInputValues = reactive<Record<string, string>>({});
   const templateVersion = ref('');
 
-  const templateVersionOptions = computed(
-    () =>
-      selectedTemplate.value?.versions?.available.map(entry => ({
-        value: entry.value,
-        label: entry.label ?? entry.value,
-      })) ?? [],
+  const templateVersionsListing = ref<TemplateVersionsListing | null>(null);
+  const templateVersionsError = ref('');
+
+  const isRegistryBackedVersion = computed(() =>
+    Boolean(selectedTemplate.value?.versions?.registry),
   );
+
+  const templateVersionEntries = computed(() =>
+    mergeVersionOptions(
+      templateVersionsListing.value,
+      selectedTemplate.value?.versions?.available ?? [],
+      templateVersion.value,
+    ),
+  );
+
+  const templateVersionOptions = computed(() =>
+    templateVersionSelectOptions(templateVersionEntries.value),
+  );
+
+  const templateVersionDegradedReason = computed(
+    () => templateVersionsListing.value?.degraded?.reason ?? templateVersionsError.value,
+  );
+
+  const loadTemplateVersions = async (search?: string) => {
+    const templateId = selectedTemplate.value?.id;
+
+    if (!templateId || !isRegistryBackedVersion.value) {
+      return;
+    }
+
+    templateVersionsError.value = '';
+
+    try {
+      templateVersionsListing.value = await listTemplateVersions(templateId, search);
+    } catch (error) {
+      templateVersionsError.value = messageOf(error, 'Could not reach the registry.');
+    }
+  };
 
   const handleSelectTemplate = (template: Template) => {
     selectedTemplate.value = template;
     form.values.templateId = template.id;
     form.values.resourceMode = 'template';
     templateVersion.value = template.versions?.default ?? '';
+    templateVersionsListing.value = null;
+    templateVersionsError.value = '';
 
     for (const key of Object.keys(templateInputValues)) {
       Reflect.deleteProperty(templateInputValues, key);
@@ -149,6 +191,8 @@
     for (const input of template.inputs) {
       templateInputValues[input.key] = input.default != null ? String(input.default) : '';
     }
+
+    loadTemplateVersions();
   };
 
   const handleSelectCompose = () => {
@@ -538,7 +582,7 @@
       const template = selectedTemplate.value;
 
       const versionLabel = template?.versions
-        ? (template.versions.available.find(entry => entry.value === templateVersion.value)
+        ? (templateVersionEntries.value.find(entry => entry.value === templateVersion.value)
             ?.label ?? templateVersion.value)
         : null;
 
@@ -739,13 +783,30 @@
 
             <template v-if="form.values.sourceMode === 'resources'">
               <template v-if="form.values.resourceMode === 'template'">
-                <Select
-                  v-if="selectedTemplate?.versions"
-                  v-model="templateVersion"
-                  label="Version"
-                  :options="templateVersionOptions"
-                  boxed
-                />
+                <template v-if="selectedTemplate?.versions">
+                  <Select
+                    v-model="templateVersion"
+                    label="Version"
+                    :options="templateVersionOptions"
+                    :searchable="isRegistryBackedVersion"
+                    :remote-search="isRegistryBackedVersion"
+                    boxed
+                    @search="loadTemplateVersions"
+                  />
+                  <p
+                    v-if="templateVersionDegradedReason"
+                    class="flex items-center gap-1.5 text-caption text-ink-3"
+                  >
+                    Could not reach the registry — showing catalog versions.
+                    <button
+                      type="button"
+                      class="text-accent underline"
+                      @click="loadTemplateVersions()"
+                    >
+                      Try again
+                    </button>
+                  </p>
+                </template>
 
                 <TemplateInputFields
                   :inputs="selectedTemplate?.inputs ?? []"

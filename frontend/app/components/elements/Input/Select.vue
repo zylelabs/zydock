@@ -1,7 +1,13 @@
 <script setup lang="ts">
   import { debounce } from 'lodash-es';
   import { computed, onBeforeUnmount, ref, watch } from 'vue';
-  type Option = { label: string; value: string; count?: number; selected?: boolean };
+  type Option = {
+    label: string;
+    value: string;
+    count?: number;
+    selected?: boolean;
+    hint?: string;
+  };
 
   const props = defineProps<{
     label?: string;
@@ -68,7 +74,7 @@
   const filteredOptions = computed(() => {
     const optionValues = new Set((props.options ?? []).map(o => o.value));
 
-    const createdOptions = normalizedValues.value
+    const createdOptions: Option[] = normalizedValues.value
       .filter(v => !optionValues.has(v))
       .map(v => ({ label: v, value: v }));
 
@@ -238,6 +244,9 @@
             class="shrink-0"
           />
           <span class="truncate" :title="option.label">{{ option.label }}</span>
+          <span v-if="option.hint" class="ml-auto shrink-0 text-caption text-ink-3">
+            {{ option.hint }}
+          </span>
         </div>
       </li>
     </ul>

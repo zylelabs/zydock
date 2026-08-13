@@ -1,5 +1,8 @@
 import { createHash, randomBytes, randomUUID } from 'node:crypto';
+import config from '../../config';
 import { errorMessage } from '../../utils';
+import { logWarn } from '../../utils/logger';
+import { listRegistryTags, registryTagExists } from '../../providers/registry';
 import {
   createApplication,
   decryptVariables,
@@ -10,7 +13,7 @@ import {
 } from '../applications/application.service';
 import type { CreateApplicationDTO } from '../applications/application.schema';
 import { findHostPortConflict } from '../applications/port-guard.service';
-import { validateComposeSecurity } from '../compose/compose.schema';
+import { registryReferenceOf, validateComposeSecurity } from '../compose/compose.schema';
 import { parseComposeDocument, publishedPortsOf } from '../compose/compose.service';
 import {
   findDatabasesOfApplication,
@@ -19,8 +22,9 @@ import {
 } from '../databases/database.service';
 import { enqueueDeployment } from '../deployments/pipeline.service';
 import { findServerById } from '../servers/server.service';
-import { allTemplates } from './catalog.service';
+import { allTemplates, repositoryForVersions } from './catalog.service';
 import { parseEnvContent, renderTemplate, type RenderTemplateContext } from './render.service';
+import { DEFAULT_VERSION_INCLUDE_PATTERN, testVersionPattern } from './template.schema';
 import type {
   DeployTemplateDTO,
   ListTemplatesQuery,
@@ -144,13 +148,11 @@ export const changeApplicationVersion = async (application: Application, version
     throw new Error('This template has no selectable versions');
   }
 
-  const isValid = template.versions.available.some(entry => entry.value === version);
-
-  if (!isValid) {
-    const options = template.versions.available.map(entry => entry.value).join(', ');
-
-    throw new Error(`"version" must be one of: ${options}`);
+  if (!isVersionAllowed(template, version)) {
+    throw new Error(versionPolicyMessage(template, version));
   }
+
+  await assertVersionExistsBestEffort(template, version);
 
   const current = decryptVariables(application.variables).find(
     variable => variable.key === template.versions!.key,
@@ -161,6 +163,230 @@ export const changeApplicationVersion = async (application: Application, version
   }
 
   await updateVariableValue(String(application._id), template.versions.key, version);
+};
+
+export type TemplateVersionOption = {
+  value: string;
+  label?: string;
+  updatedAt?: Date;
+  origin: 'catalog' | 'registry';
+};
+
+export type TemplateVersionsListing = {
+  source: 'catalog' | 'registry' | 'mixed';
+  versions: TemplateVersionOption[];
+  fetchedAt?: Date;
+  degraded?: { reason: string };
+};
+
+const SEMVER_PATTERN = /^v?(\d+)(?:\.(\d+))?(?:\.(\d+))?$/;
+
+const semverOf = (value: string): [number, number, number] | null => {
+  const match = SEMVER_PATTERN.exec(value);
+
+  if (!match) {
+    return null;
+  }
+
+  return [Number(match[1]), Number(match[2] ?? '0'), Number(match[3] ?? '0')];
+};
+
+const versionCollator = new Intl.Collator(undefined, { numeric: true });
+
+const sortRegistryOptions = (options: TemplateVersionOption[]): TemplateVersionOption[] => {
+  const allSemver = options.every(option => semverOf(option.value) !== null);
+
+  if (allSemver) {
+    return [...options].sort((a, b) => {
+      const semverA = semverOf(a.value)!;
+      const semverB = semverOf(b.value)!;
+
+      for (let i = 0; i < 3; i += 1) {
+        if (semverA[i] !== semverB[i]) {
+          return semverB[i]! - semverA[i]!;
+        }
+      }
+
+      return versionCollator.compare(b.value, a.value);
+    });
+  }
+
+  return [...options].sort((a, b) => {
+    const timeA = a.updatedAt?.getTime();
+    const timeB = b.updatedAt?.getTime();
+
+    if (timeA !== undefined && timeB !== undefined && timeA !== timeB) {
+      return timeB - timeA;
+    }
+
+    if (timeA !== undefined && timeB === undefined) {
+      return -1;
+    }
+
+    if (timeA === undefined && timeB !== undefined) {
+      return 1;
+    }
+
+    return versionCollator.compare(b.value, a.value);
+  });
+};
+
+const matchesVersionSearch = (option: TemplateVersionOption, search?: string): boolean => {
+  if (!search) {
+    return true;
+  }
+
+  const needle = search.trim().toLowerCase();
+
+  return (
+    option.value.toLowerCase().includes(needle) ||
+    (option.label?.toLowerCase().includes(needle) ?? false)
+  );
+};
+
+const TAG_FORMAT_PATTERN = /^[A-Za-z0-9_][A-Za-z0-9._-]{0,127}$/;
+
+export const isVersionAllowed = (template: Template, value: string): boolean => {
+  if (!template.versions || value === 'latest' || !TAG_FORMAT_PATTERN.test(value)) {
+    return false;
+  }
+
+  if (template.versions.available.some(entry => entry.value === value)) {
+    return true;
+  }
+
+  const registry = template.versions.registry;
+
+  if (!registry) {
+    return false;
+  }
+
+  const includePattern = registry.include ?? DEFAULT_VERSION_INCLUDE_PATTERN;
+
+  if (!testVersionPattern(includePattern, value)) {
+    return false;
+  }
+
+  return !registry.exclude || !testVersionPattern(registry.exclude, value);
+};
+
+const versionPolicyMessage = (template: Template, value: string): string => {
+  const versions = template.versions!;
+  const registry = versions.registry;
+
+  if (!registry) {
+    const options = versions.available.map(entry => entry.value).join(', ');
+
+    return `"version" must be one of: ${options}`;
+  }
+
+  const includePattern = registry.include ?? DEFAULT_VERSION_INCLUDE_PATTERN;
+  const excludeClause = registry.exclude ? ` and not match "${registry.exclude}"` : '';
+
+  return (
+    `"${value}" is not an allowed version for this template: it must match "${includePattern}"` +
+    `${excludeClause}. See GET /templates/${template.id}/versions for the current list.`
+  );
+};
+
+const assertVersionExistsBestEffort = async (template: Template, value: string): Promise<void> => {
+  const registry = template.versions?.registry;
+
+  if (!registry || !config.providers.registry.enabled) {
+    return;
+  }
+
+  if (template.versions!.available.some(entry => entry.value === value)) {
+    return;
+  }
+
+  const repository = repositoryForVersions(template.versions!, template.dockerComposeContent);
+
+  if (!repository) {
+    return;
+  }
+
+  const { host, path } = registryReferenceOf(repository);
+  const exists = await registryTagExists(host, path, value);
+
+  if (exists === false) {
+    throw new Error(
+      `"${value}" was not found in the registry for "${repository}" — check the tag and try again`,
+    );
+  }
+};
+
+export const listTemplateVersions = async (
+  template: Template,
+  options: { search?: string } = {},
+): Promise<TemplateVersionsListing> => {
+  if (!template.versions) {
+    throw new Error('This template has no selectable versions');
+  }
+
+  const curated: TemplateVersionOption[] = template.versions.available.map(entry => ({
+    value: entry.value,
+    label: entry.label,
+    origin: 'catalog',
+  }));
+  const curatedListing = (): TemplateVersionsListing => ({
+    source: 'catalog',
+    versions: curated.filter(option => matchesVersionSearch(option, options.search)),
+  });
+
+  const registry = template.versions.registry;
+
+  if (!registry || !config.providers.registry.enabled) {
+    return curatedListing();
+  }
+
+  const repository = repositoryForVersions(template.versions, template.dockerComposeContent);
+
+  if (!repository) {
+    return curatedListing();
+  }
+
+  const { host, path } = registryReferenceOf(repository);
+  const curatedValues = new Set(curated.map(option => option.value));
+  const includePattern = registry.include ?? DEFAULT_VERSION_INCLUDE_PATTERN;
+
+  try {
+    const tags = await listRegistryTags(host, path);
+
+    if (!tags) {
+      return curatedListing();
+    }
+
+    const registryOptions = sortRegistryOptions(
+      tags
+        .filter(tag => tag.name !== 'latest')
+        .filter(tag => !curatedValues.has(tag.name))
+        .filter(tag => testVersionPattern(includePattern, tag.name))
+        .filter(tag => !registry.exclude || !testVersionPattern(registry.exclude, tag.name))
+        .map(tag => ({ value: tag.name, updatedAt: tag.updatedAt, origin: 'registry' as const })),
+    )
+      .filter(option => matchesVersionSearch(option, options.search))
+      .slice(0, registry.limit);
+
+    return {
+      source: 'mixed',
+      versions: [
+        ...curated.filter(option => matchesVersionSearch(option, options.search)),
+        ...registryOptions,
+      ],
+      fetchedAt: new Date(),
+    };
+  } catch (error) {
+    const reason = errorMessage(error);
+
+    logWarn('Registry did not answer, falling back to the curated version list', {
+      templateId: template.id,
+      repository,
+      error: reason,
+    });
+
+    return { ...curatedListing(), degraded: { reason } };
+  }
 };
 
 export const composeHashOf = (content: string): string =>
@@ -405,7 +631,7 @@ export const applyTemplateUpdate = async (
 
   const currentVersion = template.versions ? existingByKey.get(template.versions.key) : undefined;
   const versionStillValid = Boolean(
-    template.versions?.available.some(entry => entry.value === currentVersion),
+    currentVersion !== undefined && isVersionAllowed(template, currentVersion),
   );
   const versionFellBackToDefault = Boolean(template.versions) && !versionStillValid;
   const versionAnswer = template.versions
@@ -511,12 +737,9 @@ const resolveVersion = (template: Template, requested?: string): string | undefi
   }
 
   const value = requested ?? template.versions.default;
-  const isValid = template.versions.available.some(entry => entry.value === value);
 
-  if (!isValid) {
-    const options = template.versions.available.map(entry => entry.value).join(', ');
-
-    throw new Error(`"version" must be one of: ${options}`);
+  if (!isVersionAllowed(template, value)) {
+    throw new Error(versionPolicyMessage(template, value));
   }
 
   return value;
@@ -545,6 +768,10 @@ export const deployTemplateApplication = async (params: {
   }
 
   const version = resolveVersion(template, body.version);
+
+  if (version !== undefined) {
+    await assertVersionExistsBestEffort(template, version);
+  }
 
   const secretValues = Object.fromEntries(
     template.secrets.map(secret => [secret.key, generateSecretValue(secret.generate)]),

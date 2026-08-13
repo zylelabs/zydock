@@ -1,12 +1,22 @@
 import { mkdtemp, rm, writeFile } from 'node:fs/promises';
 import { tmpdir } from 'node:os';
 import { join } from 'node:path';
-import { allTemplates } from '../modules/templates/catalog.service';
+import { registryReferenceOf } from '../modules/compose/compose.schema';
+import {
+  allTemplates,
+  imagesOf,
+  repositoryForVersions,
+} from '../modules/templates/catalog.service';
 import { renderTemplate } from '../modules/templates/render.service';
+import {
+  DEFAULT_VERSION_INCLUDE_PATTERN,
+  testVersionPattern,
+} from '../modules/templates/template.schema';
+import { listRegistryTags } from '../providers/registry';
 
 type CatalogFailure = {
   templateId: string;
-  check: 'compose-config' | 'image' | 'link';
+  check: 'compose-config' | 'image' | 'link' | 'registry';
   message: string;
 };
 
@@ -42,12 +52,6 @@ const answersFor = (template: Template, version: string | undefined): Record<str
 
   return answers;
 };
-
-const imagesOf = (resolvedComposeYaml: string): string[] => [
-  ...new Set(
-    Array.from(resolvedComposeYaml.matchAll(/^\s*image:\s*(\S+)\s*$/gm)).map(match => match[1]),
-  ),
-];
 
 const checkComposeConfigForVersion = async (
   template: Template,
@@ -183,6 +187,78 @@ const checkLink = async (
   }
 };
 
+const checkRegistryVersions = async (template: Template): Promise<CatalogFailure[]> => {
+  const registry = template.versions?.registry;
+
+  if (!registry) {
+    return [];
+  }
+
+  const repository = repositoryForVersions(template.versions!, template.dockerComposeContent);
+
+  if (!repository) {
+    return [
+      {
+        templateId: template.id,
+        check: 'registry',
+        message:
+          '"versions.registry" requires exactly one service image referencing the version key',
+      },
+    ];
+  }
+
+  const { host, path } = registryReferenceOf(repository);
+  const includePattern = registry.include ?? DEFAULT_VERSION_INCLUDE_PATTERN;
+  const defaultValue = template.versions!.default;
+
+  try {
+    const tags = await listRegistryTags(host, path);
+
+    if (!tags) {
+      return [
+        {
+          templateId: template.id,
+          check: 'registry',
+          message: `registry query for "${repository}" did not run (provider disabled or "${host}" not supported)`,
+        },
+      ];
+    }
+
+    const failures: CatalogFailure[] = [];
+    const matchesPolicy =
+      testVersionPattern(includePattern, defaultValue) &&
+      (!registry.exclude || !testVersionPattern(registry.exclude, defaultValue));
+
+    if (!matchesPolicy) {
+      failures.push({
+        templateId: template.id,
+        check: 'registry',
+        message:
+          `"versions.default" ("${defaultValue}") does not match "versions.registry" policy ` +
+          `(include "${includePattern}"${registry.exclude ? `, exclude "${registry.exclude}"` : ''})`,
+      });
+    }
+
+    if (!tags.some(tag => tag.name === defaultValue)) {
+      failures.push({
+        templateId: template.id,
+        check: 'registry',
+        message: `"versions.default" ("${defaultValue}") was not found in the registry tags for "${repository}"`,
+      });
+    }
+
+    return failures;
+  } catch (error) {
+    return [
+      {
+        templateId: template.id,
+        check: 'registry',
+        message: `registry query for "${repository}" failed: ${error instanceof Error ? error.message : String(error)}`,
+      },
+    ];
+  }
+};
+
 const checkLinks = async (template: Template): Promise<CatalogFailure[]> => {
   const results = await Promise.all([
     checkLink(template, 'website'),
@@ -193,14 +269,13 @@ const checkLinks = async (template: Template): Promise<CatalogFailure[]> => {
 };
 
 const validateTemplate = async (template: Template): Promise<CatalogFailure[]> => {
-  const [{ failures: composeFailures, images }, linkFailures] = await Promise.all([
-    checkComposeConfig(template),
-    checkLinks(template),
-  ]);
+  const [{ failures: composeFailures, images }, linkFailures, registryFailures] = await Promise.all(
+    [checkComposeConfig(template), checkLinks(template), checkRegistryVersions(template)],
+  );
 
   const imageFailures = await checkImages(template, images);
 
-  return [...composeFailures, ...imageFailures, ...linkFailures];
+  return [...composeFailures, ...imageFailures, ...linkFailures, ...registryFailures];
 };
 
 const reportPathFrom = (args: string[]): string | undefined => {

@@ -13,6 +13,8 @@ import {
   deployTemplateSchema,
   ListTemplatesQuery,
   listTemplatesQuerySchema,
+  ListTemplateVersionsQuery,
+  listTemplateVersionsQuerySchema,
   TemplateIdParam,
   templateIdParamSchema,
 } from './template.schema';
@@ -20,6 +22,7 @@ import {
   deployTemplateApplication,
   findTemplateById,
   listTemplates,
+  listTemplateVersions,
   serializeTemplate,
 } from './template.service';
 import { templatesDocs } from './templates.docs';
@@ -53,6 +56,29 @@ get(
     }
 
     return c.json({ template: serializeTemplate(template) });
+  },
+);
+
+get(
+  '/:templateId/versions',
+  templatesDocs.versions,
+  authMiddleware,
+  validator('param', templateIdParamSchema),
+  validator('query', listTemplateVersionsQuerySchema),
+  async (c: Context) => {
+    const { templateId } = c.req.valid('param' as never) as TemplateIdParam;
+    const { search } = c.req.valid('query' as never) as ListTemplateVersionsQuery;
+    const template = findTemplateById(templateId);
+
+    if (!template) {
+      return c.json({ error: 'Template not found' }, 404);
+    }
+
+    if (!template.versions) {
+      return c.json({ error: 'This template has no selectable versions' }, 400);
+    }
+
+    return c.json(await listTemplateVersions(template, { search }));
   },
 );
 

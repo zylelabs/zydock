@@ -6,7 +6,13 @@
     type Application,
     type TemplateUpdatePreview,
   } from '~/composables/services/useApplications';
-  import { useTemplates, type Template } from '~/composables/services/useTemplates';
+  import {
+    mergeVersionOptions,
+    templateVersionSelectOptions,
+    useTemplates,
+    type Template,
+    type TemplateVersionsListing,
+  } from '~/composables/services/useTemplates';
 
   const props = defineProps<{ application: Application; canManage: boolean }>();
 
@@ -55,17 +61,63 @@
     },
   );
 
+  const isRegistryBackedVersion = computed(() =>
+    Boolean(templateData.value?.template?.versions?.registry),
+  );
+
+  const versionsListing = ref<TemplateVersionsListing | null>(null);
+  const versionsError = ref('');
+
+  const loadVersions = async (search?: string) => {
+    const templateId = props.application.origin?.templateId;
+
+    if (!templateId || !isRegistryBackedVersion.value) {
+      return;
+    }
+
+    versionsError.value = '';
+
+    try {
+      versionsListing.value = await templatesApi.listVersions(templateId, search);
+    } catch (error) {
+      versionsError.value = messageOf(error, 'Could not reach the registry.');
+    }
+  };
+
+  watch(
+    () => templateData.value?.template,
+    template => {
+      versionsListing.value = null;
+      versionsError.value = '';
+
+      if (template?.versions?.registry) {
+        loadVersions();
+      }
+    },
+  );
+
+  const versionsDegradedReason = computed(
+    () => versionsListing.value?.degraded?.reason ?? versionsError.value,
+  );
+
+  const versionEntries = computed(() =>
+    mergeVersionOptions(
+      versionsListing.value,
+      templateData.value?.template?.versions?.available ?? [],
+      props.application.version?.current,
+    ),
+  );
+
   const versionStatus = computed(() =>
-    applicationVersionStatus(props.application, templateData.value?.template ?? null),
+    applicationVersionStatus(
+      props.application,
+      templateData.value?.template ?? null,
+      versionEntries.value,
+    ),
   );
 
   const versionSelectOptions = computed(() =>
-    versionStatus.value.editable
-      ? versionStatus.value.options.map(option => ({
-          value: option.value,
-          label: option.label ?? option.value,
-        }))
-      : [],
+    versionStatus.value.editable ? templateVersionSelectOptions(versionStatus.value.options) : [],
   );
 
   const selectedVersion = ref('');
@@ -267,8 +319,11 @@
               v-model="selectedVersion"
               label="Version"
               :options="versionSelectOptions"
+              :searchable="isRegistryBackedVersion"
+              :remote-search="isRegistryBackedVersion"
               boxed
               class="min-w-40"
+              @search="loadVersions"
             />
             <Button
               theme="secondary"
@@ -280,6 +335,16 @@
             </Button>
           </template>
         </div>
+
+        <p
+          v-if="versionsDegradedReason"
+          class="mt-1.5 flex items-center gap-1.5 text-caption text-ink-3"
+        >
+          Could not reach the registry — showing catalog versions.
+          <button type="button" class="text-accent underline" @click="loadVersions()">
+            Try again
+          </button>
+        </p>
 
         <Alert v-if="applyError" theme="error" class="mt-3.5">{{ applyError }}</Alert>
       </template>
