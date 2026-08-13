@@ -46,7 +46,7 @@ export default defineNuxtPlugin(() => {
         return;
       }
 
-      session.clear();
+      useSession().endSession();
 
       if (!isPublicRoute()) {
         router.push('/auth/login');

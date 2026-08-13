@@ -5,6 +5,8 @@
   const emit = defineEmits<{ refresh: [] }>();
 
   const applicationsApi = useApplications();
+  const session = useSessionStore();
+  const recentApplications = useRecentApplicationsStore();
 
   const messageOf = (error: unknown, fallback: string) =>
     (error as { message?: string }).message || fallback;
@@ -21,6 +23,11 @@
       const projectId = props.application.projectId;
 
       await applicationsApi.remove(props.application.id);
+
+      if (session.organizationId) {
+        recentApplications.remove(session.organizationId, props.application.id);
+      }
+
       await navigateTo(projectId ? `/projects/${projectId}` : '/projects');
     } catch (error) {
       deleteError.value = messageOf(error, 'Failed to delete the application.');

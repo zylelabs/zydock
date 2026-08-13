@@ -16,6 +16,7 @@
 
   const route = useRoute();
   const session = useSessionStore();
+  const recentApplications = useRecentApplicationsStore();
 
   const { current } = useOrganizations();
   const applicationsApi = useApplications();
@@ -53,6 +54,18 @@
   );
 
   const application = computed(() => data.value);
+
+  watch(application, current => {
+    if (!current || !session.organizationId) {
+      return;
+    }
+
+    recentApplications.sync(session.organizationId, {
+      id: current.id,
+      name: current.name,
+      status: current.status,
+    });
+  });
 
   const { data: domainsData } = useLazyAsyncData(
     () => `application-${applicationId.value}-primary-domain`,
