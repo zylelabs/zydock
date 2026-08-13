@@ -188,6 +188,8 @@ export type ApplicationFilter = {
 export interface ApplicationVersionOption {
   value: string;
   label?: string;
+  updatedAt?: string;
+  origin?: 'catalog' | 'registry';
 }
 
 export const isVersionDowngrade = (
@@ -212,6 +214,7 @@ export type ApplicationVersionStatus =
 export const applicationVersionStatus = (
   application: Application,
   template: Template | null,
+  options?: ApplicationVersionOption[],
 ): ApplicationVersionStatus => {
   if (!application.origin?.templateId) {
     return {
@@ -239,7 +242,7 @@ export const applicationVersionStatus = (
     editable: true,
     key: template.versions.key,
     current: application.version.current,
-    options: template.versions.available,
+    options: options ?? template.versions.available,
   };
 };
 

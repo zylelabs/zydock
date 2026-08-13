@@ -40,10 +40,17 @@ interface TemplateVersionEntry {
   label?: string;
 }
 
+interface TemplateVersionsRegistry {
+  include?: string;
+  exclude?: string;
+  limit: number;
+}
+
 interface TemplateVersions {
   key: string;
   default: string;
   available: TemplateVersionEntry[];
+  registry?: TemplateVersionsRegistry;
 }
 
 interface TemplateManifest {

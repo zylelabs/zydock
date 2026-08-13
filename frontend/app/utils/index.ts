@@ -1,3 +1,4 @@
+import { formatDistanceToNow } from 'date-fns';
 import { twMerge, type ClassNameValue } from 'tailwind-merge';
 import type { H3Event } from 'h3';
 import type { IFetchNativeResponseError, IFetchResponseError } from '~~/server/types';
@@ -32,6 +33,14 @@ export const formatDuration = (milliseconds?: number) => {
   }
 
   return `${Math.floor(seconds / 60)}m ${String(seconds % 60).padStart(2, '0')}s`;
+};
+
+export const formatRelativeTime = (value?: string | Date) => {
+  if (!value) {
+    return undefined;
+  }
+
+  return formatDistanceToNow(new Date(value), { addSuffix: true });
 };
 
 export const normalizeFetchErrorServer = (

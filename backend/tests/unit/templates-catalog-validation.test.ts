@@ -5,6 +5,9 @@ import {
   assertServiceExists,
   assertVariablesAreDeclared,
   assertVersionsAreUsed,
+  assertVersionsRegistryHasRepository,
+  imagesOf,
+  repositoryForVersions,
 } from '../../src/modules/templates/catalog.service';
 
 const manifest = (overrides: Partial<TemplateManifest> = {}): TemplateManifest => ({
@@ -179,5 +182,113 @@ describe('assertServiceExists', () => {
     expect(() => assertServiceExists(parsed, 'db', 'expose.service')).toThrow(
       /expose\.service.*"db".*does not exist/,
     );
+  });
+});
+
+describe('imagesOf', () => {
+  test('extracts the distinct "image:" values from a compose document', () => {
+    const compose =
+      'services:\n  app:\n    image: louislam/uptime-kuma:${VERSION}\n' +
+      '  db:\n    image: postgres:16\n';
+
+    expect(imagesOf(compose)).toEqual(['louislam/uptime-kuma:${VERSION}', 'postgres:16']);
+  });
+
+  test('does not duplicate a repeated "image:" value', () => {
+    const compose =
+      'services:\n  app:\n    image: postgres:16\n  replica:\n    image: postgres:16\n';
+
+    expect(imagesOf(compose)).toEqual(['postgres:16']);
+  });
+});
+
+describe('repositoryForVersions', () => {
+  const versions: TemplateVersions = {
+    key: 'APP_VERSION',
+    default: '2',
+    available: [{ value: '2' }],
+  };
+
+  test('derives the repository from the single service referencing "${key}"', () => {
+    const compose = 'services:\n  app:\n    image: louislam/uptime-kuma:${APP_VERSION}\n';
+
+    expect(repositoryForVersions(versions, compose)).toBe('louislam/uptime-kuma');
+  });
+
+  test('derives the repository when the registry host and port are present', () => {
+    const compose =
+      'services:\n  app:\n    image: registry.example.com:5000/team/app:${APP_VERSION}\n';
+
+    expect(repositoryForVersions(versions, compose)).toBe('registry.example.com:5000/team/app');
+  });
+
+  test('returns null when no service image references "${key}"', () => {
+    const compose = 'services:\n  app:\n    image: louislam/uptime-kuma:2\n';
+
+    expect(repositoryForVersions(versions, compose)).toBeNull();
+  });
+
+  test('returns null when more than one distinct repository references "${key}"', () => {
+    const compose =
+      'services:\n  app:\n    image: vendor-a/app:${APP_VERSION}\n' +
+      '  worker:\n    image: vendor-b/worker:${APP_VERSION}\n';
+
+    expect(repositoryForVersions(versions, compose)).toBeNull();
+  });
+
+  test('derives the repository even when the same image is used by two services', () => {
+    const compose =
+      'services:\n  app:\n    image: louislam/uptime-kuma:${APP_VERSION}\n' +
+      '  replica:\n    image: louislam/uptime-kuma:${APP_VERSION}\n';
+
+    expect(repositoryForVersions(versions, compose)).toBe('louislam/uptime-kuma');
+  });
+});
+
+describe('assertVersionsRegistryHasRepository', () => {
+  test('does nothing when the template does not declare "versions.registry"', () => {
+    expect(() =>
+      assertVersionsRegistryHasRepository(
+        manifest({ versions: { key: 'APP_VERSION', default: '2', available: [{ value: '2' }] } }),
+        'services:\n  app:\n    image: sample:2\n',
+      ),
+    ).not.toThrow();
+  });
+
+  test('accepts a template whose repository is derivable', () => {
+    const versionedManifest = manifest({
+      versions: {
+        key: 'APP_VERSION',
+        default: '2',
+        available: [{ value: '2' }],
+        registry: { limit: 50 },
+      },
+    });
+
+    expect(() =>
+      assertVersionsRegistryHasRepository(
+        versionedManifest,
+        'services:\n  app:\n    image: louislam/uptime-kuma:${APP_VERSION}\n',
+      ),
+    ).not.toThrow();
+  });
+
+  test('rejects a template with "versions.registry" whose repository is not derivable', () => {
+    const versionedManifest = manifest({
+      versions: {
+        key: 'APP_VERSION',
+        default: '2',
+        available: [{ value: '2' }],
+        registry: { limit: 50 },
+      },
+    });
+
+    expect(() =>
+      assertVersionsRegistryHasRepository(
+        versionedManifest,
+        'services:\n  app:\n    image: vendor-a/app:${APP_VERSION}\n' +
+          '  worker:\n    image: vendor-b/worker:${APP_VERSION}\n',
+      ),
+    ).toThrow(/versions\.registry.*exactly one/);
   });
 });

@@ -1,6 +1,6 @@
 {
   "id": "uptime-kuma",
-  "version": 2,
+  "version": 3,
   "name": "Uptime Kuma",
   "tagline": "Self-hosted monitoring tool with a slick status page",
   "category": "monitoring",
@@ -21,6 +21,10 @@
     "available": [
       { "value": "2", "label": "2.x (stable)" },
       { "value": "1", "label": "1.x (legacy)" }
-    ]
+    ],
+    "registry": {
+      "include": "^v?\\d+(\\.\\d+){0,2}$",
+      "limit": 50
+    }
   }
 }

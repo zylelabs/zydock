@@ -90,6 +90,22 @@ const assertVolumesAreSafe = (name: string, raw: Record<string, unknown>) => {
 
 const REGISTRY_HOST_PATTERN = /[.:]|^localhost$/;
 
+export const registryReferenceOf = (repository: string): { host: string; path: string } => {
+  const slashIndex = repository.indexOf('/');
+
+  if (slashIndex === -1) {
+    return { host: 'docker.io', path: repository };
+  }
+
+  const firstSegment = repository.slice(0, slashIndex);
+
+  if (REGISTRY_HOST_PATTERN.test(firstSegment)) {
+    return { host: firstSegment, path: repository.slice(slashIndex + 1) };
+  }
+
+  return { host: 'docker.io', path: repository };
+};
+
 const parseImageReference = (image: string) => {
   let rest = image.trim();
   let digest: string | undefined;

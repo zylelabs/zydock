@@ -173,5 +173,10 @@ export default {
     dns: { implementation: readString('DNS_PROVIDER', 'cloudflare') },
     git: { defaultHost: readString('GIT_DEFAULT_HOST', 'github') },
     ssh: { implementation: readString('SSH_PROVIDER', 'ssh2') },
+    registry: {
+      enabled: readBoolean('REGISTRY_TAGS_ENABLED', true),
+      ttlHours: readNumber('REGISTRY_TAGS_TTL_HOURS', 6),
+      timeoutMs: readNumber('REGISTRY_TAGS_TIMEOUT_MS', 5000),
+    },
   },
 };

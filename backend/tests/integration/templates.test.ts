@@ -1,4 +1,4 @@
-import { afterAll, beforeAll, describe, expect, test } from 'bun:test';
+import { afterAll, afterEach, beforeAll, describe, expect, test } from 'bun:test';
 import { createApp } from '../../src/app-server';
 import { connectDatabase, disconnectDatabase } from '../../src/config/mongodb';
 import { decryptSecret } from '../../src/utils/crypto';
@@ -120,6 +120,243 @@ describe('GET /templates/:templateId', () => {
   });
 });
 
+describe('GET /templates/:templateId/versions', () => {
+  const originalFetch = globalThis.fetch;
+
+  const jsonResponse = (data: unknown, status = 200) =>
+    new Response(JSON.stringify(data), { status, headers: { 'Content-Type': 'application/json' } });
+
+  const noVersionsTemplate: Template = {
+    id: 'synthetic-no-versions-app',
+    version: 1,
+    name: 'Synthetic without versions',
+    tagline: 'Synthetic template for the versions-route tests',
+    category: 'test',
+    tags: [],
+    icon: 'icon.svg',
+    author: 'zydock',
+    origin: 'official',
+    dockerCompose: 'docker-compose.yml',
+    expose: { service: 'app', port: 80, domain: true },
+    databases: [],
+    inputs: [],
+    secrets: [],
+    deprecated: false,
+    dockerComposeContent: 'services:\n  app:\n    image: nginx:1.27\n',
+  };
+
+  const curatedOnlyTemplate: Template = {
+    ...noVersionsTemplate,
+    id: 'synthetic-curated-only-versions-app',
+    versions: {
+      key: 'APP_VERSION',
+      default: '1',
+      available: [{ value: '1' }, { value: '2', label: '2.x (stable)' }],
+    },
+  };
+
+  const registryRepository = `zydock-test/synthetic-versions-${Date.now()}`;
+
+  const registryTemplate: Template = {
+    ...noVersionsTemplate,
+    id: 'synthetic-registry-versions-app',
+    versions: {
+      key: 'APP_VERSION',
+      default: '1',
+      available: [{ value: '1' }, { value: '2', label: '2.x (stable)' }],
+      registry: { limit: 50 },
+    },
+    dockerComposeContent: `services:\n  app:\n    image: ${registryRepository}:\${APP_VERSION}\n`,
+  };
+
+  const outageRepository = `zydock-test/synthetic-versions-outage-${Date.now()}`;
+
+  const outageTemplate: Template = {
+    ...noVersionsTemplate,
+    id: 'synthetic-registry-outage-versions-app',
+    versions: {
+      key: 'APP_VERSION',
+      default: '1',
+      available: [{ value: '1' }],
+      registry: { limit: 50 },
+    },
+    dockerComposeContent: `services:\n  app:\n    image: ${outageRepository}:\${APP_VERSION}\n`,
+  };
+
+  const searchRepository = `zydock-test/synthetic-versions-search-${Date.now()}`;
+
+  const searchTemplate: Template = {
+    ...noVersionsTemplate,
+    id: 'synthetic-registry-search-versions-app',
+    versions: {
+      key: 'APP_VERSION',
+      default: '1',
+      available: [{ value: '1' }],
+      registry: { limit: 1 },
+    },
+    dockerComposeContent: `services:\n  app:\n    image: ${searchRepository}:\${APP_VERSION}\n`,
+  };
+
+  beforeAll(() => {
+    allTemplates().push(
+      noVersionsTemplate,
+      curatedOnlyTemplate,
+      registryTemplate,
+      outageTemplate,
+      searchTemplate,
+    );
+  });
+
+  afterAll(() => {
+    for (const id of [
+      noVersionsTemplate.id,
+      curatedOnlyTemplate.id,
+      registryTemplate.id,
+      outageTemplate.id,
+      searchTemplate.id,
+    ]) {
+      const index = allTemplates().findIndex(template => template.id === id);
+
+      if (index >= 0) {
+        allTemplates().splice(index, 1);
+      }
+    }
+  });
+
+  afterEach(() => {
+    globalThis.fetch = originalFetch;
+  });
+
+  test('returns 404 for an unknown template', async () => {
+    const response = await json('/templates/does-not-exist/versions', 'GET', undefined, token);
+
+    expect(response.status).toBe(404);
+  });
+
+  test('returns 400 for a template with no selectable versions', async () => {
+    const response = await json(
+      `/templates/${noVersionsTemplate.id}/versions`,
+      'GET',
+      undefined,
+      token,
+    );
+    const body = (await response.json()) as { error: string };
+
+    expect(response.status).toBe(400);
+    expect(body.error).toContain('no selectable versions');
+  });
+
+  test('without "versions.registry" it returns only the curated list', async () => {
+    const response = await json(
+      `/templates/${curatedOnlyTemplate.id}/versions`,
+      'GET',
+      undefined,
+      token,
+    );
+    const body = (await response.json()) as {
+      source: string;
+      versions: { value: string; label?: string; origin: string }[];
+    };
+
+    expect(response.status).toBe(200);
+    expect(body.source).toBe('catalog');
+    expect(body.versions).toEqual([
+      { value: '1', origin: 'catalog' },
+      { value: '2', label: '2.x (stable)', origin: 'catalog' },
+    ]);
+  });
+
+  test('with the registry reachable, returns the union sorted with the newest first', async () => {
+    globalThis.fetch = (async (url: string) => {
+      expect(url).toContain(`/repositories/${registryRepository}/tags`);
+
+      return jsonResponse({
+        results: [
+          { name: '1', last_updated: '2024-01-01T00:00:00Z' },
+          { name: '2', last_updated: '2024-02-01T00:00:00Z' },
+          { name: '3', last_updated: '2024-03-01T00:00:00Z' },
+          { name: '2.5.0', last_updated: '2024-02-15T00:00:00Z' },
+          { name: 'latest', last_updated: '2024-03-02T00:00:00Z' },
+          { name: 'nightly', last_updated: '2024-03-02T00:00:00Z' },
+        ],
+        next: null,
+      });
+    }) as unknown as typeof fetch;
+
+    const response = await json(
+      `/templates/${registryTemplate.id}/versions`,
+      'GET',
+      undefined,
+      token,
+    );
+    const body = (await response.json()) as {
+      source: string;
+      versions: { value: string; label?: string; origin: string; updatedAt?: string }[];
+      fetchedAt?: string;
+    };
+
+    expect(response.status).toBe(200);
+    expect(body.source).toBe('mixed');
+    expect(body.fetchedAt).toBeString();
+    expect(body.versions).toEqual([
+      { value: '1', origin: 'catalog' },
+      { value: '2', label: '2.x (stable)', origin: 'catalog' },
+      { value: '3', origin: 'registry', updatedAt: '2024-03-01T00:00:00.000Z' },
+      { value: '2.5.0', origin: 'registry', updatedAt: '2024-02-15T00:00:00.000Z' },
+    ]);
+  });
+
+  test('when the registry is unreachable, degrades to the curated list with a reason', async () => {
+    globalThis.fetch = (async () => {
+      throw new Error('registry unreachable');
+    }) as unknown as typeof fetch;
+
+    const response = await json(
+      `/templates/${outageTemplate.id}/versions`,
+      'GET',
+      undefined,
+      token,
+    );
+    const body = (await response.json()) as {
+      source: string;
+      versions: { value: string; origin: string }[];
+      degraded?: { reason: string };
+    };
+
+    expect(response.status).toBe(200);
+    expect(body.source).toBe('catalog');
+    expect(body.versions).toEqual([{ value: '1', origin: 'catalog' }]);
+    expect(body.degraded?.reason).toBeString();
+  });
+
+  test('"search" is applied before the "limit" cutoff', async () => {
+    globalThis.fetch = (async () =>
+      jsonResponse({
+        results: [
+          { name: '1.0.0', last_updated: '2024-01-01T00:00:00Z' },
+          { name: '2.0.0', last_updated: '2024-02-01T00:00:00Z' },
+          { name: '3.0.0', last_updated: '2024-03-01T00:00:00Z' },
+        ],
+        next: null,
+      })) as unknown as typeof fetch;
+
+    const response = await json(
+      `/templates/${searchTemplate.id}/versions?search=1.0.0`,
+      'GET',
+      undefined,
+      token,
+    );
+    const body = (await response.json()) as {
+      versions: { value: string; origin: string; updatedAt?: string }[];
+    };
+
+    expect(response.status).toBe(200);
+    expect(body.versions).toEqual([
+      { value: '1.0.0', origin: 'registry', updatedAt: '2024-01-01T00:00:00.000Z' },
+    ]);
+  });
+});
+
 const versionedTemplate: Template = {
   id: 'synthetic-versioned-app',
   version: 1,
@@ -232,7 +469,7 @@ describe('POST /templates/:templateId/deploy', () => {
     expect(response.status).toBe(201);
     expect(body.application.source).toBe('compose');
     expect(body.application.origin?.templateId).toBe('uptime-kuma');
-    expect(body.application.origin?.templateVersion).toBe(2);
+    expect(body.application.origin?.templateVersion).toBe(3);
     expect(body.deployment).toBeUndefined();
   });
 
@@ -1270,6 +1507,279 @@ describe('POST /applications/:applicationId/version', () => {
     expect(response.status).toBe(200);
     expect(body.application.version).toEqual({ key: 'APP_VERSION', current: '1' });
     expect(body.deployment?.status).toBe('queued');
+  });
+});
+
+const registryPolicyRepository = `zydock-test/synthetic-policy-${Date.now()}`;
+
+const registryPolicyTemplate: Template = {
+  id: 'synthetic-policy-versioned-app',
+  version: 1,
+  name: 'Synthetic with registry policy',
+  tagline: 'Synthetic template for the version-policy tests',
+  category: 'test',
+  tags: [],
+  icon: 'icon.svg',
+  author: 'zydock',
+  origin: 'official',
+  dockerCompose: 'docker-compose.yml',
+  expose: { service: 'app', port: 80, domain: true },
+  databases: [],
+  inputs: [],
+  secrets: [],
+  versions: {
+    key: 'APP_VERSION',
+    default: '1',
+    available: [{ value: '1' }],
+    registry: { limit: 50 },
+  },
+  deprecated: false,
+  dockerComposeContent: `services:\n  app:\n    image: ${registryPolicyRepository}:\${APP_VERSION}\n`,
+};
+
+describe('version policy: registry tags on deploy and version change (Fase 4)', () => {
+  const originalFetch = globalThis.fetch;
+  let organizationId = '';
+  let environmentId = '';
+  let projectId = '';
+
+  beforeAll(async () => {
+    allTemplates().push(registryPolicyTemplate);
+
+    const org = await json('/organizations', 'POST', { name: 'Version Policy Co' }, token);
+    organizationId = ((await org.json()) as { organization: { id: string } }).organization.id;
+
+    const project = await json(
+      `/organizations/${organizationId}/projects`,
+      'POST',
+      { name: 'Version Policy Project' },
+      token,
+    );
+    projectId = ((await project.json()) as { project: { id: string } }).project.id;
+
+    const envs = await json(
+      `/organizations/${organizationId}/projects/${projectId}/environments`,
+      'GET',
+      undefined,
+      token,
+    );
+    environmentId = ((await envs.json()) as { items: { id: string }[] }).items[0]!.id;
+  });
+
+  afterAll(() => {
+    const index = allTemplates().findIndex(template => template.id === registryPolicyTemplate.id);
+
+    if (index >= 0) {
+      allTemplates().splice(index, 1);
+    }
+  });
+
+  afterEach(() => {
+    globalThis.fetch = originalFetch;
+  });
+
+  test('deploys with a tag that only exists in the registry, once the manifest HEAD confirms it', async () => {
+    globalThis.fetch = (async (url: string, init?: { method?: string }) => {
+      expect(init?.method).toBe('HEAD');
+      expect(url).toContain(`/repositories/${registryPolicyRepository}/tags/2.4.0/`);
+
+      return new Response(null, { status: 200 });
+    }) as unknown as typeof fetch;
+
+    const server = await serverModel.findById(getLocalServerId());
+
+    const { application } = await deployTemplateApplication({
+      template: registryPolicyTemplate,
+      organizationId,
+      projectId,
+      server: server!,
+      body: {
+        organizationId,
+        name: 'policy-deploy-registry-tag',
+        environmentId,
+        serverId: getLocalServerId()!,
+        inputs: {},
+        version: '2.4.0',
+        deployNow: false,
+      },
+      triggeredBy: userId,
+    });
+
+    const raw = await applicationModel.findById(application._id).select('+variables.value');
+    const variable = raw!.variables.find(item => item.key === 'APP_VERSION');
+
+    expect(decryptSecret(variable!.value)).toBe('2.4.0');
+  });
+
+  test('rejects a tag outside the "include" policy without listing every option', async () => {
+    const server = await serverModel.findById(getLocalServerId());
+
+    await expect(
+      deployTemplateApplication({
+        template: registryPolicyTemplate,
+        organizationId,
+        projectId,
+        server: server!,
+        body: {
+          organizationId,
+          name: 'policy-deploy-bad-tag',
+          environmentId,
+          serverId: getLocalServerId()!,
+          inputs: {},
+          version: 'nightly',
+          deployNow: false,
+        },
+        triggeredBy: userId,
+      }),
+    ).rejects.toThrow(/must match/);
+  });
+
+  test('rejects "latest" even with a registry policy configured', async () => {
+    const server = await serverModel.findById(getLocalServerId());
+
+    await expect(
+      deployTemplateApplication({
+        template: registryPolicyTemplate,
+        organizationId,
+        projectId,
+        server: server!,
+        body: {
+          organizationId,
+          name: 'policy-deploy-latest',
+          environmentId,
+          serverId: getLocalServerId()!,
+          inputs: {},
+          version: 'latest',
+          deployNow: false,
+        },
+        triggeredBy: userId,
+      }),
+    ).rejects.toThrow(/not an allowed version/);
+  });
+
+  test('does not block the deploy when the registry does not answer the existence check', async () => {
+    globalThis.fetch = (async () => {
+      throw new Error('registry unreachable');
+    }) as unknown as typeof fetch;
+
+    const server = await serverModel.findById(getLocalServerId());
+
+    const { application } = await deployTemplateApplication({
+      template: registryPolicyTemplate,
+      organizationId,
+      projectId,
+      server: server!,
+      body: {
+        organizationId,
+        name: 'policy-deploy-outage',
+        environmentId,
+        serverId: getLocalServerId()!,
+        inputs: {},
+        version: '3.0.0',
+        deployNow: false,
+      },
+      triggeredBy: userId,
+    });
+
+    const raw = await applicationModel.findById(application._id).select('+variables.value');
+    const variable = raw!.variables.find(item => item.key === 'APP_VERSION');
+
+    expect(decryptSecret(variable!.value)).toBe('3.0.0');
+  });
+
+  test('blocks the deploy when the manifest HEAD confirms the tag is missing (404)', async () => {
+    globalThis.fetch = (async () => new Response(null, { status: 404 })) as unknown as typeof fetch;
+
+    const server = await serverModel.findById(getLocalServerId());
+
+    await expect(
+      deployTemplateApplication({
+        template: registryPolicyTemplate,
+        organizationId,
+        projectId,
+        server: server!,
+        body: {
+          organizationId,
+          name: 'policy-deploy-missing-tag',
+          environmentId,
+          serverId: getLocalServerId()!,
+          inputs: {},
+          version: '4.5.6',
+          deployNow: false,
+        },
+        triggeredBy: userId,
+      }),
+    ).rejects.toThrow(/was not found in the registry/);
+  });
+
+  test('changing the version also accepts a registry tag once the manifest HEAD confirms it', async () => {
+    globalThis.fetch = (async () => new Response(null, { status: 200 })) as unknown as typeof fetch;
+
+    const server = await serverModel.findById(getLocalServerId());
+
+    const { application } = await deployTemplateApplication({
+      template: registryPolicyTemplate,
+      organizationId,
+      projectId,
+      server: server!,
+      body: {
+        organizationId,
+        name: 'policy-change-base',
+        environmentId,
+        serverId: getLocalServerId()!,
+        inputs: {},
+        deployNow: false,
+      },
+      triggeredBy: userId,
+    });
+
+    const response = await json(
+      `/organizations/${organizationId}/applications/${String(application._id)}/version`,
+      'POST',
+      { version: '2.7.0', deployNow: false },
+      token,
+    );
+    const body = (await response.json()) as {
+      application: { version?: { key: string; current: string } };
+    };
+
+    expect(response.status).toBe(200);
+    expect(body.application.version).toEqual({ key: 'APP_VERSION', current: '2.7.0' });
+  });
+
+  test('changing the version blocks when the manifest HEAD confirms the tag is missing (404)', async () => {
+    globalThis.fetch = (async () => new Response(null, { status: 200 })) as unknown as typeof fetch;
+
+    const server = await serverModel.findById(getLocalServerId());
+
+    const { application } = await deployTemplateApplication({
+      template: registryPolicyTemplate,
+      organizationId,
+      projectId,
+      server: server!,
+      body: {
+        organizationId,
+        name: 'policy-change-missing-tag-base',
+        environmentId,
+        serverId: getLocalServerId()!,
+        inputs: {},
+        deployNow: false,
+      },
+      triggeredBy: userId,
+    });
+
+    globalThis.fetch = (async () => new Response(null, { status: 404 })) as unknown as typeof fetch;
+
+    const response = await json(
+      `/organizations/${organizationId}/applications/${String(application._id)}/version`,
+      'POST',
+      { version: '9.9.9', deployNow: false },
+      token,
+    );
+    const body = (await response.json()) as { error: string };
+
+    expect(response.status).toBe(400);
+    expect(body.error).toContain('was not found in the registry');
   });
 });
 

@@ -66,6 +66,40 @@ export const assertVersionsAreUsed = (manifest: TemplateManifest, parsed: Parsed
   }
 };
 
+export const imagesOf = (composeYaml: string): string[] => [
+  ...new Set(Array.from(composeYaml.matchAll(/^\s*image:\s*(\S+)\s*$/gm)).map(match => match[1])),
+];
+
+export const repositoryForVersions = (
+  versions: TemplateVersions,
+  composeContent: string,
+): string | null => {
+  const referencePattern = new RegExp(`\\$\\{${versions.key}(:?[-?][^}]*)?\\}`);
+  const tagPattern = new RegExp(`:\\$\\{${versions.key}(:?[-?][^}]*)?\\}$`);
+  const repositories = new Set(
+    imagesOf(composeContent)
+      .filter(image => referencePattern.test(image))
+      .map(image => image.replace(tagPattern, '')),
+  );
+
+  return repositories.size === 1 ? [...repositories][0]! : null;
+};
+
+export const assertVersionsRegistryHasRepository = (
+  manifest: TemplateManifest,
+  composeContent: string,
+) => {
+  if (!manifest.versions?.registry) {
+    return;
+  }
+
+  if (!repositoryForVersions(manifest.versions, composeContent)) {
+    throw new Error(
+      `"versions.registry" requires exactly one service image referencing "\${${manifest.versions.key}}"`,
+    );
+  }
+};
+
 export const assertServiceExists = (parsed: ParsedCompose, service: string, field: string) => {
   if (!parsed.services.some(candidate => candidate.name === service)) {
     throw new Error(
@@ -124,6 +158,7 @@ const loadTemplate = (id: string): Template => {
   assertVariablesAreDeclared(manifest, composeContent);
   assertDatabaseCredentialsAreDeclared(manifest);
   assertVersionsAreUsed(manifest, parsed);
+  assertVersionsRegistryHasRepository(manifest, composeContent);
   validateComposeSecurity(parsed);
 
   if (manifest.icon) {

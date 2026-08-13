@@ -81,6 +81,46 @@ export const templatesDocs = {
       404: errorRes('Template not found.'),
     },
   },
+  versions: {
+    tags: ['Templates'],
+    summary: 'List the selectable versions of a template',
+    description:
+      'Union of the curated `versions.available` list (always present, `origin: "catalog"`) with ' +
+      'tags read from the image registry when the template declares `versions.registry` ' +
+      '(`origin: "registry"`), sorted by semantic version when every tag parses as one, otherwise ' +
+      'by recency. `search` filters both before the `versions.registry.limit` cutoff is applied. A ' +
+      'registry outage never fails the request: it falls back to the curated list with `degraded` ' +
+      'set.',
+    security: bearerOrApiKeyAuth,
+    parameters: [{ name: 'search', in: 'query', schema: { type: 'string' } }],
+    responses: {
+      200: jsonRes('Version listing.', {
+        type: 'object',
+        properties: {
+          source: { type: 'string', enum: ['catalog', 'registry', 'mixed'] },
+          versions: {
+            type: 'array',
+            items: {
+              type: 'object',
+              properties: {
+                value: { type: 'string' },
+                label: { type: 'string' },
+                updatedAt: { type: 'string', format: 'date-time' },
+                origin: { type: 'string', enum: ['catalog', 'registry'] },
+              },
+            },
+          },
+          fetchedAt: { type: 'string', format: 'date-time' },
+          degraded: {
+            type: 'object',
+            properties: { reason: { type: 'string' } },
+          },
+        },
+      }),
+      400: errorRes('The template has no selectable versions.'),
+      404: errorRes('Template not found.'),
+    },
+  },
   deploy: {
     tags: ['Templates'],
     summary: 'Instantiate a template as an application',

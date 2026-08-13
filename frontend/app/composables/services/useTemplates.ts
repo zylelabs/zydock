@@ -1,4 +1,5 @@
 import type { Paginated } from '../useApi';
+import { formatRelativeTime } from '../../utils';
 import type { Application } from './useApplications';
 
 export type TemplateInputType = 'text' | 'password' | 'number' | 'boolean' | 'select';
@@ -35,10 +36,35 @@ export interface TemplateVersionEntry {
   label?: string;
 }
 
+export interface TemplateVersionsRegistry {
+  include?: string;
+  exclude?: string;
+  limit: number;
+}
+
 export interface TemplateVersions {
   key: string;
   default: string;
   available: TemplateVersionEntry[];
+  registry?: TemplateVersionsRegistry;
+}
+
+export type TemplateVersionOrigin = 'catalog' | 'registry';
+
+export interface TemplateVersionOption {
+  value: string;
+  label?: string;
+  updatedAt?: string;
+  origin: TemplateVersionOrigin;
+}
+
+export type TemplateVersionsSource = 'catalog' | 'registry' | 'mixed';
+
+export interface TemplateVersionsListing {
+  source: TemplateVersionsSource;
+  versions: TemplateVersionOption[];
+  fetchedAt?: string;
+  degraded?: { reason: string };
 }
 
 export interface Template {
@@ -79,6 +105,33 @@ export interface DeployTemplateBody {
   deployNow?: boolean;
 }
 
+export const mergeVersionOptions = (
+  listing: TemplateVersionsListing | null,
+  curated: TemplateVersionEntry[],
+  ensureValue?: string,
+): TemplateVersionOption[] => {
+  const base: TemplateVersionOption[] = listing
+    ? listing.versions
+    : curated.map(entry => ({ value: entry.value, label: entry.label, origin: 'catalog' }));
+
+  if (!ensureValue || base.some(option => option.value === ensureValue)) {
+    return base;
+  }
+
+  const curatedEntry = curated.find(entry => entry.value === ensureValue);
+
+  return [{ value: ensureValue, label: curatedEntry?.label, origin: 'catalog' }, ...base];
+};
+
+export const templateVersionSelectOptions = (
+  options: { value: string; label?: string; updatedAt?: string }[],
+) =>
+  options.map(option => ({
+    value: option.value,
+    label: option.label ?? option.value,
+    hint: option.updatedAt ? formatRelativeTime(option.updatedAt) : undefined,
+  }));
+
 export const useTemplates = () => {
   const api = useApi();
 
@@ -92,6 +145,8 @@ export const useTemplates = () => {
       `${base()}/${templateId}/deploy`,
       { body },
     );
+  const listVersions = (templateId: string, search?: string) =>
+    api.get<TemplateVersionsListing>(`${base()}/${templateId}/versions`, { query: { search } });
 
-  return { list, get, deploy };
+  return { list, get, deploy, listVersions };
 };

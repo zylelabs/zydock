@@ -1,5 +1,8 @@
 import { describe, expect, test } from 'bun:test';
-import { parseTemplateManifest } from '../../src/modules/templates/template.schema';
+import {
+  parseTemplateManifest,
+  testVersionPattern,
+} from '../../src/modules/templates/template.schema';
 
 const validManifest = () => ({
   id: 'sample',
@@ -226,5 +229,106 @@ describe('parseTemplateManifest', () => {
     };
 
     expect(() => parseTemplateManifest(raw)).toThrow();
+  });
+
+  test('accepts "versions.registry" with "include", "exclude" and "limit"', () => {
+    const raw = {
+      ...validManifest(),
+      versions: {
+        key: 'APP_VERSION',
+        default: '2',
+        available: [{ value: '2' }],
+        registry: { include: '^v?\\d+(\\.\\d+){0,2}$', exclude: '-alpine$', limit: 100 },
+      },
+    };
+
+    const manifest = parseTemplateManifest(raw);
+
+    expect(manifest.versions?.registry).toEqual({
+      include: '^v?\\d+(\\.\\d+){0,2}$',
+      exclude: '-alpine$',
+      limit: 100,
+    });
+  });
+
+  test('"versions.registry.limit" defaults to 50', () => {
+    const raw = {
+      ...validManifest(),
+      versions: { key: 'APP_VERSION', default: '2', available: [{ value: '2' }], registry: {} },
+    };
+
+    const manifest = parseTemplateManifest(raw);
+
+    expect(manifest.versions?.registry?.limit).toBe(50);
+  });
+
+  test('rejects "versions.registry.limit" above 200', () => {
+    const raw = {
+      ...validManifest(),
+      versions: {
+        key: 'APP_VERSION',
+        default: '2',
+        available: [{ value: '2' }],
+        registry: { limit: 201 },
+      },
+    };
+
+    expect(() => parseTemplateManifest(raw)).toThrow();
+  });
+
+  test('rejects an invalid "versions.registry.include" regular expression', () => {
+    const raw = {
+      ...validManifest(),
+      versions: {
+        key: 'APP_VERSION',
+        default: '2',
+        available: [{ value: '2' }],
+        registry: { include: '(unterminated' },
+      },
+    };
+
+    expect(() => parseTemplateManifest(raw)).toThrow(/versions\.registry\.include.*not a valid/);
+  });
+
+  test('rejects an invalid "versions.registry.exclude" regular expression', () => {
+    const raw = {
+      ...validManifest(),
+      versions: {
+        key: 'APP_VERSION',
+        default: '2',
+        available: [{ value: '2' }],
+        registry: { exclude: '[' },
+      },
+    };
+
+    expect(() => parseTemplateManifest(raw)).toThrow(/versions\.registry\.exclude.*not a valid/);
+  });
+
+  test('rejects a "versions.registry.include" pattern longer than 200 characters', () => {
+    const raw = {
+      ...validManifest(),
+      versions: {
+        key: 'APP_VERSION',
+        default: '2',
+        available: [{ value: '2' }],
+        registry: { include: `^(${'a'.repeat(210)})$` },
+      },
+    };
+
+    expect(() => parseTemplateManifest(raw)).toThrow();
+  });
+});
+
+describe('testVersionPattern', () => {
+  test('matches a value against the pattern', () => {
+    expect(testVersionPattern('^v?\\d+(\\.\\d+){0,2}$', '2.1.3')).toBe(true);
+    expect(testVersionPattern('^v?\\d+(\\.\\d+){0,2}$', '2.1.3-alpine')).toBe(false);
+  });
+
+  test('truncates the input to the maximum tag length before testing', () => {
+    const oversized = '9'.repeat(130);
+
+    expect(new RegExp('^9{128}$').test(oversized)).toBe(false);
+    expect(testVersionPattern('^9{128}$', oversized)).toBe(true);
   });
 });
