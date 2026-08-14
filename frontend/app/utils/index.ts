@@ -1,9 +1,28 @@
 import { formatDistanceToNow } from 'date-fns';
-import { twMerge, type ClassNameValue } from 'tailwind-merge';
+import { extendTailwindMerge, type ClassNameValue } from 'tailwind-merge';
 import type { H3Event } from 'h3';
 import type { IFetchNativeResponseError, IFetchResponseError } from '~~/server/types';
 
 export const sleep = (ms: number) => new Promise(resolve => setTimeout(resolve, ms));
+
+const textSizes = [
+  'label',
+  'caption',
+  'body',
+  'heading',
+  'metric',
+  'metric-sm',
+  'title',
+  'display',
+];
+
+const twMerge = extendTailwindMerge({
+  extend: {
+    classGroups: {
+      'font-size': [{ text: textSizes }],
+    },
+  },
+});
 
 export function mergeClasses(...classString: ClassNameValue[]) {
   return twMerge(classString);
