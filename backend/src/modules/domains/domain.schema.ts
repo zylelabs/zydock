@@ -5,7 +5,7 @@ export const DOMAIN_STATUSES = ['pending', 'active', 'error'] as const;
 
 export type DomainStatus = (typeof DOMAIN_STATUSES)[number];
 
-const hostnameSchema = z
+export const hostnameSchema = z
   .string()
   .trim()
   .toLowerCase()

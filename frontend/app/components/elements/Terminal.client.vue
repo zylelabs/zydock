@@ -4,6 +4,7 @@
   import '@xterm/xterm/css/xterm.css';
 
   import { mergeClasses } from '~/utils';
+  import { resolveWebSocketUrl } from '~/utils/websocket';
 
   const props = defineProps<{
     serverId: string;
@@ -41,7 +42,7 @@
   };
 
   const consoleUrl = () => {
-    const origin = new URL(runtime.wsUrl).origin;
+    const origin = new URL(resolveWebSocketUrl(runtime.wsUrl)).origin;
     const path = `/api/organizations/${session.organizationId}/servers/${props.serverId}/containers/${props.containerId}/console`;
     const query = new URLSearchParams({
       shell: props.shell ?? 'sh',

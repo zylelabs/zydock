@@ -1,3 +1,5 @@
+import { resolveWebSocketUrl } from '~/utils/websocket';
+
 export type WebSocketStatus = 'idle' | 'connecting' | 'open' | 'closed';
 
 export type TopicMessage = {
@@ -53,13 +55,14 @@ const dispatch = (raw: string) => {
 const open = () => {
   const { public: runtime } = useRuntimeConfig();
   const session = useSessionStore();
+  const wsUrl = resolveWebSocketUrl(runtime.wsUrl);
 
-  if (!session.accessToken || !runtime.wsUrl) {
+  if (!session.accessToken || !wsUrl) {
     status.value = 'closed';
     return;
   }
 
-  const url = new URL(runtime.wsUrl);
+  const url = new URL(wsUrl);
 
   url.searchParams.set('token', session.accessToken);
 
