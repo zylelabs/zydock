@@ -1,5 +1,6 @@
 import config from '../../config';
 import { dispatchNotification } from '../../providers/notification';
+import { resolvePublicUrl } from '../dashboard/dashboard.service';
 import passwordResetModel from './password-reset.model';
 import { generateToken, hashToken } from './session.service';
 
@@ -31,8 +32,8 @@ export const findActivePasswordReset = async (token: string) =>
 export const consumePasswordReset = (id: string) =>
   passwordResetModel.updateOne({ _id: id, usedAt: null }, { $set: { usedAt: new Date() } });
 
-export const sendPasswordResetEmail = (email: string, token: string) => {
-  const link = `${config.appUrl}/reset-password?token=${token}`;
+export const sendPasswordResetEmail = async (email: string, token: string) => {
+  const link = `${await resolvePublicUrl()}/reset-password?token=${token}`;
 
   return dispatchNotification(
     {

@@ -514,14 +514,14 @@
 
         <template #footer>
           <div class="flex flex-1 flex-wrap items-center justify-between gap-3">
-            <p class="text-caption text-ink-2">
+            <p class="min-w-0 flex-1 basis-70 text-caption text-ink-2">
               {{
                 statusData?.updateAvailable
                   ? `${channelVersion(savedChannel)} is ready on the ${savedChannel} channel.`
                   : 'Forcing an update reinstalls the current channel head, even if nothing changed.'
               }}
             </p>
-            <div class="flex gap-2">
+            <div class="flex shrink-0 gap-2">
               <Button theme="secondary" size="sm" :disabled="checking" @click="checkForUpdates">
                 <Icon v-if="checking" name="svg-spinners:tadpole" size="16" />
                 Check for updates

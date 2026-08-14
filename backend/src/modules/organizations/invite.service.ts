@@ -1,5 +1,5 @@
-import config from '../../config';
 import { dispatchNotification } from '../../providers/notification';
+import { resolvePublicUrl } from '../dashboard/dashboard.service';
 import { generateToken, hashToken } from '../auth/session.service';
 import inviteModel from './invite.model';
 import { type OrganizationRole } from './membership.schema';
@@ -62,8 +62,12 @@ export const revokeInvite = async (organizationId: string, inviteId: string) => 
   return result.matchedCount > 0;
 };
 
-export const sendInviteEmail = (invite: Invite, organization: Organization, token: string) => {
-  const link = `${config.appUrl}/invites/accept?organization=${String(invite.organizationId)}&token=${token}`;
+export const sendInviteEmail = async (
+  invite: Invite,
+  organization: Organization,
+  token: string,
+) => {
+  const link = `${await resolvePublicUrl()}/invites/accept?organization=${String(invite.organizationId)}&token=${token}`;
 
   return dispatchNotification(
     {

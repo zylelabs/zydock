@@ -7,6 +7,7 @@ import apiKeyRoute from './auth/api-key.route';
 import consoleRoute from './console/console.route';
 import containersRoute from './containers/containers.route';
 import databasesRoute from './databases/databases.route';
+import dashboardRoute from './dashboard/dashboard.route';
 import deploymentLogsRoute from './deployments/deployment-logs.route';
 import deploymentsRoute from './deployments/deployments.route';
 import domainsRoute from './domains/domains.route';
@@ -86,6 +87,8 @@ route('/queue', queueRoute);
 route('/templates', templatesRoute);
 
 route('/updates', updatesRoute);
+
+route('/dashboard', dashboardRoute);
 
 route('/agent', heartbeatRoute);
 route('/agent', proxyAccessAggregateIngestRoute);

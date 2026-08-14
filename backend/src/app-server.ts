@@ -11,7 +11,11 @@ import routes from './modules/routes';
 import { stopLogStreams } from './modules/logs/log.service';
 import { stopMetricStreams } from './modules/metrics/metric.service';
 import { startWorker, stopWorker } from './modules/queue/queue.service';
-import { ensureDashboardRoutes } from './modules/servers/dashboard-route.service';
+import { ensureDashboardRoutes } from './modules/dashboard/dashboard-route.service';
+import {
+  bootstrapDashboard,
+  resolveDashboardCorsOrigins,
+} from './modules/dashboard/dashboard.service';
 import { ensureLocalServer } from './modules/servers/local-server.service';
 import { syncAgentBundles } from './modules/servers/provisioning.service';
 import { allTemplates } from './modules/templates/catalog.service';
@@ -27,6 +31,7 @@ const connect = () => {
     .then(ensureLocalServer)
     .then(startWorker)
     .then(() => void bootstrapUpdates())
+    .then(bootstrapDashboard)
     .then(() => void ensureDashboardRoutes())
     .then(() =>
       syncAgentBundles().catch(error => {
@@ -68,9 +73,19 @@ const setupShutdownHandlers = () => {
   process.on('SIGINT', () => shutdown('SIGINT'));
 };
 
+const resolveCorsOrigin = async (origin: string) => {
+  if (origin === config.corsOrigin) {
+    return origin;
+  }
+
+  const dashboardOrigins = await resolveDashboardCorsOrigins();
+
+  return dashboardOrigins.includes(origin) ? origin : undefined;
+};
+
 const loadMiddlewares = (app: Hono<AppEnv>) => {
   app.use('*', requestId());
-  app.use('*', cors({ origin: config.corsOrigin, credentials: true }));
+  app.use('*', cors({ origin: resolveCorsOrigin, credentials: true }));
 
   app.onError((error, c) => {
     if (error instanceof HTTPException) {

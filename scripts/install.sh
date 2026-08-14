@@ -282,6 +282,10 @@ TEMP_PASSWORD="$(echo "${SEED_OUTPUT}" | grep -o 'temporary password: [^"]*' | h
 log "Done"
 echo "Zydock ${ZYDOCK_VERSION} (channel: ${CHANNEL})"
 echo "Dashboard: ${APP_URL}"
+case "${APP_URL}" in
+https://*) ;;
+*) echo "No domain configured yet — set one in Settings → Panel for HTTPS access." ;;
+esac
 if [ -n "${TEMP_PASSWORD}" ]; then
   echo "Superadmin: ${SUPERUSER_EMAILS}"
   echo "Temporary password (shown once): ${TEMP_PASSWORD}"

@@ -43,6 +43,11 @@
      * place and need the input to read as an input. Ignored when `stacked`.
      */
     boxed?: boolean;
+    /**
+     * Fixed text pinned inside the box, before the field (`https://`, `/`). It is decoration only:
+     * it never reaches the model, so the value stays what the API expects.
+     */
+    prefix?: string;
   }>();
   const emit = defineEmits(['input', 'focus']);
 
@@ -181,6 +186,13 @@
             ],
         ]"
       >
+        <span
+          v-if="prefix && type !== 'textarea'"
+          class="shrink-0 self-center pr-1.5 font-mono text-caption text-ink-3 select-none"
+        >
+          {{ prefix }}
+        </span>
+
         <textarea
           v-if="type === 'textarea'"
           :id="inputId"

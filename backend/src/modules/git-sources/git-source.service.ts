@@ -3,6 +3,7 @@ import config from '../../config';
 import { resolveGitAppProvider } from '../../providers/git';
 import { exchangeGithubManifest } from '../../providers/git/github-app.provider';
 import { decryptSecret, encryptSecret } from '../../utils/crypto';
+import { resolvePublicUrl } from '../dashboard/dashboard.service';
 import gitSourceModel from './git-source.model';
 import type { CreateManifestDTO, ManifestCallbackDTO } from './git-source.schema';
 
@@ -30,12 +31,13 @@ export const startManifestRegistration = async (
   });
 
   const gitSourceId = String(gitSource._id);
+  const publicUrl = await resolvePublicUrl();
 
   const manifest = {
     name: body.name,
-    url: config.appUrl,
-    redirect_url: `${config.appUrl}/git-sources/callback`,
-    setup_url: `${config.appUrl}/settings?tab=git`,
+    url: publicUrl,
+    redirect_url: `${publicUrl}/git-sources/callback`,
+    setup_url: `${publicUrl}/settings?tab=git`,
     hook_attributes: {
       url: `${config.backendUrl}/api/webhooks/github-app/${gitSourceId}`,
       active: true,
