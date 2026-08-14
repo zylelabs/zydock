@@ -1,8 +1,8 @@
 <script setup lang="ts">
   import {
-    consumeUpdateCelebration,
+    consumeUpdateSuccessNotice,
     isChannelDowngrade,
-    markUpdateCelebration,
+    markUpdateSuccessNotice,
     updateRunPhase,
     useUpdates,
     type UpdateChannel,
@@ -227,19 +227,19 @@
   const POLL_INTERVAL_MS = 3000;
   const RELOAD_DELAY_MS = 1000;
 
-  const celebrating = ref(false);
-
   let reloadHandle: ReturnType<typeof setTimeout> | null = null;
 
   const reloadAfterUpdate = () => {
     reloadHandle = setTimeout(() => {
-      markUpdateCelebration();
+      markUpdateSuccessNotice();
       window.location.replace('/settings?tab=updates');
     }, RELOAD_DELAY_MS);
   };
 
   onMounted(() => {
-    celebrating.value = consumeUpdateCelebration();
+    if (consumeUpdateSuccessNotice()) {
+      toast.success({ title: 'Success', message: 'Zydock was updated successfully.' });
+    }
   });
 
   const phase = computed(() => updateRunPhase(activeRun.value, polling.value));
@@ -625,7 +625,5 @@
       :loading="forcing"
       @confirm="forceUpdate"
     />
-
-    <Fireworks v-if="celebrating" @done="celebrating = false" />
   </div>
 </template>
