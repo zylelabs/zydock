@@ -8,7 +8,10 @@
 
 <template>
   <div>
-    <div v-if="label || value" class="mb-1.5 flex items-center justify-between text-xs text-ink-2">
+    <div
+      v-if="label || value"
+      class="mb-1.5 flex items-center justify-between text-caption text-ink-2"
+    >
       <span>{{ label }}</span>
       <span>{{ value }}</span>
     </div>

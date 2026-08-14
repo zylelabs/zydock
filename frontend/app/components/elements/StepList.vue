@@ -14,7 +14,7 @@
       :class="step.status === 'running' && 'bg-inset'"
     >
       <div
-        class="mt-px flex size-5 shrink-0 items-center justify-center rounded-full text-[11px] font-semibold"
+        class="mt-px flex size-5 shrink-0 items-center justify-center rounded-full text-label font-semibold"
         :class="
           step.status === 'done'
             ? 'bg-live text-white'
@@ -28,14 +28,14 @@
       </div>
       <div class="min-w-0 flex-1">
         <div
-          class="text-[13.5px] font-medium"
+          class="text-caption font-medium"
           :class="step.status === 'pending' ? 'text-ink-3' : 'text-ink'"
         >
           {{ step.label }}
         </div>
         <div v-if="step.hint" class="mt-0.5 text-caption text-ink-3">{{ step.hint }}</div>
       </div>
-      <div v-if="step.time" class="font-mono text-xs text-ink-3">{{ step.time }}</div>
+      <div v-if="step.time" class="font-mono text-caption text-ink-3">{{ step.time }}</div>
     </div>
   </div>
 </template>

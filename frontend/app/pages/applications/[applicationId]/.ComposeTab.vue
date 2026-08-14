@@ -35,6 +35,8 @@
 
   const services = computed(() => servicesData.value?.services ?? []);
 
+  const servicesLoadedOnce = useFirstLoad(status);
+
   const secretKeys = computed(
     () => new Set(props.application.variables.filter(variable => variable.secret).map(v => v.key)),
   );
@@ -282,13 +284,13 @@
       description="Derived from the compose file. Container names follow the zydock-<slug>-<service>-1 convention."
       content-class="p-0"
     >
-      <template v-if="status === 'pending'">
+      <template v-if="status === 'pending' && !servicesLoadedOnce">
         <SkeletonRow v-for="index in 2" :key="index" />
       </template>
 
       <Row v-for="service in services" :key="service.service" class="grid-cols-[1fr_auto]">
         <div class="flex items-center gap-2">
-          <span class="font-mono text-[13px] text-ink">{{ service.service }}</span>
+          <span class="font-mono text-caption text-ink">{{ service.service }}</span>
           <Tag v-if="service.exposed" color="live">exposed</Tag>
         </div>
         <div class="font-mono text-caption text-ink-2">{{ service.containerName }}</div>
@@ -311,7 +313,7 @@
         <div class="flex flex-wrap items-end gap-3.5">
           <div>
             <div class="text-caption text-ink-2">Running</div>
-            <div class="font-mono text-[13px] text-ink">{{ versionStatus.current }}</div>
+            <div class="font-mono text-caption text-ink">{{ versionStatus.current }}</div>
           </div>
 
           <template v-if="canManage">
@@ -404,7 +406,7 @@
             :class="{
               'bg-live-bg text-live-ink': line.type === 'added',
               'bg-failed/10 text-failed': line.type === 'removed',
-              'text-white/70': line.type === 'context',
+              'text-terminal-ink-2': line.type === 'context',
             }"
           >
             {{ line.type === 'added' ? '+' : line.type === 'removed' ? '-' : ' ' }}
@@ -463,7 +465,7 @@
       </template>
 
       <pre
-        class="max-h-[50vh] overflow-auto rounded-control bg-terminal p-4 font-mono text-[12.5px] leading-[1.7] text-white/85"
+        class="max-h-[50vh] overflow-auto rounded-control bg-terminal p-4 font-mono text-[12.5px] leading-[1.7] text-terminal-ink"
         >{{ application.compose?.content }}</pre>
     </Card>
 
@@ -477,7 +479,7 @@
         :key="variable.key"
         class="grid-cols-[1fr_auto]"
       >
-        <span class="font-mono text-[13px] text-ink">{{ variable.key }}</span>
+        <span class="font-mono text-caption text-ink">{{ variable.key }}</span>
         <Tag v-if="secretKeys.has(variable.key)">secret</Tag>
       </Row>
 
@@ -496,9 +498,9 @@
         close-button
         @on-close="handleCloseConfirm"
       >
-        <p class="text-sm text-ink-2">{{ confirmMessage }}</p>
+        <p class="text-body text-ink-2">{{ confirmMessage }}</p>
 
-        <p v-if="isDowngrade && hasDatabases" class="mt-3 text-sm text-ink-2">
+        <p v-if="isDowngrade && hasDatabases" class="mt-3 text-body text-ink-2">
           Back up the database before downgrading —
           <NuxtLink to="/backups" class="text-accent underline">create a backup</NuxtLink>.
         </p>

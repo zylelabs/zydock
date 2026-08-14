@@ -7,6 +7,7 @@
     organization: Organization;
     canManage: boolean;
     memberCount: number;
+    memberCountLoading: boolean;
   }>();
 
   const toast = useToast();
@@ -44,24 +45,25 @@
 
     <template v-if="!editing">
       <Row as="div" class="flex items-center">
-        <div class="w-33 shrink-0 text-[13px] text-ink-2">Name</div>
-        <div class="truncate text-[13px] text-ink">{{ organization.name }}</div>
+        <div class="w-33 shrink-0 text-caption text-ink-2">Name</div>
+        <div class="truncate text-caption text-ink">{{ organization.name }}</div>
       </Row>
       <Row as="div" class="flex items-center">
-        <div class="w-33 shrink-0 text-[13px] text-ink-2">Slug</div>
-        <div class="truncate font-mono text-[13px] text-ink">{{ organization.slug }}</div>
+        <div class="w-33 shrink-0 text-caption text-ink-2">Slug</div>
+        <div class="truncate font-mono text-caption text-ink">{{ organization.slug }}</div>
       </Row>
       <Row as="div" class="flex items-center">
-        <div class="w-33 shrink-0 text-[13px] text-ink-2">Created</div>
-        <div class="text-[13px] text-ink">{{ formatDate(organization.createdAt) }}</div>
+        <div class="w-33 shrink-0 text-caption text-ink-2">Created</div>
+        <div class="text-caption text-ink">{{ formatDate(organization.createdAt) }}</div>
       </Row>
       <Row as="div" class="flex items-center">
-        <div class="w-33 shrink-0 text-[13px] text-ink-2">Your role</div>
+        <div class="w-33 shrink-0 text-caption text-ink-2">Your role</div>
         <Tag class="capitalize">{{ organization.role }}</Tag>
       </Row>
       <Row as="div" class="flex items-center">
-        <div class="w-33 shrink-0 text-[13px] text-ink-2">Members</div>
-        <div class="text-[13px] text-ink">{{ memberCount }}</div>
+        <div class="w-33 shrink-0 text-caption text-ink-2">Members</div>
+        <SkeletonText v-if="memberCountLoading" :lines="1" class="w-8" />
+        <div v-else class="text-caption text-ink">{{ memberCount }}</div>
       </Row>
     </template>
 

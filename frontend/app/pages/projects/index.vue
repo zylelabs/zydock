@@ -69,17 +69,7 @@
     },
   );
 
-  const hasLoadedOnce = ref(false);
-
-  watch(
-    status,
-    value => {
-      if (value !== 'pending') {
-        hasLoadedOnce.value = true;
-      }
-    },
-    { immediate: true },
-  );
+  const hasLoadedOnce = useFirstLoad(status);
 
   const projects = computed(() => data.value?.items ?? []);
 
@@ -188,10 +178,10 @@
           :to="`/projects/${project.id}`"
           class="flex flex-col gap-3 rounded-card border border-edge bg-card p-4.5 transition-colors hover:border-edge-strong"
         >
-          <div class="text-[15px] font-semibold tracking-[-0.01em] text-ink">
+          <div class="text-heading text-ink">
             {{ project.name }}
           </div>
-          <p class="flex-1 text-[13px] leading-normal text-pretty text-ink-2">
+          <p class="flex-1 text-caption text-pretty text-ink-2">
             {{ project.description || 'No description.' }}
           </p>
           <div class="flex gap-3.5 border-t border-hairline pt-2.75 text-caption text-ink-3">

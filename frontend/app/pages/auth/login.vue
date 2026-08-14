@@ -47,7 +47,7 @@
 
 <template>
   <div>
-    <h1 class="text-[25px] font-semibold tracking-tight text-ink">Sign in</h1>
+    <h1 class="text-title text-ink">Sign in</h1>
     <p class="mt-1.75 mb-5.5 text-body text-pretty text-ink-2">
       Deployments, servers and logs for your organizations.
     </p>
@@ -80,7 +80,7 @@
       </Button>
     </form>
 
-    <div class="mt-4.5 flex flex-wrap gap-4 text-[13px]">
+    <div class="mt-4.5 flex flex-wrap gap-4 text-caption">
       <NuxtLink to="/auth/forgot-password" class="text-accent hover:underline">
         Forgot your password?
       </NuxtLink>

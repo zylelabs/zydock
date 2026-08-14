@@ -22,17 +22,7 @@
     default: () => null,
   });
 
-  const profileLoadedOnce = ref(false);
-
-  watch(
-    profileStatus,
-    value => {
-      if (value !== 'pending') {
-        profileLoadedOnce.value = true;
-      }
-    },
-    { immediate: true },
-  );
+  const profileLoadedOnce = useFirstLoad(profileStatus);
 
   const user = computed(() => profileData.value?.user ?? null);
 
@@ -113,17 +103,7 @@
     default: () => ({ items: [], total: 0, page: 1, size: 0, pages: 0 }),
   });
 
-  const keysLoadedOnce = ref(false);
-
-  watch(
-    keysStatus,
-    value => {
-      if (value !== 'pending') {
-        keysLoadedOnce.value = true;
-      }
-    },
-    { immediate: true },
-  );
+  const keysLoadedOnce = useFirstLoad(keysStatus);
 
   const apiKeys = computed(() => keysData.value?.items ?? []);
 
@@ -181,17 +161,7 @@
     default: () => ({ items: [], total: 0, page: 1, size: 0, pages: 0 }),
   });
 
-  const sessionsLoadedOnce = ref(false);
-
-  watch(
-    sessionsStatus,
-    value => {
-      if (value !== 'pending') {
-        sessionsLoadedOnce.value = true;
-      }
-    },
-    { immediate: true },
-  );
+  const sessionsLoadedOnce = useFirstLoad(sessionsStatus);
 
   const sessions = computed(() => sessionsData.value?.items ?? []);
 
@@ -256,15 +226,15 @@
 
         <template v-else-if="!editingProfile">
           <Row as="div" class="flex items-center">
-            <div class="w-33 shrink-0 text-[13px] text-ink-2">Email</div>
-            <div class="truncate text-[13px] text-ink">{{ user?.email }}</div>
+            <div class="w-33 shrink-0 text-caption text-ink-2">Email</div>
+            <div class="truncate text-caption text-ink">{{ user?.email }}</div>
           </Row>
           <Row as="div" class="flex items-center">
-            <div class="w-33 shrink-0 text-[13px] text-ink-2">Name</div>
-            <div class="truncate text-[13px] text-ink">{{ user?.name }}</div>
+            <div class="w-33 shrink-0 text-caption text-ink-2">Name</div>
+            <div class="truncate text-caption text-ink">{{ user?.name }}</div>
           </Row>
           <Row v-if="user?.superuser" as="div" class="flex items-center">
-            <div class="w-33 shrink-0 text-[13px] text-ink-2">Role</div>
+            <div class="w-33 shrink-0 text-caption text-ink-2">Role</div>
             <Tag color="live">Superuser</Tag>
           </Row>
         </template>
@@ -339,7 +309,7 @@
 
         <Alert v-if="createdToken" theme="success" class="m-4.25">
           Copy this token now — it will not be shown again.
-          <pre class="mt-2 overflow-x-auto rounded-control bg-inset p-2 text-xs">{{
+          <pre class="mt-2 overflow-x-auto rounded-control bg-inset p-2 text-caption">{{
             createdToken
           }}</pre>
         </Alert>
@@ -390,7 +360,7 @@
 
         <Row v-for="key in apiKeys" :key="key.id" as="div" class="flex items-center gap-3.5">
           <div class="min-w-0 flex-1">
-            <p class="truncate text-[13.5px] text-ink">{{ key.name }}</p>
+            <p class="truncate text-caption text-ink">{{ key.name }}</p>
             <p class="truncate text-caption text-ink-2">
               {{ key.prefix }}••• · last used {{ formatWhen(key.lastUsedAt) }}
               <span v-if="key.expiresAt"> · expires {{ formatWhen(key.expiresAt) }}</span>
@@ -429,7 +399,7 @@
         <template v-else>
           <Row v-for="item in sessions" :key="item.id" as="div" class="flex items-center gap-3.5">
             <div class="min-w-0 flex-1">
-              <p class="truncate text-[13.5px] text-ink">
+              <p class="truncate text-caption text-ink">
                 {{ item.userAgent || 'Unknown device' }}
                 <span v-if="item.current" class="text-caption text-ink-2">(this device)</span>
               </p>
@@ -453,7 +423,7 @@
       <NuxtLink
         v-if="user?.superuser"
         to="/admin/users"
-        class="flex items-center justify-between rounded-card border border-edge bg-card px-4.25 py-3.25 text-[13px] text-ink transition-colors hover:text-accent"
+        class="flex items-center justify-between rounded-card border border-edge bg-card px-4.25 py-3.25 text-caption text-ink transition-colors hover:text-accent"
       >
         <span>Manage all users (superuser)</span>
         <Icon name="lucide:chevron-right" class="size-4" />

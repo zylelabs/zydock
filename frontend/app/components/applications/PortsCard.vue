@@ -76,8 +76,8 @@
     </template>
 
     <Row as="div" class="flex items-center">
-      <div class="w-33 shrink-0 text-[13px] text-ink-2">Exposed port</div>
-      <div class="font-mono text-[13px] text-ink">{{ application.port }}</div>
+      <div class="w-33 shrink-0 text-caption text-ink-2">Exposed port</div>
+      <div class="font-mono text-caption text-ink">{{ application.port }}</div>
     </Row>
 
     <template v-if="!editingPorts">
@@ -88,7 +88,7 @@
         v-for="(mapping, index) in portMappings"
         :key="index"
         as="div"
-        class="flex items-center font-mono text-[13px] text-ink"
+        class="flex items-center font-mono text-caption text-ink"
       >
         <span>{{ mapping.hostPort }} → {{ mapping.containerPort }}</span>
         <span class="text-ink-3">/{{ mapping.protocol }}</span>

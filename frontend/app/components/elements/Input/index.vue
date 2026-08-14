@@ -162,7 +162,7 @@
         :for="inputId"
         class="shrink-0 text-ink-2"
         :class="[
-          stacked ? 'text-[11.5px]' : ['text-[13px]', labelWidth || 'w-33'],
+          stacked ? 'text-caption' : ['text-caption', labelWidth || 'w-33'],
           { 'text-ink-3': disabled },
         ]"
       >
@@ -193,9 +193,9 @@
           "
           :class="
             mergeClasses(
-              'w-full resize-none bg-transparent text-sm text-ink outline-none placeholder:text-ink-3 disabled:cursor-not-allowed disabled:text-ink-3',
+              'w-full resize-none bg-transparent text-body text-ink outline-none placeholder:text-ink-3 disabled:cursor-not-allowed disabled:text-ink-3',
               mono && 'font-mono',
-              boxed && !stacked && 'text-[13px]',
+              boxed && !stacked && 'text-caption',
               inputClass,
             )
           "
@@ -220,9 +220,9 @@
           :type="password ? (viewPassword ? 'password' : 'text') : type"
           :class="
             mergeClasses(
-              'w-full min-w-0 bg-transparent text-sm text-ink outline-none placeholder:text-ink-3 disabled:cursor-not-allowed disabled:text-ink-3',
+              'w-full min-w-0 bg-transparent text-body text-ink outline-none placeholder:text-ink-3 disabled:cursor-not-allowed disabled:text-ink-3',
               mono && 'font-mono',
-              boxed && !stacked && 'text-[13px]',
+              boxed && !stacked && 'text-caption',
               inputClass,
             )
           "

@@ -34,13 +34,14 @@
 
   const empty = { items: [], total: 0, page: 1, size: 0, pages: 0 };
 
-  const { data: membersData } = useLazyAsyncData(
+  const { data: membersData, status: membersStatus } = useLazyAsyncData(
     () => `settings-member-count-${current.value?.id}`,
     () => (current.value ? listMembers() : Promise.resolve(empty)),
     { server: false, watch: [() => current.value?.id], default: () => empty },
   );
 
   const memberCount = computed(() => membersData.value?.total ?? 0);
+  const memberCountLoading = computed(() => membersStatus.value === 'pending');
 
   const { set: setNavbar } = useNavbar();
 
@@ -66,6 +67,7 @@
         :organization="current"
         :can-manage="canManage"
         :member-count="memberCount"
+        :member-count-loading="memberCountLoading"
       />
       <TeamTab
         v-else-if="activeTab === 'team'"

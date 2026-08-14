@@ -8,7 +8,7 @@
     theme?: AlertTheme;
   }>();
 
-  const base = 'flex items-start gap-2 rounded-control border px-3 py-2 text-sm';
+  const base = 'flex items-start gap-2 rounded-control border px-3 py-2 text-body';
 
   const themes: Record<AlertTheme, { class: string; icon: string }> = {
     error: { class: 'border-failed/40 bg-failed/10 text-failed', icon: 'lucide:circle-alert' },

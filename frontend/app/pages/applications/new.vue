@@ -38,7 +38,7 @@
   const messageOf = (error: unknown, fallback: string) =>
     (error as { message?: string }).message || fallback;
 
-  const { data } = useLazyAsyncData(
+  const { data, status: wizardContextStatus } = useLazyAsyncData(
     'wizard-context',
     async () => {
       if (!session.organizationId) {
@@ -54,6 +54,12 @@
       watch: [() => session.organizationId],
       default: () => ({ projects: [] as Project[], servers: [] as Server[] }),
     },
+  );
+
+  const hasLoadedWizardContextOnce = useFirstLoad(wizardContextStatus);
+
+  const wizardContextPending = computed(
+    () => wizardContextStatus.value === 'pending' && !hasLoadedWizardContextOnce.value,
   );
 
   const projects = computed(() => data.value?.projects ?? []);
@@ -682,7 +688,7 @@
               :class="form.values.sourceMode === 'github-app' ? 'border-accent' : 'border-edge'"
               @click="pickSource('github-app')"
             >
-              <div class="text-[14px] font-semibold text-ink">GitHub App</div>
+              <div class="text-body font-semibold text-ink">GitHub App</div>
               <div class="mt-1 text-caption text-ink-2">
                 Webhooks and private repositories handled for you.
               </div>
@@ -693,7 +699,7 @@
               :class="form.values.sourceMode === 'token' ? 'border-accent' : 'border-edge'"
               @click="pickSource('token')"
             >
-              <div class="text-[14px] font-semibold text-ink">Public repository or token</div>
+              <div class="text-body font-semibold text-ink">Public repository or token</div>
               <div class="mt-1 text-caption text-ink-2">
                 Paste owner/repository. Add a token if it is private.
               </div>
@@ -707,7 +713,7 @@
               ]"
               @click="pickSource('resources')"
             >
-              <div class="text-[14px] font-semibold text-ink">Resources</div>
+              <div class="text-body font-semibold text-ink">Resources</div>
               <div class="mt-1 text-caption text-ink-2">
                 Templates from the marketplace, published by other projects.
               </div>
@@ -779,21 +785,38 @@
               boxed
               :call-error="form.errors.value.name"
             />
+            <div v-if="wizardContextPending" class="flex items-center gap-1.75 px-4.25 py-1.5">
+              <label class="w-33 shrink-0 text-caption text-ink-2">Project</label>
+              <Skeleton class="h-7 flex-1" />
+            </div>
             <Select
+              v-else
               v-model="form.values.projectId"
               label="Project"
               :options="projectOptions"
               placeholder="Choose a project"
               boxed
             />
+
+            <div v-if="wizardContextPending" class="flex items-center gap-1.75 px-4.25 py-1.5">
+              <label class="w-33 shrink-0 text-caption text-ink-2">Environment</label>
+              <Skeleton class="h-7 flex-1" />
+            </div>
             <Select
+              v-else
               v-model="form.values.environmentId"
               label="Environment"
               :options="environmentOptions"
               placeholder="Choose an environment"
               boxed
             />
+
+            <div v-if="wizardContextPending" class="flex items-center gap-1.75 px-4.25 py-1.5">
+              <label class="w-33 shrink-0 text-caption text-ink-2">Server</label>
+              <Skeleton class="h-7 flex-1" />
+            </div>
             <Select
+              v-else
               v-model="form.values.serverId"
               label="Server"
               :options="serverOptions"
@@ -868,7 +891,7 @@
 
               <div class="flex items-center gap-3.5 px-4.25 py-3">
                 <div class="flex-1">
-                  <div class="text-[13px] text-ink">Auto-deploy on every push</div>
+                  <div class="text-caption text-ink">Auto-deploy on every push</div>
                   <div class="text-caption text-ink-3">
                     Webhook comes from the git source. Nothing to configure.
                   </div>
@@ -889,7 +912,7 @@
         <template v-else>
           <div
             v-if="autoDomainPreview"
-            class="mb-3.5 flex items-center gap-2 rounded-card border border-edge bg-inset px-4 py-3 text-[13.5px]"
+            class="mb-3.5 flex items-center gap-2 rounded-card border border-edge bg-inset px-4 py-3 text-caption"
           >
             <Icon name="lucide:globe" class="size-4 shrink-0 text-ink-2" />
             <span class="text-ink-2">Your application will be reachable at</span>
@@ -908,8 +931,8 @@
               :key="row.label"
               class="flex items-baseline gap-3.5 border-t border-hairline px-4 py-3 first:border-t-0"
             >
-              <div class="w-33 shrink-0 text-[13px] text-ink-2">{{ row.label }}</div>
-              <div class="font-mono text-[13.5px] text-ink">{{ row.value }}</div>
+              <div class="w-33 shrink-0 text-caption text-ink-2">{{ row.label }}</div>
+              <div class="font-mono text-caption text-ink">{{ row.value }}</div>
             </div>
           </div>
           <p class="mt-3.5 text-caption text-ink-2">

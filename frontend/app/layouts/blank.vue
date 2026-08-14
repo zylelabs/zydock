@@ -3,7 +3,7 @@
     <div class="w-97 max-w-full">
       <div class="mb-6.5 flex items-center gap-2.5 select-none">
         <Logo class="size-7 shrink-0" />
-        <div class="text-[15px] font-semibold tracking-[-0.01em] text-ink">Zydock</div>
+        <div class="text-heading text-ink">Zydock</div>
       </div>
 
       <slot />

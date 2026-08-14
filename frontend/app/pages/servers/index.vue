@@ -49,17 +49,7 @@
 
   const servers = computed(() => data.value?.items ?? []);
 
-  const hasLoadedOnce = ref(false);
-
-  watch(
-    status,
-    value => {
-      if (value !== 'pending') {
-        hasLoadedOnce.value = true;
-      }
-    },
-    { immediate: true },
-  );
+  const hasLoadedOnce = useFirstLoad(status);
 
   const metricsByServer = reactive(new Map<string, SystemMetrics>());
   const metricsLoading = reactive(new Set<string>());
@@ -196,7 +186,7 @@
             <StatusDot :status="serverStatusDot(server.status)" />
             <div class="min-w-0">
               <div class="flex items-center gap-2">
-                <span class="truncate text-[14px] font-medium text-ink">{{ server.name }}</span>
+                <span class="truncate text-body font-medium text-ink">{{ server.name }}</span>
                 <Tag v-if="server.type === 'local'">local</Tag>
               </div>
               <div class="truncate font-mono text-caption text-ink-2">

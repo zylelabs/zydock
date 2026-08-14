@@ -40,7 +40,7 @@
 
 <template>
   <div>
-    <h1 class="text-[25px] font-semibold tracking-tight text-ink">
+    <h1 class="text-title text-ink">
       {{ sent ? 'Check your email' : 'Reset your password' }}
     </h1>
     <p v-if="!sent" class="mt-1.75 mb-5.5 text-body text-pretty text-ink-2">
@@ -70,7 +70,7 @@
       </Button>
     </form>
 
-    <div class="mt-4.5 flex flex-wrap gap-4 text-[13px]">
+    <div class="mt-4.5 flex flex-wrap gap-4 text-caption">
       <NuxtLink to="/auth/login" class="text-accent hover:underline">Back to sign in</NuxtLink>
     </div>
   </div>

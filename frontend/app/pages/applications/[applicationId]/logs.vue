@@ -7,11 +7,45 @@
 
   const applications = useApplications();
   const { history, download, topic } = useLogs();
-  const { subscribe, status } = useWebSocket();
+  const { subscribe, status: socketStatus } = useWebSocket();
 
   const applicationId = computed(() => String(route.params.applicationId));
-  const applicationName = ref('');
-  const services = ref<ApplicationService[]>([]);
+
+  type LogsShell = { applicationName: string; services: ApplicationService[] };
+
+  const { getCachedData, markFetched } = useNavigationCache();
+
+  const {
+    data: shell,
+    status: shellStatus,
+    error: shellError,
+  } = useLazyAsyncData(
+    () => `application-${applicationId.value}-logs-shell`,
+    async () => {
+      if (!session.organizationId) {
+        return null;
+      }
+
+      const { application } = await applications.get(applicationId.value);
+      const services =
+        application.source === 'compose'
+          ? (await applications.services(applicationId.value)).services
+          : [];
+
+      markFetched(`application-${applicationId.value}-logs-shell`);
+
+      return { applicationName: application.name, services };
+    },
+    {
+      server: false,
+      watch: [() => session.organizationId, applicationId],
+      default: () => null as LogsShell | null,
+      getCachedData: key => getCachedData(key),
+    },
+  );
+
+  const applicationName = computed(() => shell.value?.applicationName ?? '');
+  const services = computed(() => shell.value?.services ?? []);
   const selectedService = ref('');
 
   const serviceOptions = computed(() =>
@@ -22,6 +56,8 @@
   );
 
   const exposedService = computed(() => services.value.find(entry => entry.exposed)?.service ?? '');
+
+  const hasLoadedShellOnce = useFirstLoad(shellStatus);
 
   useHead(() => ({ title: `Logs · ${applicationName.value || 'Application'}` }));
 
@@ -56,7 +92,7 @@
   const LEVEL_CLASS: Record<LogLevel, string> = {
     error: 'text-failed',
     warn: 'text-attn',
-    info: 'text-white/85',
+    info: 'text-terminal-ink',
   };
 
   const query = () => ({
@@ -148,28 +184,22 @@
     }
   };
 
-  onMounted(async () => {
-    if (!session.organizationId) {
-      return;
-    }
-
-    const { application } = await applications.get(applicationId.value);
-    applicationName.value = application.name;
-
-    if (application.source === 'compose') {
-      const result = await applications.services(applicationId.value);
-      services.value = result.services;
-
-      const exposed = result.services.find(entry => entry.exposed)?.service ?? '';
-
-      if (exposed) {
-        selectedService.value = exposed;
+  watch(
+    shell,
+    value => {
+      if (!value) {
         return;
       }
-    }
 
-    await load();
-  });
+      if (exposedService.value && selectedService.value !== exposedService.value) {
+        selectedService.value = exposedService.value;
+        return;
+      }
+
+      load();
+    },
+    { immediate: true },
+  );
 
   watch(selectedService, () => {
     load();
@@ -178,12 +208,25 @@
 
 <template>
   <Content>
-    <div class="flex flex-col gap-4">
+    <div v-if="shellStatus === 'pending' && !hasLoadedShellOnce" class="flex flex-col gap-4">
+      <div class="flex flex-wrap items-center gap-2">
+        <Skeleton class="h-9 max-w-75 flex-1" />
+        <Skeleton class="h-9 w-28" />
+        <div class="flex-1" />
+        <Skeleton class="h-9 w-24" />
+        <Skeleton class="h-9 w-28" />
+      </div>
+      <Skeleton class="h-[65vh] rounded-card" />
+    </div>
+
+    <Alert v-else-if="shellError" theme="error">{{ shellError.message }}</Alert>
+
+    <div v-else class="flex flex-col gap-4">
       <div class="flex flex-wrap items-center gap-2">
         <input
           v-model="filters.search"
           placeholder="Filter output"
-          class="max-w-75 flex-1 rounded-control border border-edge bg-card px-3 py-2 text-[13.5px] text-ink outline-none placeholder:text-ink-3 focus:border-edge-strong"
+          class="max-w-75 flex-1 rounded-control border border-edge bg-card px-3 py-2 text-caption text-ink outline-none placeholder:text-ink-3 focus:border-edge-strong"
           @keyup.enter="load"
         />
         <Segmented v-model="filters.stream" :options="streamOptions" @update:model-value="load" />
@@ -205,11 +248,11 @@
 
         <button
           type="button"
-          class="flex cursor-pointer items-center gap-2 rounded-control border border-edge bg-card px-3.5 py-1.5 text-[13px] text-ink transition-colors hover:bg-inset"
+          class="flex cursor-pointer items-center gap-2 rounded-control border border-edge bg-card px-3.5 py-1.5 text-caption text-ink transition-colors hover:bg-inset"
           @click="toggleLive"
         >
           <StatusDot :status="live ? 'live' : 'stopped'" />
-          {{ live ? (status === 'open' ? 'Live' : status) : 'Paused' }}
+          {{ live ? (socketStatus === 'open' ? 'Live' : socketStatus) : 'Paused' }}
         </button>
         <Button theme="secondary" size="sm" :disabled="downloading" @click="handleDownload">
           <Icon v-if="downloading" name="svg-spinners:tadpole" class="size-4" />
@@ -229,17 +272,26 @@
       <div
         class="max-h-[65vh] overflow-auto rounded-card bg-terminal p-4 font-mono text-[12.5px] leading-[1.8]"
       >
-        <p v-if="loading" class="text-white/50">Loading…</p>
-        <p v-else-if="!visible.length" class="text-white/50">No log lines.</p>
+        <div v-if="loading" class="flex flex-col gap-2.5">
+          <Skeleton
+            v-for="index in 6"
+            :key="index"
+            class="h-3"
+            :class="index % 2 ? 'w-3/4' : 'w-1/2'"
+          />
+        </div>
+        <p v-else-if="!visible.length" class="text-terminal-ink-3">No log lines.</p>
         <div
           v-for="(entry, index) in visible"
           :key="index"
           class="flex gap-3.5 whitespace-pre-wrap"
         >
-          <span v-if="entry.timestamp" class="shrink-0 text-white/50">{{ entry.timestamp }}</span>
+          <span v-if="entry.timestamp" class="shrink-0 text-terminal-ink-3">{{
+            entry.timestamp
+          }}</span>
           <AnsiText :text="entry.message" :class="LEVEL_CLASS[entry.level]" />
         </div>
-        <div v-if="live" class="text-white/75">
+        <div v-if="live" class="text-terminal-ink-2">
           <span class="animate-pulse motion-reduce:animate-none">▋</span>
         </div>
       </div>

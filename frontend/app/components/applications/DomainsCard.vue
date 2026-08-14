@@ -34,17 +34,7 @@
     },
   );
 
-  const hasLoadedOnce = ref(false);
-
-  watch(
-    status,
-    value => {
-      if (value !== 'pending') {
-        hasLoadedOnce.value = true;
-      }
-    },
-    { immediate: true },
-  );
+  const hasLoadedOnce = useFirstLoad(status);
 
   const domainList = computed(() => data.value?.items ?? []);
 
@@ -265,7 +255,7 @@
     <div v-for="domain in domainList" :key="domain.id" class="border-t border-hairline p-4.25">
       <div class="flex flex-wrap items-center gap-3">
         <Icon v-if="domain.tls" name="lucide:lock" class="size-3.5 shrink-0 text-live" />
-        <span class="truncate font-mono text-[13.5px] text-ink">
+        <span class="truncate font-mono text-caption text-ink">
           {{ domain.hostname }}{{ domain.pathPrefix }}
         </span>
         <button
@@ -357,9 +347,9 @@
 
       <div
         v-if="domainCertificateOpen === domain.id"
-        class="mt-3 border-t border-hairline pt-3 text-[13px]"
+        class="mt-3 border-t border-hairline pt-3 text-caption"
       >
-        <p v-if="domainCertificateLoading" class="text-ink-2">Loading…</p>
+        <SkeletonRow v-if="domainCertificateLoading" />
         <p v-else-if="domainCertificateFailed[domain.id]" class="text-failed">
           Failed to load the certificate.
         </p>

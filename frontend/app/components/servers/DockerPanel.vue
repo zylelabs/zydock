@@ -21,7 +21,7 @@
 <template>
   <div class="flex flex-col gap-3.5">
     <div class="flex items-center justify-between">
-      <div class="text-[13px] font-semibold text-ink">Docker</div>
+      <div class="text-caption font-semibold text-ink">Docker</div>
       <Segmented v-model="activeTab" :options="tabOptions" />
     </div>
 

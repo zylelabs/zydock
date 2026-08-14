@@ -65,7 +65,7 @@
 
       <button
         type="button"
-        class="flex cursor-pointer items-center gap-2 rounded-control border border-edge bg-card px-3.5 py-1.5 text-[13px] text-ink transition-colors hover:bg-inset"
+        class="flex cursor-pointer items-center gap-2 rounded-control border border-edge bg-card px-3.5 py-1.5 text-caption text-ink transition-colors hover:bg-inset"
         @click="live = !live"
       >
         <StatusDot :status="live ? 'live' : 'stopped'" />
@@ -82,7 +82,7 @@
       :empty-label="emptyLabel"
     >
       <template #at="{ item }">
-        <span class="font-mono text-[12.5px] text-ink-2">{{
+        <span class="font-mono text-caption text-ink-2">{{
           formatTime((item as unknown as AccessLogEntry).at)
         }}</span>
       </template>
@@ -91,7 +91,7 @@
         <button
           v-if="clickableHost && (item as unknown as AccessLogEntry).applicationId"
           type="button"
-          class="max-w-full cursor-pointer truncate font-mono text-[12.5px] text-ink underline decoration-edge-strong underline-offset-2 hover:text-accent"
+          class="max-w-full cursor-pointer truncate font-mono text-caption text-ink underline decoration-edge-strong underline-offset-2 hover:text-accent"
           :title="(item as unknown as AccessLogEntry).host"
           @click="emit('hostClick', item as unknown as AccessLogEntry)"
         >
@@ -99,7 +99,7 @@
         </button>
         <span
           v-else
-          class="block max-w-full truncate font-mono text-[12.5px] text-ink"
+          class="block max-w-full truncate font-mono text-caption text-ink"
           :title="(item as unknown as AccessLogEntry).host"
         >
           {{ (item as unknown as AccessLogEntry).host }}
@@ -109,7 +109,7 @@
       <template v-if="showApplication" #applicationName="{ item }">
         <span
           v-if="(item as unknown as AccessLogEntry).applicationName"
-          class="truncate text-[12.5px] text-ink-2"
+          class="truncate text-caption text-ink-2"
         >
           {{ (item as unknown as AccessLogEntry).applicationName }}
         </span>
@@ -117,14 +117,14 @@
       </template>
 
       <template #method="{ item }">
-        <span class="font-mono text-[12.5px] text-ink-2">{{
+        <span class="font-mono text-caption text-ink-2">{{
           (item as unknown as AccessLogEntry).method
         }}</span>
       </template>
 
       <template #path="{ item }">
         <span
-          class="block max-w-full truncate font-mono text-[12.5px] text-ink"
+          class="block max-w-full truncate font-mono text-caption text-ink"
           :title="(item as unknown as AccessLogEntry).path"
         >
           {{ (item as unknown as AccessLogEntry).path }}
@@ -138,20 +138,20 @@
       </template>
 
       <template #durationMs="{ item }">
-        <span class="text-[12.5px] text-ink-2">{{
+        <span class="text-caption text-ink-2">{{
           formatDuration((item as unknown as AccessLogEntry).durationMs)
         }}</span>
       </template>
 
       <template #remoteIp="{ item }">
-        <span class="font-mono text-[12.5px] text-ink-2">{{
+        <span class="font-mono text-caption text-ink-2">{{
           (item as unknown as AccessLogEntry).remoteIp
         }}</span>
       </template>
 
       <template #userAgent="{ item }">
         <span
-          class="block max-w-full truncate text-[12.5px] text-ink-3"
+          class="block max-w-full truncate text-caption text-ink-3"
           :title="(item as unknown as AccessLogEntry).userAgent"
         >
           {{ (item as unknown as AccessLogEntry).userAgent || '—' }}

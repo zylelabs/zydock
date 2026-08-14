@@ -164,7 +164,7 @@
       >
         <label
           v-if="label"
-          class="shrink-0 text-[13px] text-ink-2"
+          class="shrink-0 text-caption text-ink-2"
           :class="[labelWidth || 'w-33', { 'text-ink-3': disabled }]"
         >
           {{ label }}
@@ -184,7 +184,7 @@
             v-model="searchQuery"
             class="flex-1"
             type="text"
-            input-class="flex-1 bg-transparent outline-none text-sm disabled:cursor-not-allowed"
+            input-class="flex-1 bg-transparent outline-none text-body disabled:cursor-not-allowed"
             :placeholder="searchPlaceholder"
             :disabled="disabled"
             :mask="inputMask"
@@ -207,8 +207,8 @@
           :class="[
             { 'cursor-not-allowed text-ink-3 opacity-50': disabled },
             boxed
-              ? 'rounded-control border border-edge bg-inset px-2.5 py-1.5 text-[13px]'
-              : 'text-sm',
+              ? 'rounded-control border border-edge bg-inset px-2.5 py-1.5 text-caption'
+              : 'text-body',
           ]"
           :aria-disabled="disabled"
         >

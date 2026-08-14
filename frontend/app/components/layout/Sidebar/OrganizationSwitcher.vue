@@ -57,11 +57,11 @@
           class="flex w-full cursor-pointer items-center gap-2.5 rounded-button border border-edge bg-page p-2 text-left transition-colors hover:border-edge-strong"
         >
           <span
-            class="flex size-5.5 shrink-0 items-center justify-center rounded-control bg-accent-soft text-[10px] font-semibold text-white"
+            class="flex size-5.5 shrink-0 items-center justify-center rounded-control bg-accent-soft text-label font-semibold text-white"
           >
             {{ label.charAt(0).toUpperCase() }}
           </span>
-          <span class="min-w-0 flex-1 truncate text-[13px] font-medium text-ink">
+          <span class="min-w-0 flex-1 truncate text-caption font-medium text-ink">
             {{ label }}
           </span>
           <Icon name="lucide:chevron-down" class="size-3.5 shrink-0 text-ink-3" />
@@ -73,7 +73,7 @@
           v-for="organization in organizations"
           :key="organization.id"
           type="button"
-          class="flex w-full cursor-pointer items-center justify-between gap-2 rounded-control px-3 py-2 text-left text-sm transition-colors hover:bg-inset"
+          class="flex w-full cursor-pointer items-center justify-between gap-2 rounded-control px-3 py-2 text-left text-body transition-colors hover:bg-inset"
           @click.stop="choose(organization.id)"
         >
           <span class="truncate">{{ organization.name }}</span>
@@ -84,7 +84,7 @@
           />
         </button>
 
-        <p v-if="!organizations.length" class="px-3 py-2 text-xs text-ink-3">
+        <p v-if="!organizations.length" class="px-3 py-2 text-caption text-ink-3">
           You don't belong to any organization yet.
         </p>
 
@@ -92,7 +92,7 @@
 
         <button
           type="button"
-          class="flex w-full cursor-pointer items-center gap-2 rounded-control px-3 py-2 text-left text-sm text-ink-2 transition-colors hover:bg-inset hover:text-ink"
+          class="flex w-full cursor-pointer items-center gap-2 rounded-control px-3 py-2 text-left text-body text-ink-2 transition-colors hover:bg-inset hover:text-ink"
           @click.stop="openCreate"
         >
           <Icon name="lucide:plus" class="size-4" />

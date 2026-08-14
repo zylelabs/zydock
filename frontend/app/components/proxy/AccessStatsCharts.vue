@@ -22,10 +22,12 @@
 
 <template>
   <div class="grid gap-3 sm:grid-cols-3">
+    <SkeletonChart v-if="loading" />
     <Metric
+      v-else
       label="Requests / min"
       :value="latest ? String(latest.requests) : '—'"
-      :note="loading ? 'Loading…' : `last ${points.length} min`"
+      :note="`last ${points.length} min`"
       :bars="requestsBars"
     />
     <Metric

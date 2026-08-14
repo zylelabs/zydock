@@ -52,7 +52,7 @@
       </Button>
     </template>
 
-    <p v-if="!editingNetworks" class="px-4.25 py-4 font-mono text-[13px] text-ink">
+    <p v-if="!editingNetworks" class="px-4.25 py-4 font-mono text-caption text-ink">
       {{ networks.length ? networks.join(', ') : '—' }}
     </p>
 

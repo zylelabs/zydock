@@ -20,7 +20,7 @@
         class="grid-cols-[1fr_auto]"
       >
         <div class="min-w-0">
-          <div class="truncate text-[13px] font-medium text-ink">{{ host.host }}</div>
+          <div class="truncate text-caption font-medium text-ink">{{ host.host }}</div>
           <div class="text-caption text-ink-2">{{ host.applicationName }}</div>
         </div>
 
@@ -31,7 +31,7 @@
 
       <Row v-else as="div" class="grid-cols-[1fr_auto]">
         <div class="min-w-0">
-          <div class="truncate text-[13px] font-medium text-ink">{{ host.host }}</div>
+          <div class="truncate text-caption font-medium text-ink">{{ host.host }}</div>
           <Tag color="attn" class="mt-1">unmatched</Tag>
         </div>
 

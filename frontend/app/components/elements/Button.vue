@@ -31,9 +31,9 @@
   };
 
   const sizes: Record<ButtonSize, string> = {
-    md: 'rounded-[10px] px-5 py-[11px] text-[14.5px]',
-    sm: 'rounded-[9px] px-3.5 py-[7px] text-[13px]',
-    xs: 'rounded-control px-[11px] py-[5px] text-xs',
+    md: 'rounded-[10px] px-5 py-[11px] text-body',
+    sm: 'rounded-[9px] px-3.5 py-[7px] text-caption',
+    xs: 'rounded-control px-[11px] py-[5px] text-caption',
   };
 
   const resolvedTheme = computed<ButtonTheme>(

@@ -35,17 +35,7 @@
     { server: false, watch: [isSuperuser, search, statusFilter], default: () => ({ users: [] }) },
   );
 
-  const hasLoadedOnce = ref(false);
-
-  watch(
-    status,
-    value => {
-      if (value !== 'pending') {
-        hasLoadedOnce.value = true;
-      }
-    },
-    { immediate: true },
-  );
+  const hasLoadedOnce = useFirstLoad(status);
 
   const users = computed(() => data.value?.users ?? []);
 
@@ -84,7 +74,7 @@
 <template>
   <Content>
     <Card v-if="!isSuperuser" title="Access restricted">
-      <p class="text-[13px] text-ink-2">Only a superuser account can manage users.</p>
+      <p class="text-caption text-ink-2">Only a superuser account can manage users.</p>
     </Card>
 
     <div v-else class="flex flex-col gap-4.5">
@@ -112,7 +102,7 @@
         <Row v-for="user in users" :key="user.id" as="div" class="flex items-center gap-3.5">
           <Avatar :name="user.name || user.email" />
           <div class="min-w-0 flex-1">
-            <p class="truncate text-[13.5px] text-ink">
+            <p class="truncate text-caption text-ink">
               {{ user.name }}
               <span v-if="isSelf(user)" class="text-caption text-ink-2">(you)</span>
               <Tag v-if="user.superuser" color="live" class="ml-1">superuser</Tag>

@@ -115,6 +115,9 @@
       description="Run a successful deployment to open a console on the application's container."
     />
 
-    <p v-else class="text-caption text-ink-2">Loading…</p>
+    <div v-else class="flex flex-col gap-2.5">
+      <Skeleton class="h-9 max-w-60" />
+      <Skeleton class="h-85 rounded-card" />
+    </div>
   </Content>
 </template>

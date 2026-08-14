@@ -87,10 +87,10 @@
       empty-label="No images found."
     >
       <template #tag="{ value }">
-        <span class="truncate font-mono text-[13px] text-ink">{{ value }}</span>
+        <span class="truncate font-mono text-caption text-ink">{{ value }}</span>
       </template>
       <template #sizeBytes="{ value }">
-        <span class="text-[12.5px] text-ink-2">{{ formatBytes(value as number) }}</span>
+        <span class="text-caption text-ink-2">{{ formatBytes(value as number) }}</span>
       </template>
       <template #id="{ item }">
         <div class="flex items-center justify-end">

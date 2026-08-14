@@ -40,7 +40,7 @@
       :class="[titleCenter && 'text-center', headerClass]"
     >
       <div class="min-w-0">
-        <div class="text-[13px] font-semibold text-ink">
+        <div class="text-caption font-semibold text-ink">
           {{ title }}
         </div>
 

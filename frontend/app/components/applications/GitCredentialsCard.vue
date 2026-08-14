@@ -83,7 +83,7 @@
 
 <template>
   <Card v-if="git.source === 'github-app'" title="Git webhook">
-    <p class="text-[13px] leading-relaxed text-ink-2">
+    <p class="text-caption text-ink-2">
       This application comes from a GitHub App source, so the webhook is already installed and
       shared by every application on that source.
       <NuxtLink to="/settings?tab=git" class="text-accent hover:underline">
@@ -110,7 +110,7 @@
       <div class="flex flex-col gap-3 p-4.25">
         <Alert v-if="webhookError" theme="error">{{ webhookError }}</Alert>
 
-        <div class="flex items-center gap-2 text-[13px]">
+        <div class="flex items-center gap-2 text-caption">
           <Tag :color="git.hasWebhook ? 'live' : 'default'">
             {{ git.hasWebhook ? 'Configured' : 'Not configured' }}
           </Tag>
@@ -155,7 +155,7 @@
         </Button>
       </template>
 
-      <div v-if="!editingToken" class="flex items-center gap-2 p-4.25 text-[13px]">
+      <div v-if="!editingToken" class="flex items-center gap-2 p-4.25 text-caption">
         <Tag :color="git.hasToken ? 'live' : 'default'">
           {{ git.hasToken ? 'Configured' : 'Not configured' }}
         </Tag>

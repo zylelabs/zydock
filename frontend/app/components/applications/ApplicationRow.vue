@@ -31,7 +31,7 @@
       <StatusDot :status="applicationStatusDot(application.status)" />
       <div class="min-w-0">
         <div class="flex items-center gap-1.5">
-          <div class="truncate text-[14px] font-medium text-ink">{{ application.name }}</div>
+          <div class="truncate text-body font-medium text-ink">{{ application.name }}</div>
           <Tag
             v-if="application.templateStatus === 'update-available'"
             color="attn"
@@ -43,9 +43,9 @@
         <div class="truncate font-mono text-caption text-ink-2">{{ application.slug }}</div>
       </div>
     </div>
-    <div class="truncate font-mono text-[13px] text-ink-2">{{ origin }}</div>
-    <div class="truncate text-[13px] text-ink-2">{{ context }}</div>
-    <div v-if="server" class="truncate text-[13px] text-ink-2">{{ server }}</div>
+    <div class="truncate font-mono text-caption text-ink-2">{{ origin }}</div>
+    <div class="truncate text-caption text-ink-2">{{ context }}</div>
+    <div v-if="server" class="truncate text-caption text-ink-2">{{ server }}</div>
     <div class="text-right text-caption text-ink-2">{{ lastDeploy }}</div>
   </Row>
 </template>
