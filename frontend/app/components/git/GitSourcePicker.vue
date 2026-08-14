@@ -159,8 +159,13 @@
 
 <template>
   <div class="flex flex-col gap-3.5">
+    <div v-if="gitSourcesLoading" class="flex items-center gap-1.75 py-1.5">
+      <Skeleton class="h-3 w-33 shrink-0" />
+      <Skeleton class="h-7 flex-1 rounded-control" />
+    </div>
+
     <div
-      v-if="!gitSourcesLoading && !gitSources.length"
+      v-else-if="!gitSources.length"
       class="flex flex-col gap-2 rounded-card border border-dashed border-edge-strong px-4 py-6 text-center text-caption text-ink-2"
     >
       <p>No git source connected for this organization.</p>
@@ -174,14 +179,16 @@
         v-model="selectedGitSourceId"
         label="Git source"
         :options="gitSourceOptions"
-        :disabled="gitSourcesLoading"
         placeholder="Choose a git source"
         boxed
         bare
       />
 
       <div v-if="selectedGitSourceId" class="flex flex-col gap-1">
-        <p v-if="installationsLoading" class="text-caption text-ink-2">Loading installations…</p>
+        <div v-if="installationsLoading" class="flex items-center gap-1.75 py-1.5">
+          <Skeleton class="h-3 w-33 shrink-0" />
+          <Skeleton class="h-7 flex-1 rounded-control" />
+        </div>
         <Alert v-else-if="installationsError" theme="error">{{ installationsError }}</Alert>
         <p v-else-if="!installations.length" class="text-caption text-attn-ink">
           This source has no installation yet — install the App on GitHub first.
@@ -198,7 +205,23 @@
       </div>
 
       <div v-if="selectedInstallationId" class="flex flex-col gap-1">
-        <p v-if="repositoriesLoading" class="text-caption text-ink-2">Loading repositories…</p>
+        <div v-if="repositoriesLoading" class="overflow-hidden rounded-card border border-edge">
+          <div class="border-b border-hairline px-3.5 py-2.5">
+            <Skeleton class="h-3.5 w-40" />
+          </div>
+
+          <div
+            v-for="index in 4"
+            :key="index"
+            class="flex items-center gap-3 border-t border-hairline px-3.5 py-3 first:border-t-0"
+          >
+            <Skeleton rounded="rounded-control" class="size-5.5 shrink-0" />
+            <div class="flex min-w-0 flex-1 flex-col gap-2">
+              <Skeleton class="h-3.5 w-2/5" />
+              <Skeleton class="h-3 w-3/5" />
+            </div>
+          </div>
+        </div>
         <Alert v-else-if="repositoriesError" theme="error">{{ repositoriesError }}</Alert>
         <p v-else-if="!repositories.length" class="text-caption text-attn-ink">
           This installation has no accessible repository.
