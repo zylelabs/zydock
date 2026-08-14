@@ -49,7 +49,7 @@
 
   const servers = computed(() => data.value?.items ?? []);
 
-  const hasLoadedOnce = useFirstLoad(status);
+  const isFirstLoad = useFirstLoad(status);
 
   const metricsByServer = reactive(new Map<string, SystemMetrics>());
   const metricsLoading = reactive(new Set<string>());
@@ -164,7 +164,7 @@
     <div v-else class="flex max-w-225 flex-col gap-4.5">
       <AddServerPanel v-model:open="adding" @created="handleCreated" />
 
-      <div v-if="status === 'pending' && !hasLoadedOnce" class="flex flex-col gap-2">
+      <div v-if="isFirstLoad" class="flex flex-col gap-2">
         <Skeleton v-for="index in 4" :key="index" class="h-20" />
       </div>
 

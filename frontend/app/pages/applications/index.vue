@@ -98,7 +98,7 @@
     { immediate: true },
   );
 
-  const hasLoadedOnce = useFirstLoad(status);
+  const isFirstLoad = useFirstLoad(status);
 
   const metricsByServer = reactive(new Map<string, SystemMetrics>());
   const metricsLoading = reactive(new Set<string>());
@@ -227,7 +227,7 @@
         <Segmented v-model="viewMode" :options="viewOptions" />
       </div>
 
-      <div v-if="status === 'pending' && !hasLoadedOnce" class="flex flex-col gap-2">
+      <div v-if="isFirstLoad" class="flex flex-col gap-2">
         <Skeleton v-for="index in 4" :key="index" class="h-16" />
       </div>
 

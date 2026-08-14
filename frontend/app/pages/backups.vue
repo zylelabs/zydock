@@ -75,7 +75,7 @@
 
   const backups = computed(() => data.value?.backups ?? []);
 
-  const backupsLoadedOnce = useFirstLoad(status);
+  const backupsFirstLoad = useFirstLoad(status);
 
   const databaseOptions = computed(() =>
     (data.value?.databases ?? []).map(database => ({ value: database.id, label: database.name })),
@@ -326,7 +326,7 @@
         </form>
       </Card>
 
-      <div v-if="status === 'pending' && !backupsLoadedOnce" class="flex flex-col gap-2">
+      <div v-if="backupsFirstLoad" class="flex flex-col gap-2">
         <Skeleton v-for="index in 3" :key="index" class="h-14 rounded-card" />
       </div>
 

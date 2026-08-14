@@ -61,7 +61,7 @@
 
   useHead(() => ({ title: data.value?.project.name ?? 'Project' }));
 
-  const hasLoadedOnce = useFirstLoad(status);
+  const isFirstLoad = useFirstLoad(status);
 
   const environments = computed(() => data.value?.environments ?? []);
   const serverList = computed(() => data.value?.servers ?? []);
@@ -207,7 +207,7 @@
 
 <template>
   <Content>
-    <div v-if="status === 'pending' && !hasLoadedOnce" class="flex max-w-225 flex-col gap-4.5">
+    <div v-if="isFirstLoad" class="flex max-w-225 flex-col gap-4.5">
       <SkeletonCard :rows="3" />
       <SkeletonCard :rows="5" />
     </div>

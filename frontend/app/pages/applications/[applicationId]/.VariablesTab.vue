@@ -30,7 +30,7 @@
     },
   );
 
-  const hasLoadedOnce = useFirstLoad(status);
+  const isFirstLoad = useFirstLoad(status);
 
   const variables = computed(() => data.value?.variables ?? []);
 
@@ -81,7 +81,7 @@
       </template>
 
       <template v-if="!editingVars">
-        <template v-if="status === 'pending' && !hasLoadedOnce">
+        <template v-if="isFirstLoad">
           <SkeletonRow v-for="index in 3" :key="index" />
         </template>
 

@@ -56,13 +56,7 @@
     default: () => emptyStatus,
   });
 
-  const hasLoadedOnce = ref(false);
-
-  watch(statusLoadStatus, value => {
-    if (value === 'success' || value === 'error') {
-      hasLoadedOnce.value = true;
-    }
-  });
+  const isFirstLoad = useFirstLoad(statusLoadStatus);
 
   const statusErrorMessage = computed(
     () =>
@@ -388,7 +382,7 @@
 
 <template>
   <div class="flex flex-col gap-4.5">
-    <template v-if="statusLoadStatus === 'pending' && !hasLoadedOnce">
+    <template v-if="isFirstLoad">
       <SkeletonCard :rows="2" />
       <SkeletonCard :rows="4" />
       <SkeletonCard :rows="2" />

@@ -94,7 +94,7 @@
 
   const finished = computed(() => status.value === 'succeeded' || status.value === 'failed');
 
-  const hasLoadedOnce = useFirstLoad(loadStatus);
+  const isFirstLoad = useFirstLoad(loadStatus);
 
   useHead(() => ({ title: `Deploy · ${applicationName.value || 'Application'}` }));
 
@@ -262,7 +262,7 @@
           </Button>
         </div>
 
-        <div v-if="loadStatus === 'pending' && !hasLoadedOnce" class="flex flex-wrap gap-1.5">
+        <div v-if="isFirstLoad" class="flex flex-wrap gap-1.5">
           <Skeleton v-for="index in 4" :key="index" class="h-7 w-20 rounded-full" />
         </div>
         <div v-else-if="steps.length" class="flex flex-wrap gap-1.5">
@@ -280,7 +280,7 @@
           </span>
         </div>
 
-        <Skeleton v-if="loadStatus === 'pending' && !hasLoadedOnce" class="h-100 rounded-card" />
+        <Skeleton v-if="isFirstLoad" class="h-100 rounded-card" />
         <div
           v-else
           ref="logBox"

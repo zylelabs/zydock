@@ -69,7 +69,7 @@
     },
   );
 
-  const hasLoadedOnce = useFirstLoad(status);
+  const isFirstLoad = useFirstLoad(status);
 
   const projects = computed(() => data.value?.items ?? []);
 
@@ -158,10 +158,7 @@
         </div>
       </Card>
 
-      <div
-        v-if="status === 'pending' && !hasLoadedOnce"
-        class="grid grid-cols-[repeat(auto-fill,minmax(300px,1fr))] gap-4"
-      >
+      <div v-if="isFirstLoad" class="grid grid-cols-[repeat(auto-fill,minmax(300px,1fr))] gap-4">
         <SkeletonCard v-for="index in 3" :key="index" :rows="2" />
       </div>
 

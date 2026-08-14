@@ -32,7 +32,7 @@
 
   const gitSources = computed(() => gitSourcesData.value?.items ?? []);
 
-  const gitSourcesLoadedOnce = useFirstLoad(gitSourcesStatus);
+  const gitSourcesFirstLoad = useFirstLoad(gitSourcesStatus);
   const gitSourcesError = computed(
     () =>
       (gitSourcesLoadError.value as { message?: string } | null)?.message ||
@@ -157,10 +157,7 @@
         </Button>
       </template>
 
-      <div
-        v-if="gitSourcesStatus === 'pending' && !gitSourcesLoadedOnce"
-        class="flex flex-col gap-3"
-      >
+      <div v-if="gitSourcesFirstLoad" class="flex flex-col gap-3">
         <Skeleton class="h-20 w-full rounded-card" />
         <Skeleton class="h-20 w-full rounded-card" />
       </div>

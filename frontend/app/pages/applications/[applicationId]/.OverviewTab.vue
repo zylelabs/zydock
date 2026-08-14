@@ -111,7 +111,7 @@
     },
   );
 
-  const deploymentsLoadedOnce = useFirstLoad(deploymentsStatus);
+  const deploymentsFirstLoad = useFirstLoad(deploymentsStatus);
 
   const deploymentList = computed(() => data.value?.items ?? []);
   const runningDeployment = computed(() =>
@@ -143,7 +143,7 @@
     },
   );
 
-  const metricsLoadedOnce = useFirstLoad(metricsStatus);
+  const metricsFirstLoad = useFirstLoad(metricsStatus);
 
   const metrics = computed(() => metricsData.value?.metrics ?? null);
   const deployMetrics = computed(() => metricsData.value?.deployMetrics ?? null);
@@ -333,10 +333,7 @@
           class="max-w-60"
         />
 
-        <div
-          v-if="metricsStatus === 'pending' && !metricsLoadedOnce"
-          class="grid gap-3.5 sm:grid-cols-3"
-        >
+        <div v-if="metricsFirstLoad" class="grid gap-3.5 sm:grid-cols-3">
           <SkeletonChart v-for="index in 3" :key="index" />
         </div>
         <div v-else-if="stats.length" class="grid gap-3.5 sm:grid-cols-3">
@@ -351,7 +348,7 @@
         </div>
 
         <Card title="Deployments" content-class="p-0">
-          <template v-if="deploymentsStatus === 'pending' && !deploymentsLoadedOnce">
+          <template v-if="deploymentsFirstLoad">
             <SkeletonRow v-for="index in 3" :key="index" />
           </template>
 

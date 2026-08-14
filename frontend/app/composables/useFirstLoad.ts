@@ -1,17 +1,13 @@
 import type { AsyncDataRequestStatus } from 'nuxt/app';
 
 export const useFirstLoad = (status: Ref<AsyncDataRequestStatus>) => {
-  const loadedOnce = ref(false);
+  const settled = ref(status.value === 'success' || status.value === 'error');
 
-  watch(
-    status,
-    value => {
-      if (value !== 'pending') {
-        loadedOnce.value = true;
-      }
-    },
-    { immediate: true },
-  );
+  watch(status, value => {
+    if (value === 'success' || value === 'error') {
+      settled.value = true;
+    }
+  });
 
-  return loadedOnce;
+  return computed(() => !settled.value);
 };

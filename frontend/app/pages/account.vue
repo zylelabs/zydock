@@ -22,7 +22,7 @@
     default: () => null,
   });
 
-  const profileLoadedOnce = useFirstLoad(profileStatus);
+  const profileFirstLoad = useFirstLoad(profileStatus);
 
   const user = computed(() => profileData.value?.user ?? null);
 
@@ -103,7 +103,7 @@
     default: () => ({ items: [], total: 0, page: 1, size: 0, pages: 0 }),
   });
 
-  const keysLoadedOnce = useFirstLoad(keysStatus);
+  const keysFirstLoad = useFirstLoad(keysStatus);
 
   const apiKeys = computed(() => keysData.value?.items ?? []);
 
@@ -161,7 +161,7 @@
     default: () => ({ items: [], total: 0, page: 1, size: 0, pages: 0 }),
   });
 
-  const sessionsLoadedOnce = useFirstLoad(sessionsStatus);
+  const sessionsFirstLoad = useFirstLoad(sessionsStatus);
 
   const sessions = computed(() => sessionsData.value?.items ?? []);
 
@@ -220,7 +220,7 @@
           </Button>
         </template>
 
-        <template v-if="profileStatus === 'pending' && !profileLoadedOnce">
+        <template v-if="profileFirstLoad">
           <SkeletonRow v-for="index in 2" :key="index" />
         </template>
 
@@ -347,7 +347,7 @@
           </div>
         </form>
 
-        <template v-if="keysStatus === 'pending' && !keysLoadedOnce">
+        <template v-if="keysFirstLoad">
           <SkeletonRow v-for="index in 2" :key="index" />
         </template>
 
@@ -392,7 +392,7 @@
           </Button>
         </template>
 
-        <template v-if="sessionsStatus === 'pending' && !sessionsLoadedOnce">
+        <template v-if="sessionsFirstLoad">
           <SkeletonRow v-for="index in 2" :key="index" />
         </template>
 
