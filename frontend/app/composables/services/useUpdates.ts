@@ -68,15 +68,15 @@ export const updateRunPhase = (run: UpdateRun | null, isPolling: boolean): Updat
   return 'unknown';
 };
 
-const UPDATE_CELEBRATION_KEY = 'updates:celebrate';
+const UPDATE_SUCCESS_NOTICE_KEY = 'updates:success-notice';
 
-export const markUpdateCelebration = () =>
-  window.sessionStorage.setItem(UPDATE_CELEBRATION_KEY, '1');
+export const markUpdateSuccessNotice = () =>
+  window.sessionStorage.setItem(UPDATE_SUCCESS_NOTICE_KEY, '1');
 
-export const consumeUpdateCelebration = () => {
-  const pending = window.sessionStorage.getItem(UPDATE_CELEBRATION_KEY) === '1';
+export const consumeUpdateSuccessNotice = () => {
+  const pending = window.sessionStorage.getItem(UPDATE_SUCCESS_NOTICE_KEY) === '1';
 
-  window.sessionStorage.removeItem(UPDATE_CELEBRATION_KEY);
+  window.sessionStorage.removeItem(UPDATE_SUCCESS_NOTICE_KEY);
 
   return pending;
 };
