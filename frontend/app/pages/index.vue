@@ -111,16 +111,21 @@
   const percent = (used = 0, total = 0) => (total ? Math.round((used / total) * 100) : 0);
 
   const metricsByServer = reactive(new Map<string, SystemMetrics>());
+  const metricsLoading = reactive(new Set<string>());
 
   const loadServerMetrics = async (serverId: string) => {
-    if (metricsByServer.has(serverId)) {
+    if (metricsByServer.has(serverId) || metricsLoading.has(serverId)) {
       return;
     }
+
+    metricsLoading.add(serverId);
 
     try {
       metricsByServer.set(serverId, await serverMetrics(serverId));
     } catch {
       // metrics unavailable for an offline or unreachable server
+    } finally {
+      metricsLoading.delete(serverId);
     }
   };
 
@@ -266,7 +271,8 @@
                   {{ server.type === 'local' ? 'Local machine' : server.ssh.host }}
                 </div>
               </div>
-              <div v-if="serverLoad(server)" class="text-caption text-ink-2">
+              <Skeleton v-if="metricsLoading.has(server.id)" class="h-3 w-16 shrink-0" />
+              <div v-else-if="serverLoad(server)" class="text-caption text-ink-2">
                 {{ serverLoad(server) }}
               </div>
             </Row>
