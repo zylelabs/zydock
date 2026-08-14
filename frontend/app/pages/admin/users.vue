@@ -35,7 +35,7 @@
     { server: false, watch: [isSuperuser, search, statusFilter], default: () => ({ users: [] }) },
   );
 
-  const hasLoadedOnce = useFirstLoad(status);
+  const isFirstLoad = useFirstLoad(status);
 
   const users = computed(() => data.value?.users ?? []);
 
@@ -88,7 +88,7 @@
       </div>
 
       <Card content-class="p-0">
-        <template v-if="status === 'pending' && !hasLoadedOnce">
+        <template v-if="isFirstLoad">
           <SkeletonRow v-for="index in 4" :key="index" avatar />
         </template>
 

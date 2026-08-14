@@ -57,7 +57,7 @@
 
   const exposedService = computed(() => services.value.find(entry => entry.exposed)?.service ?? '');
 
-  const hasLoadedShellOnce = useFirstLoad(shellStatus);
+  const shellFirstLoad = useFirstLoad(shellStatus);
 
   useHead(() => ({ title: `Logs · ${applicationName.value || 'Application'}` }));
 
@@ -208,7 +208,7 @@
 
 <template>
   <Content>
-    <div v-if="shellStatus === 'pending' && !hasLoadedShellOnce" class="flex flex-col gap-4">
+    <div v-if="shellFirstLoad" class="flex flex-col gap-4">
       <div class="flex flex-wrap items-center gap-2">
         <Skeleton class="h-9 max-w-75 flex-1" />
         <Skeleton class="h-9 w-28" />

@@ -34,7 +34,7 @@
     },
   );
 
-  const hasLoadedOnce = useFirstLoad(status);
+  const isFirstLoad = useFirstLoad(status);
 
   const domainList = computed(() => data.value?.items ?? []);
 
@@ -241,7 +241,7 @@
       </div>
     </form>
 
-    <template v-if="status === 'pending' && !hasLoadedOnce">
+    <template v-if="isFirstLoad">
       <SkeletonRow v-for="index in 2" :key="index" />
     </template>
 

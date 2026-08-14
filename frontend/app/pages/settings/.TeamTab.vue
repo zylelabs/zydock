@@ -32,7 +32,7 @@
     },
   );
 
-  const membersLoadedOnce = useFirstLoad(membersStatus);
+  const membersFirstLoad = useFirstLoad(membersStatus);
 
   const members = computed(() => membersData.value?.items ?? []);
   const isSelf = (member: Member) => member.userId === session.user?.id;
@@ -173,7 +173,7 @@
 <template>
   <div class="flex flex-col gap-4.5">
     <Card title="Members" content-class="p-0">
-      <template v-if="membersStatus === 'pending' && !membersLoadedOnce">
+      <template v-if="membersFirstLoad">
         <SkeletonRow v-for="index in 3" :key="index" avatar />
       </template>
 

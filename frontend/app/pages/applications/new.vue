@@ -56,11 +56,7 @@
     },
   );
 
-  const hasLoadedWizardContextOnce = useFirstLoad(wizardContextStatus);
-
-  const wizardContextPending = computed(
-    () => wizardContextStatus.value === 'pending' && !hasLoadedWizardContextOnce.value,
-  );
+  const wizardContextPending = useFirstLoad(wizardContextStatus);
 
   const projects = computed(() => data.value?.projects ?? []);
   const servers = computed(() => data.value?.servers ?? []);

@@ -35,7 +35,7 @@
 
   const services = computed(() => servicesData.value?.services ?? []);
 
-  const servicesLoadedOnce = useFirstLoad(status);
+  const servicesFirstLoad = useFirstLoad(status);
 
   const secretKeys = computed(
     () => new Set(props.application.variables.filter(variable => variable.secret).map(v => v.key)),
@@ -284,7 +284,7 @@
       description="Derived from the compose file. Container names follow the zydock-<slug>-<service>-1 convention."
       content-class="p-0"
     >
-      <template v-if="status === 'pending' && !servicesLoadedOnce">
+      <template v-if="servicesFirstLoad">
         <SkeletonRow v-for="index in 2" :key="index" />
       </template>
 

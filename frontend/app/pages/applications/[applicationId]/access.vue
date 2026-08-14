@@ -51,7 +51,7 @@
   const applicationName = computed(() => shell.value?.applicationName ?? '');
   const hasDomain = computed(() => shell.value?.hasDomain ?? true);
 
-  const hasLoadedOnce = useFirstLoad(shellStatus);
+  const isFirstLoad = useFirstLoad(shellStatus);
 
   useHead(() => ({ title: `Access · ${applicationName.value || 'Application'}` }));
 
@@ -107,7 +107,7 @@
 <template>
   <Content>
     <div class="flex flex-col gap-4.5">
-      <template v-if="shellStatus === 'pending' && !hasLoadedOnce">
+      <template v-if="isFirstLoad">
         <SkeletonCard :rows="3" />
         <SkeletonChart />
         <SkeletonRow v-for="index in 4" :key="index" />

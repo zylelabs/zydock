@@ -59,7 +59,7 @@
 
   const overview = computed(() => data.value ?? empty);
 
-  const hasLoadedOnce = useFirstLoad(status);
+  const isFirstLoad = useFirstLoad(status);
 
   const hasResources = computed(
     () =>
@@ -187,7 +187,7 @@
       description="Choose or create an organization in the sidebar selector to see its summary."
     />
 
-    <div v-else-if="status === 'pending' && !hasLoadedOnce" class="flex flex-col gap-5">
+    <div v-else-if="isFirstLoad" class="flex flex-col gap-5">
       <div class="grid gap-3.5 sm:grid-cols-2 lg:grid-cols-4">
         <Skeleton v-for="index in 4" :key="index" class="h-21" />
       </div>
