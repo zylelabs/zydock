@@ -14,6 +14,9 @@
   --color-inset: oklch(0.97 0.003 95);
   --color-row-hover: oklch(0.98 0.003 95);
   --color-terminal: oklch(0.21 0.006 95);
+  --color-terminal-ink: oklch(1 0 0 / 0.85);
+  --color-terminal-ink-2: oklch(1 0 0 / 0.75);
+  --color-terminal-ink-3: oklch(1 0 0 / 0.5);
 
   --color-hairline: oklch(0.96 0.004 95);
   --color-edge: oklch(0.91 0.004 95);

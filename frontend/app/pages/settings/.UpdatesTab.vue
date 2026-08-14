@@ -384,7 +384,7 @@
               : 'flex flex-wrap items-center gap-y-1.5 pointer-events-none opacity-50'
           "
         >
-          <div class="w-33 shrink-0 text-[13px] text-ink-2">Frequency</div>
+          <div class="w-33 shrink-0 text-caption text-ink-2">Frequency</div>
           <Segmented v-model="frequency" :options="FREQUENCY_OPTIONS" size="sm" />
         </Row>
         <Row
@@ -395,8 +395,8 @@
               : 'flex flex-wrap items-center gap-y-1.5 opacity-50'
           "
         >
-          <div class="w-33 shrink-0 text-[13px] text-ink-2">Next check</div>
-          <div class="min-w-0 flex-1 text-[13px] text-ink wrap-break-word">
+          <div class="w-33 shrink-0 text-caption text-ink-2">Next check</div>
+          <div class="min-w-0 flex-1 text-caption text-ink wrap-break-word">
             {{ formatDate(statusData?.nextCheckAt) }}
           </div>
         </Row>
@@ -434,7 +434,7 @@
             <div class="min-w-0 flex-1">
               <label
                 :for="`channel-${channel.value}`"
-                class="cursor-pointer text-[13.5px] font-medium text-ink"
+                class="cursor-pointer text-caption font-medium text-ink"
               >
                 {{ channel.title }}
               </label>
@@ -446,7 +446,7 @@
                 }}
               </p>
             </div>
-            <div class="shrink-0 self-center font-mono text-[13px] text-ink-2">
+            <div class="shrink-0 self-center font-mono text-caption text-ink-2">
               {{ channelVersion(channel.value) }}
             </div>
           </div>
@@ -472,15 +472,15 @@
 
       <Card rows>
         <Row as="div" class="flex flex-wrap items-center gap-y-1.5">
-          <div class="w-33 shrink-0 text-[13px] text-ink-2">Installed</div>
-          <div class="min-w-0 flex-1 font-mono text-[13px] text-ink">
+          <div class="w-33 shrink-0 text-caption text-ink-2">Installed</div>
+          <div class="min-w-0 flex-1 font-mono text-caption text-ink">
             {{ installedLabel }} · {{ statusData?.installed.channel || savedChannel }}
           </div>
           <Tag :color="statusTag.color">{{ statusTag.label }}</Tag>
         </Row>
         <Row as="div" class="flex flex-wrap items-center gap-y-1.5">
-          <div class="w-33 shrink-0 text-[13px] text-ink-2">Last checked</div>
-          <div class="min-w-0 flex-1 text-[13px] text-ink">
+          <div class="w-33 shrink-0 text-caption text-ink-2">Last checked</div>
+          <div class="min-w-0 flex-1 text-caption text-ink">
             {{ formatDate(statusData?.lastCheckedAt) }}
             <span v-if="statusData?.lastCheckSource" class="text-ink-2">
               · {{ statusData.lastCheckSource }}
@@ -562,9 +562,9 @@
           class="flex items-start"
         >
           <div class="min-w-0 flex-1">
-            <div class="text-[13px] text-ink-2">Roll back by running this on the host:</div>
+            <div class="text-caption text-ink-2">Roll back by running this on the host:</div>
             <code
-              class="mt-1 block overflow-x-auto rounded-control bg-inset px-2.5 py-1.5 text-[12.5px]"
+              class="mt-1 block overflow-x-auto rounded-control bg-inset px-2.5 py-1.5 text-caption"
             >
               {{ activeRun.rollbackCommand }}
             </code>
@@ -573,9 +573,9 @@
 
         <div
           ref="logBox"
-          class="max-h-80 overflow-auto rounded-card bg-terminal p-4 font-mono text-[12.5px] leading-[1.8] whitespace-pre-wrap text-white/80"
+          class="max-h-80 overflow-auto rounded-card bg-terminal p-4 font-mono text-[12.5px] leading-[1.8] whitespace-pre-wrap text-terminal-ink"
         >
-          <p v-if="!logLines.length" class="text-white/50">Waiting for output…</p>
+          <p v-if="!logLines.length" class="text-terminal-ink-3">Waiting for output…</p>
           <AnsiText v-for="(line, index) in logLines" :key="index" :text="line" class="block" />
         </div>
       </Card>

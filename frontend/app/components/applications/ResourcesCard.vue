@@ -127,8 +127,8 @@
 
     <template v-if="!editingAdv">
       <Row as="div" class="flex items-baseline">
-        <div class="w-33 shrink-0 text-[13px] text-ink-2">Healthcheck</div>
-        <div class="font-mono text-[13px] text-ink">
+        <div class="w-33 shrink-0 text-caption text-ink-2">Healthcheck</div>
+        <div class="font-mono text-caption text-ink">
           <span v-if="!application.healthcheck">Disabled</span>
           <span v-else>
             {{ application.healthcheck.path }} · {{ application.healthcheck.intervalSeconds }}s /
@@ -137,8 +137,8 @@
         </div>
       </Row>
       <Row as="div" class="flex items-baseline">
-        <div class="w-33 shrink-0 text-[13px] text-ink-2">Resources</div>
-        <div class="font-mono text-[13px] text-ink">
+        <div class="w-33 shrink-0 text-caption text-ink-2">Resources</div>
+        <div class="font-mono text-caption text-ink">
           <span v-if="!application.resources?.cpus && !application.resources?.memoryMb">
             No limits
           </span>
@@ -149,8 +149,8 @@
         </div>
       </Row>
       <Row as="div" class="flex items-baseline">
-        <div class="w-33 shrink-0 text-[13px] text-ink-2">Volumes</div>
-        <div class="font-mono text-[13px] text-ink">
+        <div class="w-33 shrink-0 text-caption text-ink-2">Volumes</div>
+        <div class="font-mono text-caption text-ink">
           <span v-if="!volumes.length">None</span>
           <div v-else class="flex flex-col gap-0.5">
             <div v-for="(volume, index) in volumes" :key="index">
@@ -164,7 +164,7 @@
     <div v-else class="flex flex-col">
       <Alert v-if="advError" theme="error" class="mx-4.25 mt-3">{{ advError }}</Alert>
 
-      <p class="border-b border-hairline px-4.25 py-2.5 text-[13px] font-medium text-ink">
+      <p class="border-b border-hairline px-4.25 py-2.5 text-caption font-medium text-ink">
         Volumes
       </p>
 
@@ -215,7 +215,7 @@
         <Input v-model="advDraft.hcStartPeriod" label="Start period (s)" mono boxed />
       </div>
 
-      <p class="border-b border-hairline px-4.25 py-2.5 text-[13px] font-medium text-ink">
+      <p class="border-b border-hairline px-4.25 py-2.5 text-caption font-medium text-ink">
         Resources (empty means no limit)
       </p>
 

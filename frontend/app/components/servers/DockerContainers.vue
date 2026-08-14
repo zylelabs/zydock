@@ -112,7 +112,7 @@
     >
       <template #name="{ item }">
         <div class="flex min-w-0 items-center gap-2">
-          <span class="truncate font-mono text-[13px] text-ink">{{
+          <span class="truncate font-mono text-caption text-ink">{{
             (item as unknown as ContainerInfo).name
           }}</span>
           <Tag v-if="ownerOf(item as unknown as ContainerInfo)">app-managed</Tag>
@@ -129,7 +129,7 @@
       </template>
 
       <template #restartCount="{ item }">
-        <span class="text-[12.5px] text-ink-2">
+        <span class="text-caption text-ink-2">
           restarts: {{ (item as unknown as ContainerInfo).restartCount }}
           <template v-if="(item as unknown as ContainerInfo).exitCode !== undefined">
             · exit {{ (item as unknown as ContainerInfo).exitCode }}
@@ -217,12 +217,11 @@
         content-class="p-0"
         @on-close="logsFor = null"
       >
-        <p v-if="logsLoading" class="p-4.25 text-caption text-ink-2">Loading…</p>
+        <SkeletonRow v-if="logsLoading" />
         <p v-else-if="!logLines.length" class="p-4.25 text-caption text-ink-2">No log lines.</p>
-        <pre
-          v-else
-          class="max-h-100 overflow-y-auto p-4.25 font-mono text-xs leading-relaxed text-ink-2"
-          >{{ logLines.map(line => line.message).join('\n') }}</pre>
+        <pre v-else class="max-h-100 overflow-y-auto p-4.25 font-mono text-caption text-ink-2">{{
+          logLines.map(line => line.message).join('\n')
+        }}</pre>
       </Card>
     </Modal>
   </div>

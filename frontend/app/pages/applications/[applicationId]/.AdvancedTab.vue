@@ -55,7 +55,7 @@
       class="flex items-center gap-4 rounded-card border border-failed/30 bg-failed/5 p-4.25"
     >
       <div class="flex-1">
-        <div class="text-[13px] font-semibold text-failed">Delete application</div>
+        <div class="text-caption font-semibold text-failed">Delete application</div>
         <div class="mt-0.75 text-caption text-ink-2">
           Container, volumes and deployment history are removed. This cannot be undone.
         </div>

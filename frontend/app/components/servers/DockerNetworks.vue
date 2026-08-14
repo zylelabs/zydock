@@ -93,14 +93,14 @@
     >
       <template #name="{ item, value }">
         <div class="flex min-w-0 items-center gap-2">
-          <span class="truncate font-mono text-[13px] text-ink">{{ value }}</span>
+          <span class="truncate font-mono text-caption text-ink">{{ value }}</span>
           <Tag v-if="(item as unknown as NetworkInfo).protected" :title="PROTECTED_TITLE"
             >system</Tag
           >
         </div>
       </template>
       <template #driver="{ value }">
-        <span class="text-[12.5px] text-ink-2">{{ value }}</span>
+        <span class="text-caption text-ink-2">{{ value }}</span>
       </template>
       <template #id="{ item }">
         <div class="flex items-center justify-end">

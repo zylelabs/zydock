@@ -32,17 +32,7 @@
     },
   );
 
-  const membersLoadedOnce = ref(false);
-
-  watch(
-    membersStatus,
-    value => {
-      if (value !== 'pending') {
-        membersLoadedOnce.value = true;
-      }
-    },
-    { immediate: true },
-  );
+  const membersLoadedOnce = useFirstLoad(membersStatus);
 
   const members = computed(() => membersData.value?.items ?? []);
   const isSelf = (member: Member) => member.userId === session.user?.id;
@@ -196,7 +186,7 @@
         >
           <Avatar :name="member.name || member.email || '?'" />
           <div class="min-w-0 flex-1">
-            <div class="truncate text-[13.5px] text-ink">
+            <div class="truncate text-caption text-ink">
               {{ member.name ?? member.email }}
               <span v-if="isSelf(member)" class="text-caption text-ink-2">(you)</span>
             </div>
@@ -259,7 +249,7 @@
         <li v-for="invite in invites" :key="invite.id" class="flex items-center gap-3 py-3">
           <Icon name="lucide:mail" class="size-4 shrink-0 text-ink-2" />
           <div class="min-w-0 flex-1">
-            <p class="truncate text-[13.5px] text-ink">{{ invite.email }}</p>
+            <p class="truncate text-caption text-ink">{{ invite.email }}</p>
             <p class="text-caption text-ink-2">expires on {{ formatDate(invite.expiresAt) }}</p>
           </div>
           <Tag class="capitalize">{{ invite.role }}</Tag>
@@ -278,7 +268,7 @@
         </li>
       </ul>
 
-      <p v-else class="mt-4 text-[13px] text-ink-2">No pending invites.</p>
+      <p v-else class="mt-4 text-caption text-ink-2">No pending invites.</p>
     </Card>
 
     <Confirm

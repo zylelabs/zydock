@@ -15,8 +15,43 @@
   const proxyAccessApi = useProxyAccess();
 
   const applicationId = computed(() => String(route.params.applicationId));
-  const applicationName = ref('');
-  const hasDomain = ref(true);
+
+  type AccessShell = { applicationName: string; hasDomain: boolean };
+
+  const { getCachedData, markFetched } = useNavigationCache();
+
+  const {
+    data: shell,
+    status: shellStatus,
+    error: shellError,
+  } = useLazyAsyncData(
+    () => `application-${applicationId.value}-access-shell`,
+    async () => {
+      if (!session.organizationId) {
+        return null;
+      }
+
+      const [{ application }, domains] = await Promise.all([
+        applicationsApi.get(applicationId.value),
+        domainsApi.list({ applicationId: applicationId.value }),
+      ]);
+
+      markFetched(`application-${applicationId.value}-access-shell`);
+
+      return { applicationName: application.name, hasDomain: domains.items.length > 0 };
+    },
+    {
+      server: false,
+      watch: [() => session.organizationId, applicationId],
+      default: () => null as AccessShell | null,
+      getCachedData: key => getCachedData(key),
+    },
+  );
+
+  const applicationName = computed(() => shell.value?.applicationName ?? '');
+  const hasDomain = computed(() => shell.value?.hasDomain ?? true);
+
+  const hasLoadedOnce = useFirstLoad(shellStatus);
 
   useHead(() => ({ title: `Access · ${applicationName.value || 'Application'}` }));
 
@@ -55,30 +90,33 @@
     }
   };
 
-  onMounted(async () => {
-    if (!session.organizationId) {
-      return;
-    }
+  watch(
+    shell,
+    value => {
+      if (!value?.hasDomain) {
+        return;
+      }
 
-    const [{ application }, domains] = await Promise.all([
-      applicationsApi.get(applicationId.value),
-      domainsApi.list({ applicationId: applicationId.value }),
-    ]);
-
-    applicationName.value = application.name;
-    hasDomain.value = domains.items.length > 0;
-
-    if (hasDomain.value) {
-      await Promise.all([runLoad(), loadStats()]);
-    }
-  });
+      runLoad();
+      loadStats();
+    },
+    { immediate: true },
+  );
 </script>
 
 <template>
   <Content>
     <div class="flex flex-col gap-4.5">
+      <template v-if="shellStatus === 'pending' && !hasLoadedOnce">
+        <SkeletonCard :rows="3" />
+        <SkeletonChart />
+        <SkeletonRow v-for="index in 4" :key="index" />
+      </template>
+
+      <Alert v-else-if="shellError" theme="error">{{ shellError.message }}</Alert>
+
       <EmptyState
-        v-if="!hasDomain"
+        v-else-if="!hasDomain"
         variant="action"
         title="No domain configured"
         description="The access log tracks requests by domain. Add one to this application to see who is accessing it."
@@ -104,7 +142,7 @@
               v-model="filters.status"
               type="number"
               placeholder="Status"
-              class="w-24 rounded-control border border-edge bg-card px-3 py-1.5 text-[13px] text-ink outline-none placeholder:text-ink-3 focus:border-edge-strong"
+              class="w-24 rounded-control border border-edge bg-card px-3 py-1.5 text-caption text-ink outline-none placeholder:text-ink-3 focus:border-edge-strong"
             />
           </template>
         </AccessLogTable>

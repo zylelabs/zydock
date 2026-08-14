@@ -161,7 +161,7 @@
   <div class="flex flex-col gap-3.5">
     <div
       v-if="!gitSourcesLoading && !gitSources.length"
-      class="flex flex-col gap-2 rounded-card border border-dashed border-edge-strong px-4 py-6 text-center text-[13px] text-ink-2"
+      class="flex flex-col gap-2 rounded-card border border-dashed border-edge-strong px-4 py-6 text-center text-caption text-ink-2"
     >
       <p>No git source connected for this organization.</p>
       <NuxtLink to="/settings?tab=git" class="text-accent hover:underline">
@@ -210,7 +210,7 @@
               v-model="repositoryQuery"
               type="text"
               placeholder="Search repositories"
-              class="w-full bg-transparent text-[13.5px] text-ink outline-none placeholder:text-ink-3"
+              class="w-full bg-transparent text-caption text-ink outline-none placeholder:text-ink-3"
             />
           </div>
 
@@ -225,7 +225,7 @@
             >
               <div class="size-5.5 shrink-0 rounded-control bg-inset" />
               <div class="min-w-0 flex-1">
-                <div class="truncate font-mono text-[13.5px] font-medium text-ink">
+                <div class="truncate font-mono text-caption font-medium text-ink">
                   {{ repository.fullName }}
                 </div>
                 <div class="text-caption text-ink-2">

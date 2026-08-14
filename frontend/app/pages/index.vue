@@ -59,17 +59,7 @@
 
   const overview = computed(() => data.value ?? empty);
 
-  const hasLoadedOnce = ref(false);
-
-  watch(
-    status,
-    value => {
-      if (value !== 'pending') {
-        hasLoadedOnce.value = true;
-      }
-    },
-    { immediate: true },
-  );
+  const hasLoadedOnce = useFirstLoad(status);
 
   const hasResources = computed(
     () =>

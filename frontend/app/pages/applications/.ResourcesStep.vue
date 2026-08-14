@@ -64,7 +64,7 @@
       <input
         v-model="search"
         placeholder="Search the marketplace"
-        class="min-w-0 flex-1 bg-transparent text-[13.5px] text-ink outline-none placeholder:text-ink-3"
+        class="min-w-0 flex-1 bg-transparent text-caption text-ink outline-none placeholder:text-ink-3"
       />
       <span class="shrink-0 text-caption text-ink-3">{{ countLabel }}</span>
     </div>
@@ -74,7 +74,7 @@
         v-for="category in categories"
         :key="category.value"
         type="button"
-        class="cursor-pointer rounded-full border px-2.75 py-1 text-[12.5px] transition-colors"
+        class="cursor-pointer rounded-full border px-2.75 py-1 text-caption transition-colors"
         :class="
           activeCategory === category.value
             ? 'border-accent bg-accent-soft/15 text-accent'
@@ -116,7 +116,7 @@
             >
               <Icon name="lucide:box" size="14" />
             </div>
-            <div class="min-w-0 flex-1 truncate text-[14px] font-semibold text-ink">
+            <div class="min-w-0 flex-1 truncate text-body font-semibold text-ink">
               {{ template.name }}
             </div>
             <Tag :color="template.origin === 'official' ? 'live' : 'default'">
@@ -139,7 +139,7 @@
             >
               <Icon name="lucide:file-code" size="14" />
             </div>
-            <div class="text-[14px] font-semibold text-ink">Use your own compose file</div>
+            <div class="text-body font-semibold text-ink">Use your own compose file</div>
           </div>
           <p class="mt-2 text-caption text-ink-2">
             Paste a docker-compose.yml and run it as-is, without a catalog entry.

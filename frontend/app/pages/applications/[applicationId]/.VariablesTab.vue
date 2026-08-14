@@ -30,17 +30,7 @@
     },
   );
 
-  const hasLoadedOnce = ref(false);
-
-  watch(
-    status,
-    value => {
-      if (value !== 'pending') {
-        hasLoadedOnce.value = true;
-      }
-    },
-    { immediate: true },
-  );
+  const hasLoadedOnce = useFirstLoad(status);
 
   const variables = computed(() => data.value?.variables ?? []);
 
@@ -103,10 +93,10 @@
         />
 
         <Row v-for="variable in variables" :key="variable.key" as="div" class="flex items-center">
-          <div class="w-52.5 shrink-0 truncate font-mono text-[13px] text-ink">
+          <div class="w-52.5 shrink-0 truncate font-mono text-caption text-ink">
             {{ variable.key }}
           </div>
-          <div class="min-w-0 flex-1 truncate font-mono text-[13px] text-ink-2">
+          <div class="min-w-0 flex-1 truncate font-mono text-caption text-ink-2">
             {{ shownValue(variable) }}
           </div>
           <Button

@@ -14,7 +14,7 @@
       type="button"
       class="flex-1 basis-0 cursor-pointer rounded-[7px] text-center font-medium whitespace-nowrap transition-colors"
       :class="[
-        size === 'sm' ? 'px-2.75 py-1 text-[12px]' : 'px-3.5 py-1.5 text-[13px]',
+        size === 'sm' ? 'px-2.75 py-1 text-caption' : 'px-3.5 py-1.5 text-caption',
         model === option.value ? 'bg-card text-ink shadow-lifted' : 'text-ink-2 hover:text-ink',
       ]"
       @click="model = option.value"

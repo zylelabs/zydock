@@ -75,6 +75,8 @@
 
   const backups = computed(() => data.value?.backups ?? []);
 
+  const backupsLoadedOnce = useFirstLoad(status);
+
   const databaseOptions = computed(() =>
     (data.value?.databases ?? []).map(database => ({ value: database.id, label: database.name })),
   );
@@ -287,7 +289,7 @@
             />
           </template>
 
-          <p v-else class="px-4.25 py-3.5 text-[13px] text-ink-2">
+          <p v-else class="px-4.25 py-3.5 text-caption text-ink-2">
             Exports the organization's configuration — no application data.
           </p>
 
@@ -324,7 +326,7 @@
         </form>
       </Card>
 
-      <div v-if="status === 'pending'" class="flex flex-col gap-2">
+      <div v-if="status === 'pending' && !backupsLoadedOnce" class="flex flex-col gap-2">
         <Skeleton v-for="index in 3" :key="index" class="h-14 rounded-card" />
       </div>
 
@@ -342,7 +344,7 @@
           class="grid-cols-[1.2fr_0.7fr_0.6fr_auto]"
         >
           <div class="min-w-0 flex flex-wrap items-center gap-2">
-            <span class="truncate font-mono text-[13.5px] text-ink">{{ backup.label }}</span>
+            <span class="truncate font-mono text-caption text-ink">{{ backup.label }}</span>
             <Tag>{{ TYPE_LABELS[backup.type] }}</Tag>
             <Tag :color="STATUS[backup.status].color">{{ STATUS[backup.status].label }}</Tag>
             <Tag v-if="backup.restoreStatus === 'running'" color="attn">Restoring</Tag>

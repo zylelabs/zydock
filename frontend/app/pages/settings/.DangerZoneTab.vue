@@ -30,7 +30,7 @@
 
 <template>
   <Card v-if="!isOwner" title="Danger zone">
-    <p class="text-[13px] text-ink-2">Only the owner can delete the organization.</p>
+    <p class="text-caption text-ink-2">Only the owner can delete the organization.</p>
   </Card>
 
   <div
@@ -38,7 +38,7 @@
     class="flex items-center gap-4 rounded-card border border-failed/40 bg-failed/5 px-4.25 py-3.25"
   >
     <div class="flex-1">
-      <div class="text-[13px] font-semibold text-failed">Delete organization</div>
+      <div class="text-caption font-semibold text-failed">Delete organization</div>
       <div class="mt-0.75 text-caption text-ink-2">
         Deletes every project, application, server and database inside it. This cannot be undone.
       </div>

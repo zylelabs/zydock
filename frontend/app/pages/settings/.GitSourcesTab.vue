@@ -31,6 +31,8 @@
   );
 
   const gitSources = computed(() => gitSourcesData.value?.items ?? []);
+
+  const gitSourcesLoadedOnce = useFirstLoad(gitSourcesStatus);
   const gitSourcesError = computed(
     () =>
       (gitSourcesLoadError.value as { message?: string } | null)?.message ||
@@ -155,7 +157,10 @@
         </Button>
       </template>
 
-      <div v-if="gitSourcesStatus === 'pending'" class="flex flex-col gap-3">
+      <div
+        v-if="gitSourcesStatus === 'pending' && !gitSourcesLoadedOnce"
+        class="flex flex-col gap-3"
+      >
         <Skeleton class="h-20 w-full rounded-card" />
         <Skeleton class="h-20 w-full rounded-card" />
       </div>
@@ -175,7 +180,7 @@
           class="overflow-hidden rounded-card border border-edge"
         >
           <div class="flex flex-wrap items-center gap-3 px-4.25 py-3.25">
-            <h3 class="min-w-0 flex-1 truncate text-[14px] font-semibold text-ink">
+            <h3 class="min-w-0 flex-1 truncate text-body font-semibold text-ink">
               {{ source.name }}
             </h3>
             <Tag :color="source.status === 'active' ? 'live' : 'default'" class="capitalize">
@@ -184,7 +189,7 @@
           </div>
 
           <Row v-if="source.status === 'pending'" as="div" class="flex items-center">
-            <p class="text-[13px] text-ink-2">Waiting for the confirmation on GitHub.</p>
+            <p class="text-caption text-ink-2">Waiting for the confirmation on GitHub.</p>
           </Row>
 
           <template v-else>
@@ -204,14 +209,14 @@
               as="div"
               class="flex items-center"
             >
-              <p class="text-[13px] text-ink-2">No installation yet.</p>
+              <p class="text-caption text-ink-2">No installation yet.</p>
             </Row>
 
             <Row
               v-for="installation in installationsBySource[source.id]?.items"
               :key="installation.id"
               as="div"
-              class="flex items-center gap-2.5 text-[13px]"
+              class="flex items-center gap-2.5 text-caption"
             >
               <Icon
                 :name="

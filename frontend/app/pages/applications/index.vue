@@ -98,17 +98,7 @@
     { immediate: true },
   );
 
-  const hasLoadedOnce = ref(false);
-
-  watch(
-    status,
-    value => {
-      if (value !== 'pending') {
-        hasLoadedOnce.value = true;
-      }
-    },
-    { immediate: true },
-  );
+  const hasLoadedOnce = useFirstLoad(status);
 
   const metricsByServer = reactive(new Map<string, SystemMetrics>());
   const metricsLoading = reactive(new Set<string>());

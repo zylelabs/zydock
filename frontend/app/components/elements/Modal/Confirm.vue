@@ -37,7 +37,7 @@
 <template>
   <Modal :open="open" @on-close-modal="handleClose">
     <Card :title="title" class="w-[32rem] max-w-full" close-button @on-close="handleClose">
-      <p class="text-sm text-ink-2">{{ message }}</p>
+      <p class="text-body text-ink-2">{{ message }}</p>
 
       <Input
         v-if="confirmText"

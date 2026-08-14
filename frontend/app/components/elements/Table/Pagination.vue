@@ -74,7 +74,7 @@
         v-for="(pageItem, index) in getPages"
         :key="index"
         type="button"
-        class="flex size-7 items-center justify-center rounded-control text-[13px] select-none"
+        class="flex size-7 items-center justify-center rounded-control text-caption select-none"
         :class="
           pageItem === '...'
             ? 'cursor-default text-ink-3'

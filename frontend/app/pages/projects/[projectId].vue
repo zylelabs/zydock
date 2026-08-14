@@ -61,17 +61,7 @@
 
   useHead(() => ({ title: data.value?.project.name ?? 'Project' }));
 
-  const hasLoadedOnce = ref(false);
-
-  watch(
-    status,
-    value => {
-      if (value !== 'pending') {
-        hasLoadedOnce.value = true;
-      }
-    },
-    { immediate: true },
-  );
+  const hasLoadedOnce = useFirstLoad(status);
 
   const environments = computed(() => data.value?.environments ?? []);
   const serverList = computed(() => data.value?.servers ?? []);
@@ -224,7 +214,7 @@
 
     <div v-else class="flex max-w-225 flex-col gap-4.5">
       <div class="flex items-start justify-between gap-3">
-        <p v-if="data?.project.description" class="text-[13.5px] text-ink-2">
+        <p v-if="data?.project.description" class="text-caption text-ink-2">
           {{ data.project.description }}
         </p>
         <Button v-if="canManage" theme="quiet" size="sm" class="ml-auto" @click="openEditProject">
@@ -271,7 +261,7 @@
 
       <div class="rounded-card border border-edge bg-card p-4.25">
         <div class="mb-3.25 flex items-center gap-2.5">
-          <div class="flex-1 text-[13px] font-semibold text-ink">Environments</div>
+          <div class="flex-1 text-caption font-semibold text-ink">Environments</div>
           <Button
             v-if="canManage && !showAddEnvironment"
             theme="secondary"
@@ -316,10 +306,10 @@
 
             <div
               v-else
-              class="group flex items-center gap-2 rounded-full border border-edge bg-row-hover px-3 py-1.5 text-[13px] text-ink"
+              class="group flex items-center gap-2 rounded-full border border-edge bg-row-hover px-3 py-1.5 text-caption text-ink"
             >
               <span>{{ environment.name }}</span>
-              <span class="text-[11.5px] text-ink-3">{{ appsOf(environment.id).length }}</span>
+              <span class="text-caption text-ink-3">{{ appsOf(environment.id).length }}</span>
               <template v-if="canManage">
                 <button
                   type="button"
@@ -370,7 +360,7 @@
         >
           <div class="flex min-w-0 items-center gap-2.5">
             <StatusDot :status="applicationStatusDot(app.status)" />
-            <span class="truncate text-[13.5px] font-medium text-ink">{{ app.name }}</span>
+            <span class="truncate text-caption font-medium text-ink">{{ app.name }}</span>
           </div>
           <div class="truncate font-mono text-caption text-ink-2">
             {{
@@ -393,7 +383,7 @@
         class="flex items-center gap-4 rounded-card border border-failed/30 bg-failed/5 p-4.25"
       >
         <div class="flex-1">
-          <div class="text-[13px] font-semibold text-failed">Delete this project</div>
+          <div class="text-caption font-semibold text-failed">Delete this project</div>
           <div class="mt-0.75 text-caption text-ink-2">
             {{ countLabel(apps.length, 'application') }} and
             {{ countLabel(environments.length, 'environment') }} go with it.

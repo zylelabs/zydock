@@ -24,13 +24,15 @@
   const { isOpen, close } = useSidebar();
   const { mode, setMode } = useAppearance();
 
-  const { data: health } = useLazyAsyncData('platform-health', () => useHealth().get(), {
-    server: false,
-    default: () => null,
-  });
+  const { data: health, status: healthStatus } = useLazyAsyncData(
+    'platform-health',
+    () => useHealth().get(),
+    { server: false, default: () => null },
+  );
 
   const buildVersion = `v${useRuntimeConfig().public.version}`;
   const version = computed(() => installedVersionLabel(health.value) || buildVersion);
+  const healthPending = computed(() => healthStatus.value === 'pending');
   const { current } = useOrganizations();
   const role = computed(() => current.value?.role);
 
@@ -43,11 +45,14 @@
   const applicationsCount = ref<number | null>(null);
   const serversCount = ref<number | null>(null);
   const backupsCount = ref<number | null>(null);
+  const countsLoading = ref(false);
 
   const loadCounts = async () => {
     if (!session.organizationId) {
       return;
     }
+
+    countsLoading.value = true;
 
     const [projects, applications, servers, backups] = await Promise.all([
       useProjects().list({ size: 1 }),
@@ -60,6 +65,7 @@
     applicationsCount.value = applications?.total ?? null;
     serversCount.value = servers?.total ?? null;
     backupsCount.value = backups?.total ?? null;
+    countsLoading.value = false;
   };
 
   watch(() => session.organizationId, loadCounts, { immediate: true });
@@ -180,8 +186,9 @@
   >
     <div class="flex items-center gap-2.5 px-1.5 py-1">
       <Logo class="size-6.5 shrink-0" />
-      <div class="flex-1 text-[15px] font-semibold tracking-[-0.01em] text-ink">Zydock</div>
-      <div class="font-mono text-[11px] text-ink-3">{{ version }}</div>
+      <div class="flex-1 text-heading text-ink">Zydock</div>
+      <Skeleton v-if="healthPending" class="h-3 w-9" />
+      <div v-else class="font-mono text-caption text-ink-3">{{ version }}</div>
     </div>
 
     <OrganizationSwitcher />
@@ -192,7 +199,7 @@
           v-for="item in navItems"
           :key="item.id"
           :to="item.to"
-          class="flex items-center gap-2.5 rounded-[9px] px-2.5 py-2 text-[14px]"
+          class="flex items-center gap-2.5 rounded-[9px] px-2.5 py-2 text-body"
           :class="isActive(item) ? 'bg-rail-active text-ink' : 'text-rail-ink hover:bg-rail-hover'"
           @click="close"
         >
@@ -201,7 +208,8 @@
             :class="isActive(item) ? 'bg-ink' : 'bg-rail-dot'"
           />
           <span class="flex-1">{{ item.label }}</span>
-          <span v-if="item.count != null" class="font-mono text-xs text-ink-3">{{
+          <Skeleton v-if="item.count && countsLoading" class="h-3 w-4" />
+          <span v-else-if="item.count != null" class="font-mono text-caption text-ink-3">{{
             item.count
           }}</span>
         </NuxtLink>
@@ -213,7 +221,7 @@
           v-for="app in recentApplications.current"
           :key="app.id"
           :to="`/applications/${app.id}`"
-          class="group flex items-center gap-2.5 rounded-[9px] px-2.5 py-1.5 text-[13.5px] text-rail-ink hover:bg-rail-hover"
+          class="group flex items-center gap-2.5 rounded-[9px] px-2.5 py-1.5 text-caption text-rail-ink hover:bg-rail-hover"
           :class="isApplicationActive(app.id) && 'bg-rail-active'"
           @click="close"
         >
@@ -240,12 +248,12 @@
             type="button"
             class="flex w-full cursor-pointer items-center gap-2 rounded-button border border-edge bg-page p-1.5 text-left hover:border-edge-strong"
           >
-            <Avatar :name="session.user?.name ?? ''" class="size-6.5 shrink-0 text-[10px]" />
+            <Avatar :name="session.user?.name ?? ''" class="size-6.5 shrink-0 text-label" />
             <span class="min-w-0 flex-1">
-              <span class="block truncate text-[12.5px] font-medium text-ink">
+              <span class="block truncate text-caption font-medium text-ink">
                 {{ session.user?.name }}
               </span>
-              <span v-if="role" class="block truncate text-[11px] text-ink-3 capitalize">
+              <span v-if="role" class="block truncate text-caption text-ink-3 capitalize">
                 {{ role }}
               </span>
             </span>
@@ -255,7 +263,7 @@
         <div class="flex flex-col">
           <NuxtLink
             to="/account"
-            class="flex w-full items-center gap-2 rounded-control px-3 py-2 text-left text-sm text-ink-2 transition-colors hover:bg-inset hover:text-ink"
+            class="flex w-full items-center gap-2 rounded-control px-3 py-2 text-left text-body text-ink-2 transition-colors hover:bg-inset hover:text-ink"
             @click="close"
           >
             <Icon name="lucide:user" class="size-4" />
@@ -264,7 +272,7 @@
 
           <NuxtLink
             to="/settings"
-            class="flex w-full items-center gap-2 rounded-control px-3 py-2 text-left text-sm text-ink-2 transition-colors hover:bg-inset hover:text-ink"
+            class="flex w-full items-center gap-2 rounded-control px-3 py-2 text-left text-body text-ink-2 transition-colors hover:bg-inset hover:text-ink"
             @click="close"
           >
             <Icon name="lucide:settings" class="size-4" />
@@ -276,7 +284,7 @@
           <button
             type="button"
             :disabled="loggingOut"
-            class="flex w-full cursor-pointer items-center gap-2 rounded-control px-3 py-2 text-left text-sm text-ink-2 transition-colors hover:bg-inset hover:text-ink disabled:opacity-60"
+            class="flex w-full cursor-pointer items-center gap-2 rounded-control px-3 py-2 text-left text-body text-ink-2 transition-colors hover:bg-inset hover:text-ink disabled:opacity-60"
             @click.stop="logout"
           >
             <Icon

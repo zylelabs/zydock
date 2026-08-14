@@ -111,17 +111,7 @@
     },
   );
 
-  const deploymentsLoadedOnce = ref(false);
-
-  watch(
-    deploymentsStatus,
-    value => {
-      if (value !== 'pending') {
-        deploymentsLoadedOnce.value = true;
-      }
-    },
-    { immediate: true },
-  );
+  const deploymentsLoadedOnce = useFirstLoad(deploymentsStatus);
 
   const deploymentList = computed(() => data.value?.items ?? []);
   const runningDeployment = computed(() =>
@@ -153,17 +143,7 @@
     },
   );
 
-  const metricsLoadedOnce = ref(false);
-
-  watch(
-    metricsStatus,
-    value => {
-      if (value !== 'pending') {
-        metricsLoadedOnce.value = true;
-      }
-    },
-    { immediate: true },
-  );
+  const metricsLoadedOnce = useFirstLoad(metricsStatus);
 
   const metrics = computed(() => metricsData.value?.metrics ?? null);
   const deployMetrics = computed(() => metricsData.value?.deployMetrics ?? null);
@@ -312,7 +292,7 @@
     <NuxtLink
       v-if="runningDeployment"
       :to="`/applications/${application.id}/deployments/${runningDeployment.id}`"
-      class="flex items-center gap-2 rounded-card border border-accent/30 bg-accent-soft/15 px-4 py-3 text-[13.5px] text-accent transition-colors hover:bg-accent-soft/25"
+      class="flex items-center gap-2 rounded-card border border-accent/30 bg-accent-soft/15 px-4 py-3 text-caption text-accent transition-colors hover:bg-accent-soft/25"
     >
       <Icon name="lucide:loader" class="size-4 animate-spin" />
       Deployment in progress — view live logs
@@ -327,7 +307,7 @@
         :href="`${primaryDomain.tls ? 'https' : 'http'}://${primaryDomain.hostname}`"
         target="_blank"
         rel="noopener noreferrer"
-        class="truncate font-mono text-[13.5px] text-ink hover:underline"
+        class="truncate font-mono text-caption text-ink hover:underline"
       >
         {{ primaryDomain.hostname }}
       </a>
@@ -375,12 +355,12 @@
             <SkeletonRow v-for="index in 3" :key="index" />
           </template>
 
-          <p
+          <EmptyState
             v-else-if="!deploymentList.length"
-            class="px-4.25 py-6 text-center text-caption text-ink-2"
-          >
-            No deployments yet.
-          </p>
+            variant="prompt"
+            description="No deployments yet."
+            class="m-2.5"
+          />
 
           <Row
             v-for="deployment in deploymentList"
@@ -390,7 +370,7 @@
           >
             <StatusDot :status="deploymentStatusDot(deployment.status)" />
             <div class="min-w-0">
-              <div class="truncate text-[13.5px] text-ink">
+              <div class="truncate text-caption text-ink">
                 {{ deployment.commit?.message || deployment.branch || 'deploy' }}
               </div>
               <div class="truncate text-caption text-ink-2">
@@ -424,73 +404,73 @@
 
         <template v-if="application.source === 'compose'">
           <Row as="div" class="flex items-center">
-            <div class="w-33 shrink-0 text-[13px] text-ink-2">Origin</div>
-            <div class="truncate font-mono text-[13px] text-ink">
+            <div class="w-33 shrink-0 text-caption text-ink-2">Origin</div>
+            <div class="truncate font-mono text-caption text-ink">
               {{
                 application.origin ? `Template · ${application.origin.templateId}` : 'Compose file'
               }}
             </div>
           </Row>
           <Row as="div" class="flex items-center">
-            <div class="w-33 shrink-0 text-[13px] text-ink-2">Exposed service</div>
-            <div class="font-mono text-[13px] text-ink">
+            <div class="w-33 shrink-0 text-caption text-ink-2">Exposed service</div>
+            <div class="font-mono text-caption text-ink">
               {{ application.compose?.expose.service }} : {{ application.compose?.expose.port }}
             </div>
           </Row>
           <Row as="div" class="flex items-center">
-            <div class="w-33 shrink-0 text-[13px] text-ink-2">Services</div>
-            <div class="truncate font-mono text-[13px] text-ink">
+            <div class="w-33 shrink-0 text-caption text-ink-2">Services</div>
+            <div class="truncate font-mono text-caption text-ink">
               {{ services.map(entry => entry.service).join(', ') || '—' }}
             </div>
           </Row>
           <Row as="div" class="flex items-center">
-            <div class="w-33 shrink-0 text-[13px] text-ink-2">Restart policy</div>
-            <div class="font-mono text-[13px] text-ink">{{ application.restartPolicy }}</div>
+            <div class="w-33 shrink-0 text-caption text-ink-2">Restart policy</div>
+            <div class="font-mono text-caption text-ink">{{ application.restartPolicy }}</div>
           </Row>
         </template>
 
         <template v-else-if="!editingConfig">
           <Row as="div" class="flex items-center">
-            <div class="w-33 shrink-0 text-[13px] text-ink-2">Name</div>
-            <div class="truncate font-mono text-[13px] text-ink">
+            <div class="w-33 shrink-0 text-caption text-ink-2">Name</div>
+            <div class="truncate font-mono text-caption text-ink">
               {{ application.name }}
             </div>
           </Row>
           <Row as="div" class="flex items-center">
-            <div class="w-33 shrink-0 text-[13px] text-ink-2">Repository</div>
-            <div class="truncate font-mono text-[13px] text-ink">
+            <div class="w-33 shrink-0 text-caption text-ink-2">Repository</div>
+            <div class="truncate font-mono text-caption text-ink">
               {{ application.git?.repository }}
             </div>
           </Row>
           <Row as="div" class="flex items-center">
-            <div class="w-33 shrink-0 text-[13px] text-ink-2">Branch</div>
-            <div class="font-mono text-[13px] text-ink">{{ application.git?.branch }}</div>
+            <div class="w-33 shrink-0 text-caption text-ink-2">Branch</div>
+            <div class="font-mono text-caption text-ink">{{ application.git?.branch }}</div>
           </Row>
           <Row as="div" class="flex items-center">
-            <div class="w-33 shrink-0 text-[13px] text-ink-2">Dockerfile</div>
-            <div class="truncate font-mono text-[13px] text-ink">
+            <div class="w-33 shrink-0 text-caption text-ink-2">Dockerfile</div>
+            <div class="truncate font-mono text-caption text-ink">
               {{ application.git?.dockerfilePath }}
             </div>
           </Row>
           <Row as="div" class="flex items-center">
-            <div class="w-33 shrink-0 text-[13px] text-ink-2">Build context</div>
-            <div class="truncate font-mono text-[13px] text-ink">
+            <div class="w-33 shrink-0 text-caption text-ink-2">Build context</div>
+            <div class="truncate font-mono text-caption text-ink">
               {{ application.git?.buildContext }}
             </div>
           </Row>
           <Row as="div" class="flex items-center">
-            <div class="w-33 shrink-0 text-[13px] text-ink-2">Port</div>
-            <div class="font-mono text-[13px] text-ink">{{ application.port }}</div>
+            <div class="w-33 shrink-0 text-caption text-ink-2">Port</div>
+            <div class="font-mono text-caption text-ink">{{ application.port }}</div>
           </Row>
           <Row as="div" class="flex items-center">
-            <div class="w-33 shrink-0 text-[13px] text-ink-2">Auto-deploy</div>
-            <div class="font-mono text-[13px] text-ink">
+            <div class="w-33 shrink-0 text-caption text-ink-2">Auto-deploy</div>
+            <div class="font-mono text-caption text-ink">
               {{ application.git?.autoDeploy ? 'on every push to main' : 'off' }}
             </div>
           </Row>
           <Row as="div" class="flex items-center">
-            <div class="w-33 shrink-0 text-[13px] text-ink-2">Restart policy</div>
-            <div class="font-mono text-[13px] text-ink">{{ application.restartPolicy }}</div>
+            <div class="w-33 shrink-0 text-caption text-ink-2">Restart policy</div>
+            <div class="font-mono text-caption text-ink">{{ application.restartPolicy }}</div>
           </Row>
         </template>
 

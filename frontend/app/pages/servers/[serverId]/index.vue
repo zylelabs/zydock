@@ -169,14 +169,14 @@
       <div class="mb-4.5 flex flex-wrap items-center gap-2.5">
         <Tag v-if="server.type === 'local'">local</Tag>
         <div
-          class="flex items-center gap-1.5 rounded-full border border-edge bg-card px-2.75 py-1.25 text-[12.5px] text-ink"
+          class="flex items-center gap-1.5 rounded-full border border-edge bg-card px-2.75 py-1.25 text-caption text-ink"
         >
           <StatusDot :status="serverStatusDot(server.status)" />
           {{ STATUS_LABEL[server.status] }}
         </div>
         <div
           v-if="server.publicIp"
-          class="flex items-center gap-1.5 rounded-full border border-edge bg-card px-2.75 py-1.25 font-mono text-[12.5px] text-ink-2"
+          class="flex items-center gap-1.5 rounded-full border border-edge bg-card px-2.75 py-1.25 font-mono text-caption text-ink-2"
         >
           {{ server.publicIp }}
         </div>
@@ -270,7 +270,7 @@
           class="flex items-center gap-4 rounded-card border border-failed/30 bg-failed/5 p-4.25"
         >
           <div class="flex-1">
-            <div class="text-[13px] font-semibold text-failed">Remove this server</div>
+            <div class="text-caption font-semibold text-failed">Remove this server</div>
             <div class="mt-0.75 text-caption text-ink-2">
               Applications and databases must be moved first.
             </div>
