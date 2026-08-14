@@ -1,6 +1,8 @@
 <script setup lang="ts">
   import {
+    consumeUpdateCelebration,
     isChannelDowngrade,
+    markUpdateCelebration,
     updateRunPhase,
     useUpdates,
     type UpdateChannel,
@@ -223,6 +225,22 @@
   let pollHandle: ReturnType<typeof setTimeout> | null = null;
 
   const POLL_INTERVAL_MS = 3000;
+  const RELOAD_DELAY_MS = 1000;
+
+  const celebrating = ref(false);
+
+  let reloadHandle: ReturnType<typeof setTimeout> | null = null;
+
+  const reloadAfterUpdate = () => {
+    reloadHandle = setTimeout(() => {
+      markUpdateCelebration();
+      window.location.replace('/settings?tab=updates');
+    }, RELOAD_DELAY_MS);
+  };
+
+  onMounted(() => {
+    celebrating.value = consumeUpdateCelebration();
+  });
 
   const phase = computed(() => updateRunPhase(activeRun.value, polling.value));
 
@@ -258,6 +276,10 @@
           polling.value = false;
           pollHandle = null;
           refreshStatus();
+
+          if (latest.status === 'success') {
+            reloadAfterUpdate();
+          }
         }
       } catch {
         if (generation !== pollGeneration) {
@@ -277,6 +299,10 @@
 
     if (pollHandle) {
       clearTimeout(pollHandle);
+    }
+
+    if (reloadHandle) {
+      clearTimeout(reloadHandle);
     }
   });
 
@@ -599,5 +625,7 @@
       :loading="forcing"
       @confirm="forceUpdate"
     />
+
+    <Fireworks v-if="celebrating" @done="celebrating = false" />
   </div>
 </template>

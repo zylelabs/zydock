@@ -68,6 +68,19 @@ export const updateRunPhase = (run: UpdateRun | null, isPolling: boolean): Updat
   return 'unknown';
 };
 
+const UPDATE_CELEBRATION_KEY = 'updates:celebrate';
+
+export const markUpdateCelebration = () =>
+  window.sessionStorage.setItem(UPDATE_CELEBRATION_KEY, '1');
+
+export const consumeUpdateCelebration = () => {
+  const pending = window.sessionStorage.getItem(UPDATE_CELEBRATION_KEY) === '1';
+
+  window.sessionStorage.removeItem(UPDATE_CELEBRATION_KEY);
+
+  return pending;
+};
+
 export const isChannelDowngrade = (from: UpdateChannel, to: UpdateChannel) =>
   to === 'stable' && from !== 'stable';
 
