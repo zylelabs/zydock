@@ -1,10 +1,11 @@
-import { readdirSync, readFileSync, statSync } from 'node:fs';
+import { existsSync, readdirSync, readFileSync, statSync } from 'node:fs';
 import { join, resolve, sep } from 'node:path';
+import config from '../../config';
 import { MAX_COMPOSE_FILE_BYTES, validateComposeSecurity } from '../compose/compose.schema';
 import { parseComposeDocument } from '../compose/compose.service';
 import { parseTemplateManifest } from './template.schema';
 
-const CATALOG_ROOT = resolve(import.meta.dir, 'catalog');
+const CATALOG_ROOT = resolve(config.templates.catalogPath);
 
 const VARIABLE_PATTERN = /\$\{([A-Za-z_][A-Za-z0-9_]*)(:?[-?][^}]*)?\}/g;
 
@@ -168,8 +169,12 @@ const loadTemplate = (id: string): Template => {
   return { ...manifest, dockerComposeContent: composeContent };
 };
 
-const loadCatalog = (): Template[] =>
-  readdirSync(CATALOG_ROOT, { withFileTypes: true })
+const loadCatalog = (): Template[] => {
+  if (!existsSync(CATALOG_ROOT)) {
+    throw new Error(`Template catalog not found at "${CATALOG_ROOT}".`);
+  }
+
+  return readdirSync(CATALOG_ROOT, { withFileTypes: true })
     .filter(entry => entry.isDirectory())
     .map(entry => entry.name)
     .sort()
@@ -182,6 +187,7 @@ const loadCatalog = (): Template[] =>
         );
       }
     });
+};
 
 let cachedCatalog: Template[] | undefined;
 

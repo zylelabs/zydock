@@ -22,6 +22,8 @@ COPY backend/ ./
 
 COPY --from=agent-bundle /agent/dist/agent.js /agent/dist/agent.js
 
+COPY templates/ /templates
+
 EXPOSE 8000
 
 CMD ["bun", "run", "start"]

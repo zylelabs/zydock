@@ -26,6 +26,7 @@ services:
       MODE: prod
       PORT: '8000'
       AGENT_BUNDLE_PATH: /agent/dist/agent.js
+      TEMPLATES_CATALOG_PATH: /templates
     volumes:
       - backend-storage:/app/storage
     healthcheck:

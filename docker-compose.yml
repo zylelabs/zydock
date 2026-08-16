@@ -35,6 +35,7 @@ services:
     volumes:
       - ./backend:/app
       - backend-node-modules:/app/node_modules
+      - ./templates:/templates
     ports:
       - '8000:8000'
 
