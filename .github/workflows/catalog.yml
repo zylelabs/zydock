@@ -4,7 +4,7 @@ on:
   pull_request:
     branches-ignore: [nightly, main]
     paths:
-      - "backend/src/modules/templates/catalog/**"
+      - "templates/**"
   schedule:
     - cron: "0 6 * * 1"
   workflow_dispatch:

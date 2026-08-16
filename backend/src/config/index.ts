@@ -158,6 +158,9 @@ export default {
   updates: {
     repository: readString('ZYDOCK_REPOSITORY', 'zylelabs/zydock'),
   },
+  templates: {
+    catalogPath: readString('TEMPLATES_CATALOG_PATH', '../templates'),
+  },
   providers: {
     container: { runtime: readString('CONTAINER_RUNTIME', 'docker') },
     reverseProxy: { implementation: readString('REVERSE_PROXY', 'caddy') },
