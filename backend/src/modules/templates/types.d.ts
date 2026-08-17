@@ -48,7 +48,7 @@ interface TemplateVersionsRegistry {
 
 interface TemplateVersions {
   key: string;
-  default: string;
+  default?: string;
   available: TemplateVersionEntry[];
   registry?: TemplateVersionsRegistry;
 }

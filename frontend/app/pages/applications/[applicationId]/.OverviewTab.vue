@@ -86,13 +86,6 @@
     { immediate: true },
   );
 
-  const serviceOptions = computed(() =>
-    services.value.map(entry => ({
-      value: entry.service,
-      label: entry.exposed ? `${entry.service} (exposed)` : entry.service,
-    })),
-  );
-
   const messageOf = (error: unknown, fallback: string) =>
     (error as { message?: string }).message || fallback;
 
@@ -324,15 +317,6 @@
 
     <div class="grid gap-4.5 lg:grid-cols-[1.4fr_1fr]">
       <div class="flex flex-col gap-4.5">
-        <Select
-          v-if="serviceOptions.length > 1"
-          v-model="selectedService"
-          label="Service"
-          :options="serviceOptions"
-          boxed
-          class="max-w-60"
-        />
-
         <div v-if="metricsFirstLoad" class="grid gap-3.5 sm:grid-cols-3">
           <SkeletonChart v-for="index in 3" :key="index" />
         </div>

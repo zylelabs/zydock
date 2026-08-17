@@ -25,7 +25,11 @@ import { enqueueDeployment } from '../deployments/pipeline.service';
 import { findServerById } from '../servers/server.service';
 import { allTemplates, repositoryForVersions } from './catalog.service';
 import { parseEnvContent, renderTemplate, type RenderTemplateContext } from './render.service';
-import { DEFAULT_VERSION_INCLUDE_PATTERN, testVersionPattern } from './template.schema';
+import {
+  DEFAULT_VERSION_EXCLUDE_PATTERN,
+  DEFAULT_VERSION_INCLUDE_PATTERN,
+  testVersionPattern,
+} from './template.schema';
 import type {
   DeployTemplateDTO,
   ListTemplatesQuery,
@@ -180,57 +184,70 @@ export type TemplateVersionsListing = {
   degraded?: { reason: string };
 };
 
-const SEMVER_PATTERN = /^v?(\d+)(?:\.(\d+))?(?:\.(\d+))?$/;
+const SEMVER_PATTERN = /(?<![\d.])v?(\d+)(?:\.(\d+))?(?:\.(\d+))?/g;
 
-const semverOf = (value: string): [number, number, number] | null => {
-  const match = SEMVER_PATTERN.exec(value);
+type Semver = [number, number, number];
 
-  if (!match) {
-    return null;
+const semverOf = (value: string): Semver | null => {
+  let best: Semver | null = null;
+  let bestParts = 0;
+
+  for (const match of value.matchAll(SEMVER_PATTERN)) {
+    const parts = match.slice(1).filter(part => part !== undefined).length;
+
+    if (parts > bestParts) {
+      best = [Number(match[1]), Number(match[2] ?? '0'), Number(match[3] ?? '0')];
+      bestParts = parts;
+    }
   }
 
-  return [Number(match[1]), Number(match[2] ?? '0'), Number(match[3] ?? '0')];
+  return best;
 };
 
 const versionCollator = new Intl.Collator(undefined, { numeric: true });
 
-const sortRegistryOptions = (options: TemplateVersionOption[]): TemplateVersionOption[] => {
-  const allSemver = options.every(option => semverOf(option.value) !== null);
+const compareUpdatedAt = (a: TemplateVersionOption, b: TemplateVersionOption): number => {
+  const timeA = a.updatedAt?.getTime();
+  const timeB = b.updatedAt?.getTime();
 
-  if (allSemver) {
-    return [...options].sort((a, b) => {
-      const semverA = semverOf(a.value)!;
-      const semverB = semverOf(b.value)!;
+  if (timeA !== undefined && timeB !== undefined) {
+    return timeB - timeA;
+  }
 
+  if (timeA !== undefined) {
+    return -1;
+  }
+
+  if (timeB !== undefined) {
+    return 1;
+  }
+
+  return 0;
+};
+
+const sortRegistryOptions = (options: TemplateVersionOption[]): TemplateVersionOption[] =>
+  [...options].sort((a, b) => {
+    const semverA = semverOf(a.value);
+    const semverB = semverOf(b.value);
+
+    if (semverA && semverB) {
       for (let i = 0; i < 3; i += 1) {
         if (semverA[i] !== semverB[i]) {
           return semverB[i]! - semverA[i]!;
         }
       }
 
-      return versionCollator.compare(b.value, a.value);
-    });
-  }
-
-  return [...options].sort((a, b) => {
-    const timeA = a.updatedAt?.getTime();
-    const timeB = b.updatedAt?.getTime();
-
-    if (timeA !== undefined && timeB !== undefined && timeA !== timeB) {
-      return timeB - timeA;
-    }
-
-    if (timeA !== undefined && timeB === undefined) {
+      if (a.value.length !== b.value.length) {
+        return a.value.length - b.value.length;
+      }
+    } else if (semverA) {
       return -1;
-    }
-
-    if (timeA === undefined && timeB !== undefined) {
+    } else if (semverB) {
       return 1;
     }
 
-    return versionCollator.compare(b.value, a.value);
+    return compareUpdatedAt(a, b) || versionCollator.compare(b.value, a.value);
   });
-};
 
 const matchesVersionSearch = (option: TemplateVersionOption, search?: string): boolean => {
   if (!search) {
@@ -247,6 +264,13 @@ const matchesVersionSearch = (option: TemplateVersionOption, search?: string): b
 
 const TAG_FORMAT_PATTERN = /^[A-Za-z0-9_][A-Za-z0-9._-]{0,127}$/;
 
+type VersionPatterns = { include: string; exclude: string };
+
+const versionPatternsOf = (registry: { include?: string; exclude?: string }): VersionPatterns => ({
+  include: registry.include ?? DEFAULT_VERSION_INCLUDE_PATTERN,
+  exclude: registry.exclude ?? DEFAULT_VERSION_EXCLUDE_PATTERN,
+});
+
 export const isVersionAllowed = (template: Template, value: string): boolean => {
   if (!template.versions || value === 'latest' || !TAG_FORMAT_PATTERN.test(value)) {
     return false;
@@ -262,13 +286,13 @@ export const isVersionAllowed = (template: Template, value: string): boolean => 
     return false;
   }
 
-  const includePattern = registry.include ?? DEFAULT_VERSION_INCLUDE_PATTERN;
+  const { include, exclude } = versionPatternsOf(registry);
 
-  if (!testVersionPattern(includePattern, value)) {
+  if (!testVersionPattern(include, value)) {
     return false;
   }
 
-  return !registry.exclude || !testVersionPattern(registry.exclude, value);
+  return !testVersionPattern(exclude, value);
 };
 
 const versionPolicyMessage = (template: Template, value: string): string => {
@@ -281,12 +305,11 @@ const versionPolicyMessage = (template: Template, value: string): string => {
     return `"version" must be one of: ${options}`;
   }
 
-  const includePattern = registry.include ?? DEFAULT_VERSION_INCLUDE_PATTERN;
-  const excludeClause = registry.exclude ? ` and not match "${registry.exclude}"` : '';
+  const { include, exclude } = versionPatternsOf(registry);
 
   return (
-    `"${value}" is not an allowed version for this template: it must match "${includePattern}"` +
-    `${excludeClause}. See GET /templates/${template.id}/versions for the current list.`
+    `"${value}" is not an allowed version for this template: it must match "${include}"` +
+    ` and not match "${exclude}". See GET /templates/${template.id}/versions for the current list.`
   );
 };
 
@@ -349,7 +372,7 @@ export const listTemplateVersions = async (
 
   const { host, path } = registryReferenceOf(repository);
   const curatedValues = new Set(curated.map(option => option.value));
-  const includePattern = registry.include ?? DEFAULT_VERSION_INCLUDE_PATTERN;
+  const { include, exclude } = versionPatternsOf(registry);
 
   try {
     const tags = await listRegistryTags(host, path);
@@ -362,8 +385,8 @@ export const listTemplateVersions = async (
       tags
         .filter(tag => tag.name !== 'latest')
         .filter(tag => !curatedValues.has(tag.name))
-        .filter(tag => testVersionPattern(includePattern, tag.name))
-        .filter(tag => !registry.exclude || !testVersionPattern(registry.exclude, tag.name))
+        .filter(tag => testVersionPattern(include, tag.name))
+        .filter(tag => !testVersionPattern(exclude, tag.name))
         .map(tag => ({ value: tag.name, updatedAt: tag.updatedAt, origin: 'registry' as const })),
     )
       .filter(option => matchesVersionSearch(option, options.search))
@@ -388,6 +411,43 @@ export const listTemplateVersions = async (
 
     return { ...curatedListing(), degraded: { reason } };
   }
+};
+
+/**
+ * Tags that are nothing but a version number. The include/exclude policy is deliberately wide so
+ * the picker can show flavoured tags too, but picking a default on the user's behalf only ever
+ * lands on an unambiguous release — "base-debian-node16" also carries a number, and `semverOf`
+ * would happily read it as 16.0.0.
+ */
+const PLAIN_VERSION_PATTERN = /^v?\d+(\.\d+){0,2}$/;
+
+/**
+ * Manifests may omit "versions.default", in which case the newest tag the registry offers for the
+ * template becomes the default. The listing is already filtered and sorted newest-first.
+ */
+export const resolveDefaultVersion = async (template: Template): Promise<string> => {
+  if (template.versions?.default) {
+    return template.versions.default;
+  }
+
+  const { versions } = await listTemplateVersions(template);
+  const newest = versions.find(option => PLAIN_VERSION_PATTERN.test(option.value)) ?? versions[0];
+
+  if (!newest) {
+    throw new Error(
+      `No version could be resolved from the registry for "${template.id}" — pass "version" ` +
+        `explicitly when deploying`,
+    );
+  }
+
+  if (!PLAIN_VERSION_PATTERN.test(newest.value)) {
+    logWarn('No plain version tag available, falling back to the newest listed tag', {
+      templateId: template.id,
+      version: newest.value,
+    });
+  }
+
+  return newest.value;
 };
 
 export const composeHashOf = (content: string): string =>
@@ -636,7 +696,11 @@ export const applyTemplateUpdate = async (
   );
   const versionFellBackToDefault = Boolean(template.versions) && !versionStillValid;
   const versionAnswer = template.versions
-    ? { [template.versions.key]: versionStillValid ? currentVersion! : template.versions.default }
+    ? {
+        [template.versions.key]: versionStillValid
+          ? currentVersion!
+          : await resolveDefaultVersion(template),
+      }
     : {};
 
   const newSecretValues = Object.fromEntries(
@@ -732,12 +796,15 @@ export const applyTemplateUpdate = async (
   return { versionFellBackToDefault };
 };
 
-const resolveVersion = (template: Template, requested?: string): string | undefined => {
+const resolveVersion = async (
+  template: Template,
+  requested?: string,
+): Promise<string | undefined> => {
   if (!template.versions) {
     return undefined;
   }
 
-  const value = requested ?? template.versions.default;
+  const value = requested ?? (await resolveDefaultVersion(template));
 
   if (!isVersionAllowed(template, value)) {
     throw new Error(versionPolicyMessage(template, value));
@@ -768,7 +835,7 @@ export const deployTemplateApplication = async (params: {
     }
   }
 
-  const version = resolveVersion(template, body.version);
+  const version = await resolveVersion(template, body.version);
 
   if (version !== undefined) {
     await assertVersionExistsBestEffort(template, version);

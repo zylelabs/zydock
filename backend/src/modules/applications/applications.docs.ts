@@ -316,12 +316,69 @@ export const applicationsDocs = {
                 service: { type: 'string' },
                 containerName: { type: 'string' },
                 exposed: { type: 'boolean' },
+                role: { type: 'string', enum: ['primary', 'linked'] },
+                image: { type: 'string' },
+                internalPort: { type: 'number' },
+                kind: { type: 'string' },
+                domain: { type: 'string' },
               },
             },
+          },
+          networkName: { type: 'string' },
+        },
+      }),
+      404: errorRes('Application not found.'),
+    },
+  },
+  servicesStatus: {
+    tags: ['Applications'],
+    summary: 'Read the live state of the services of a compose application',
+    description:
+      'Queries the agent for `docker compose ps` and container metrics — two agent calls, never ' +
+      'a database write. Degrades to `{ services: [], degraded: { reason } }` with a 200 whenever ' +
+      'the agent is unreachable or the server has no agent yet, so it never returns a 5xx. A ' +
+      'service declared in the compose file but missing from `ps` still appears, with ' +
+      '`state: "unknown"`.',
+    security: bearerOrApiKeyAuth,
+    responses: {
+      200: jsonRes('Service status.', {
+        type: 'object',
+        properties: {
+          services: {
+            type: 'array',
+            items: {
+              type: 'object',
+              properties: {
+                service: { type: 'string' },
+                state: { type: 'string' },
+                health: { type: 'string' },
+                memoryUsedMb: { type: 'number' },
+                cpuPercent: { type: 'number' },
+              },
+            },
+          },
+          degraded: {
+            type: 'object',
+            nullable: true,
+            properties: { reason: { type: 'string' } },
           },
         },
       }),
       404: errorRes('Application not found.'),
+    },
+  },
+  servicesRestart: {
+    tags: ['Applications'],
+    summary: 'Restart a single service of a compose application',
+    description:
+      'Runs `docker compose restart <service>` for just that service, without touching the rest ' +
+      'of the project — the application status is unaffected. Admin or owner.',
+    security: bearerOrApiKeyAuth,
+    responses: {
+      200: messageRes('Service restarted successfully.'),
+      400: errorRes('The agent failed.'),
+      404: errorRes('Application or service not found.'),
+      409: errorRes('Not a compose application.'),
     },
   },
   listVariables: {

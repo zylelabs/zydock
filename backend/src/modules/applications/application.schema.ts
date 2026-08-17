@@ -42,6 +42,17 @@ export const applicationVariableKeyParamSchema = applicationIdParamSchema.extend
 
 export type ApplicationVariableKeyParam = z.infer<typeof applicationVariableKeyParamSchema>;
 
+export const applicationServiceParamSchema = applicationIdParamSchema.extend({
+  service: z
+    .string()
+    .trim()
+    .min(1)
+    .max(128)
+    .regex(/^[a-zA-Z0-9][a-zA-Z0-9_.-]*$/, 'Invalid service name'),
+});
+
+export type ApplicationServiceParam = z.infer<typeof applicationServiceParamSchema>;
+
 const gitBaseSchema = z.object({
   host: z.enum(GIT_HOSTS),
   repository: z

@@ -197,6 +197,34 @@ describe('GET /templates/:templateId/versions', () => {
     dockerComposeContent: `services:\n  app:\n    image: ${searchRepository}:\${APP_VERSION}\n`,
   };
 
+  const permissiveRepository = `zydock-test/synthetic-versions-permissive-${Date.now()}`;
+
+  const permissiveTemplate: Template = {
+    ...noVersionsTemplate,
+    id: 'synthetic-registry-permissive-versions-app',
+    versions: {
+      key: 'APP_VERSION',
+      default: '1',
+      available: [{ value: '1' }],
+      registry: { limit: 50 },
+    },
+    dockerComposeContent: `services:\n  app:\n    image: ${permissiveRepository}:\${APP_VERSION}\n`,
+  };
+
+  const ghcrRepository = `zydock-test/synthetic-versions-ghcr-${Date.now()}`;
+
+  const ghcrTemplate: Template = {
+    ...noVersionsTemplate,
+    id: 'synthetic-registry-ghcr-versions-app',
+    versions: {
+      key: 'APP_VERSION',
+      default: '1',
+      available: [{ value: '1' }],
+      registry: { limit: 50, include: '^postgresql-v\\d+$' },
+    },
+    dockerComposeContent: `services:\n  app:\n    image: ghcr.io/${ghcrRepository}:\${APP_VERSION}\n`,
+  };
+
   beforeAll(() => {
     allTemplates().push(
       noVersionsTemplate,
@@ -204,6 +232,8 @@ describe('GET /templates/:templateId/versions', () => {
       registryTemplate,
       outageTemplate,
       searchTemplate,
+      permissiveTemplate,
+      ghcrTemplate,
     );
   });
 
@@ -214,6 +244,8 @@ describe('GET /templates/:templateId/versions', () => {
       registryTemplate.id,
       outageTemplate.id,
       searchTemplate.id,
+      permissiveTemplate.id,
+      ghcrTemplate.id,
     ]) {
       const index = allTemplates().findIndex(template => template.id === id);
 
@@ -353,6 +385,67 @@ describe('GET /templates/:templateId/versions', () => {
     expect(response.status).toBe(200);
     expect(body.versions).toEqual([
       { value: '1.0.0', origin: 'registry', updatedAt: '2024-01-01T00:00:00.000Z' },
+    ]);
+  });
+
+  test('suffixed and prefixed tags are listed and sorted by their version number', async () => {
+    globalThis.fetch = (async () =>
+      jsonResponse({
+        results: [
+          { name: '1.23.3-alpine', last_updated: '2024-01-01T00:00:00Z' },
+          { name: '2.4.0', last_updated: '2024-02-01T00:00:00Z' },
+          { name: '2.4.0-alpine', last_updated: '2024-02-01T00:00:00Z' },
+          { name: 'postgresql-v2.19.0', last_updated: '2024-03-01T00:00:00Z' },
+          { name: '2026-08-16', last_updated: '2024-04-01T00:00:00Z' },
+          { name: 'main-2f8a1c9', last_updated: '2024-04-02T00:00:00Z' },
+        ],
+        next: null,
+      })) as unknown as typeof fetch;
+
+    const response = await json(
+      `/templates/${permissiveTemplate.id}/versions`,
+      'GET',
+      undefined,
+      token,
+    );
+    const body = (await response.json()) as {
+      versions: { value: string; origin: string }[];
+    };
+
+    expect(response.status).toBe(200);
+    expect(body.versions.map(option => option.value)).toEqual([
+      '1',
+      'postgresql-v2.19.0',
+      '2.4.0',
+      '2.4.0-alpine',
+      '1.23.3-alpine',
+    ]);
+  });
+
+  test('a GHCR-backed repository without any updatedAt sorts by version, curated first', async () => {
+    globalThis.fetch = (async (url: string) => {
+      if (url.includes('/token')) {
+        return jsonResponse({ token: 'tok-1', expires_in: 300 });
+      }
+
+      expect(url).toContain(`ghcr.io/v2/${ghcrRepository}/tags/list`);
+
+      return jsonResponse({ tags: ['postgresql-v2', 'postgresql-v3', 'postgresql-v10'] });
+    }) as unknown as typeof fetch;
+
+    const response = await json(`/templates/${ghcrTemplate.id}/versions`, 'GET', undefined, token);
+    const body = (await response.json()) as {
+      source: string;
+      versions: { value: string; origin: string; updatedAt?: string }[];
+    };
+
+    expect(response.status).toBe(200);
+    expect(body.source).toBe('mixed');
+    expect(body.versions).toEqual([
+      { value: '1', origin: 'catalog' },
+      { value: 'postgresql-v10', origin: 'registry' },
+      { value: 'postgresql-v3', origin: 'registry' },
+      { value: 'postgresql-v2', origin: 'registry' },
     ]);
   });
 });

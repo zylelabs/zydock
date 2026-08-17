@@ -1,9 +1,11 @@
 import config from '../../config';
 import { createDockerHubProvider } from './dockerhub.provider';
+import { createGhcrProvider } from './ghcr.provider';
 import type { RegistryProvider, RegistryProviderFactory, RegistryTag } from './registry.contract';
 
 const factories: Record<string, RegistryProviderFactory> = {
   'docker.io': createDockerHubProvider,
+  'ghcr.io': createGhcrProvider,
 };
 
 type CacheEntry = { tags: RegistryTag[]; expiresAt: number };

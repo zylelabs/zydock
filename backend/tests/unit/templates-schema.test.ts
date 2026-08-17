@@ -161,6 +161,45 @@ describe('parseTemplateManifest', () => {
     expect(manifest.versions).toBeUndefined();
   });
 
+  test('an empty "versions" block defaults to the VERSION key backed by the registry', () => {
+    const manifest = parseTemplateManifest({ ...validManifest(), versions: {} });
+
+    expect(manifest.versions).toEqual({
+      key: 'VERSION',
+      available: [],
+      registry: { limit: 50 },
+    });
+  });
+
+  test('"versions.default" alone keeps the registry as the version source', () => {
+    const manifest = parseTemplateManifest({
+      ...validManifest(),
+      versions: { default: '3.3.0' },
+    });
+
+    expect(manifest.versions).toEqual({
+      key: 'VERSION',
+      default: '3.3.0',
+      available: [],
+      registry: { limit: 50 },
+    });
+  });
+
+  test('a curated "available" without "registry" stays curated-only', () => {
+    const manifest = parseTemplateManifest({
+      ...validManifest(),
+      versions: { available: [{ value: '2' }] },
+    });
+
+    expect(manifest.versions).toEqual({ key: 'VERSION', available: [{ value: '2' }] });
+  });
+
+  test('rejects "latest" as "versions.default"', () => {
+    const raw = { ...validManifest(), versions: { default: 'latest' } };
+
+    expect(() => parseTemplateManifest(raw)).toThrow(/"latest" is not allowed/);
+  });
+
   test('rejects "versions.default" outside of "versions.available"', () => {
     const raw = {
       ...validManifest(),

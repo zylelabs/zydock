@@ -106,6 +106,19 @@ export interface ApplicationService {
   service: string;
   containerName: string;
   exposed: boolean;
+  role: 'primary' | 'linked';
+  image?: string;
+  internalPort?: number;
+  kind?: string;
+  domain?: string;
+}
+
+export interface ApplicationServiceStatus {
+  service: string;
+  state: string;
+  health: string;
+  memoryUsedMb?: number;
+  cpuPercent?: number;
 }
 
 export type ComposeDiffLineType = 'context' | 'added' | 'removed';
@@ -310,7 +323,15 @@ export const useApplications = () => {
     api.del<{ message: string }>(`${base()}/${applicationId}/webhook`);
 
   const services = (applicationId: string) =>
-    api.get<{ services: ApplicationService[] }>(`${base()}/${applicationId}/services`);
+    api.get<{ services: ApplicationService[]; networkName?: string }>(
+      `${base()}/${applicationId}/services`,
+    );
+  const serviceStatus = (applicationId: string) =>
+    api.get<{ services: ApplicationServiceStatus[]; degraded?: { reason: string } }>(
+      `${base()}/${applicationId}/services/status`,
+    );
+  const restartService = (applicationId: string, service: string) =>
+    api.post<{ message: string }>(`${base()}/${applicationId}/services/${service}/restart`);
 
   return {
     list,
@@ -331,5 +352,7 @@ export const useApplications = () => {
     configureWebhook,
     removeWebhook,
     services,
+    serviceStatus,
+    restartService,
   };
 };

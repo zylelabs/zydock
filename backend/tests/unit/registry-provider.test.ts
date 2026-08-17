@@ -1,5 +1,6 @@
 import { afterEach, beforeEach, describe, expect, test } from 'bun:test';
 import { createDockerHubProvider } from '../../src/providers/registry/dockerhub.provider';
+import { createGhcrProvider } from '../../src/providers/registry/ghcr.provider';
 import {
   listRegistryTags,
   registryTagExists,
@@ -139,13 +140,141 @@ describe('createDockerHubProvider', () => {
   });
 });
 
+describe('createGhcrProvider', () => {
+  const tokenResponse = () =>
+    new Response(JSON.stringify({ token: 'tok-1', expires_in: 300 }), { status: 200 });
+
+  test('fetches a token before the first /v2/ call and sends it as a bearer token', async () => {
+    const requests: { url: string; headers: Record<string, string> }[] = [];
+
+    globalThis.fetch = (async (url: string, init?: RequestInit) => {
+      requests.push({ url, headers: (init?.headers as Record<string, string>) ?? {} });
+
+      if (url.includes('/token')) {
+        return tokenResponse();
+      }
+
+      return new Response(JSON.stringify({ tags: ['1.0.0'] }), { status: 200 });
+    }) as unknown as typeof fetch;
+
+    const provider = createGhcrProvider({ timeoutMs: 5000 });
+
+    await provider.listTags('owner/app');
+
+    expect(requests[0]!.url).toContain('/token');
+    expect(requests[1]!.url).toContain('/v2/owner/app/tags/list');
+    expect(requests[1]!.headers.Authorization).toBe('Bearer tok-1');
+  });
+
+  test('reuses the token between calls for the same repository', async () => {
+    let tokenCalls = 0;
+
+    globalThis.fetch = (async (url: string) => {
+      if (url.includes('/token')) {
+        tokenCalls += 1;
+
+        return tokenResponse();
+      }
+
+      return new Response(JSON.stringify({ tags: [] }), { status: 200 });
+    }) as unknown as typeof fetch;
+
+    const provider = createGhcrProvider({ timeoutMs: 5000 });
+
+    await provider.listTags('owner/app');
+    await provider.listTags('owner/app');
+
+    expect(tokenCalls).toBe(1);
+  });
+
+  test('paginates following the Link "rel=next" header and stops at the page cap', async () => {
+    let pageCalls = 0;
+
+    globalThis.fetch = (async (url: string) => {
+      if (url.includes('/token')) {
+        return tokenResponse();
+      }
+
+      pageCalls += 1;
+
+      return new Response(JSON.stringify({ tags: [`tag-${pageCalls}`] }), {
+        status: 200,
+        headers: { link: '<https://ghcr.io/v2/owner/app/tags/list?n=100&last=x>; rel="next"' },
+      });
+    }) as unknown as typeof fetch;
+
+    const provider = createGhcrProvider({ timeoutMs: 5000 });
+    const tags = await provider.listTags('owner/app');
+
+    expect(pageCalls).toBe(10);
+    expect(tags).toHaveLength(10);
+  });
+
+  test('a null "tags" field (empty repository) resolves to an empty list without throwing', async () => {
+    globalThis.fetch = (async (url: string) => {
+      if (url.includes('/token')) {
+        return tokenResponse();
+      }
+
+      return new Response(JSON.stringify({ tags: null }), { status: 200 });
+    }) as unknown as typeof fetch;
+
+    const provider = createGhcrProvider({ timeoutMs: 5000 });
+
+    await expect(provider.listTags('owner/empty')).resolves.toEqual([]);
+  });
+
+  test('tags come back without an updatedAt', async () => {
+    globalThis.fetch = (async (url: string) => {
+      if (url.includes('/token')) {
+        return tokenResponse();
+      }
+
+      return new Response(JSON.stringify({ tags: ['1.0.0', '2.0.0'] }), { status: 200 });
+    }) as unknown as typeof fetch;
+
+    const provider = createGhcrProvider({ timeoutMs: 5000 });
+    const tags = await provider.listTags('owner/app');
+
+    expect(tags).toEqual([{ name: '1.0.0' }, { name: '2.0.0' }]);
+  });
+
+  test('tagExists: 200 -> true, 404 -> false, 401 -> throws', async () => {
+    globalThis.fetch = (async (url: string) => {
+      if (url.includes('/token')) {
+        return tokenResponse();
+      }
+
+      if (url.includes('/manifests/missing')) {
+        return new Response(null, { status: 404 });
+      }
+
+      if (url.includes('/manifests/private')) {
+        return new Response(null, { status: 401 });
+      }
+
+      return new Response(null, { status: 200 });
+    }) as unknown as typeof fetch;
+
+    const provider = createGhcrProvider({ timeoutMs: 5000 });
+
+    await expect(provider.tagExists('owner/app', '1.0.0')).resolves.toBe(true);
+    await expect(provider.tagExists('owner/app', 'missing')).resolves.toBe(false);
+    await expect(provider.tagExists('owner/app', 'private')).rejects.toThrow('HTTP 401');
+  });
+});
+
 describe('resolveRegistryProvider', () => {
   test('resolves docker.io to the Docker Hub implementation', () => {
     expect(resolveRegistryProvider('docker.io')).not.toBeNull();
   });
 
-  test('returns null for a host without a registered implementation', () => {
-    expect(resolveRegistryProvider('ghcr.io')).toBeNull();
+  test('resolves ghcr.io to the GHCR implementation', () => {
+    expect(resolveRegistryProvider('ghcr.io')).not.toBeNull();
+  });
+
+  test('returns null for an allowlisted host without a registered implementation', () => {
+    expect(resolveRegistryProvider('quay.io')).toBeNull();
   });
 
   test('returns null for a host outside the registry allowlist', () => {
@@ -181,7 +310,7 @@ describe('registryTagExists', () => {
   });
 
   test('returns null for a host without a registered implementation', async () => {
-    await expect(registryTagExists('ghcr.io', 'owner/app', '1.0.0')).resolves.toBeNull();
+    await expect(registryTagExists('quay.io', 'owner/app', '1.0.0')).resolves.toBeNull();
   });
 });
 
@@ -230,5 +359,29 @@ describe('listRegistryTags — cache', () => {
     const second = await listRegistryTags('docker.io', repository);
 
     expect(second).toEqual(first);
+  });
+
+  test('does not collide between docker.io and ghcr.io for the same repository path', async () => {
+    const repository = `same-path-${Date.now()}`;
+
+    globalThis.fetch = (async (url: string) => {
+      if (url.includes('hub.docker.com')) {
+        return new Response(JSON.stringify({ results: [{ name: 'docker-tag' }], next: null }), {
+          status: 200,
+        });
+      }
+
+      if (url.includes('/token')) {
+        return new Response(JSON.stringify({ token: 'tok' }), { status: 200 });
+      }
+
+      return new Response(JSON.stringify({ tags: ['ghcr-tag'] }), { status: 200 });
+    }) as unknown as typeof fetch;
+
+    const dockerTags = await listRegistryTags('docker.io', repository);
+    const ghcrTags = await listRegistryTags('ghcr.io', repository);
+
+    expect(dockerTags?.map(tag => tag.name)).toEqual(['docker-tag']);
+    expect(ghcrTags?.map(tag => tag.name)).toEqual(['ghcr-tag']);
   });
 });

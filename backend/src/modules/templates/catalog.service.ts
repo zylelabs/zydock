@@ -3,7 +3,11 @@ import { join, resolve, sep } from 'node:path';
 import config from '../../config';
 import { MAX_COMPOSE_FILE_BYTES, validateComposeSecurity } from '../compose/compose.schema';
 import { parseComposeDocument } from '../compose/compose.service';
-import { parseTemplateManifest } from './template.schema';
+import {
+  DEFAULT_VERSION_KEY,
+  implicitTemplateVersions,
+  parseTemplateManifest,
+} from './template.schema';
 
 const CATALOG_ROOT = resolve(config.templates.catalogPath);
 
@@ -131,23 +135,50 @@ export const assertDatabaseCredentialsAreDeclared = (manifest: TemplateManifest)
   }
 };
 
+const implicitVersionReference = new RegExp(`\\$\\{${DEFAULT_VERSION_KEY}(:?[-?][^}]*)?\\}`);
+
+export const withImplicitVersions = (
+  manifest: TemplateManifest,
+  composeContent: string,
+): TemplateManifest => {
+  if (manifest.versions) {
+    return manifest;
+  }
+
+  const declaredKeys = new Set([
+    ...manifest.inputs.map(input => input.key),
+    ...manifest.secrets.map(secret => secret.key),
+  ]);
+
+  if (declaredKeys.has(DEFAULT_VERSION_KEY)) {
+    return manifest;
+  }
+
+  const referenced = imagesOf(composeContent).some(image => implicitVersionReference.test(image));
+
+  return referenced ? { ...manifest, versions: implicitTemplateVersions() } : manifest;
+};
+
 const loadTemplate = (id: string): Template => {
   const dir = join(CATALOG_ROOT, id);
-  const manifest = parseTemplateManifest(
+  const parsedManifest = parseTemplateManifest(
     JSON.parse(readFileSync(join(dir, 'template.json'), 'utf-8')),
   );
 
-  if (manifest.id !== id) {
-    throw new Error(`"id" ("${manifest.id}") does not match the catalog folder name ("${id}")`);
+  if (parsedManifest.id !== id) {
+    throw new Error(
+      `"id" ("${parsedManifest.id}") does not match the catalog folder name ("${id}")`,
+    );
   }
 
-  const composePath = composeFilePathOf(dir, manifest.dockerCompose);
+  const composePath = composeFilePathOf(dir, parsedManifest.dockerCompose);
   const composeContent = readFileSync(composePath, 'utf-8');
 
   if (Buffer.byteLength(composeContent) > MAX_COMPOSE_FILE_BYTES) {
     throw new Error('"docker-compose.yml" exceeds the maximum allowed size');
   }
 
+  const manifest = withImplicitVersions(parsedManifest, composeContent);
   const parsed = parseComposeDocument(composeContent);
 
   assertServiceExists(parsed, manifest.expose.service, 'expose.service');

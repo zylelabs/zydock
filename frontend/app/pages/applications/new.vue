@@ -8,6 +8,7 @@
   import { useServers, type Server } from '~/composables/services/useServers';
   import {
     mergeVersionOptions,
+    preferredVersionOf,
     templateVersionSelectOptions,
     useTemplates,
     type Template,
@@ -181,6 +182,10 @@
 
     try {
       templateVersionsListing.value = await listTemplateVersions(templateId, search);
+
+      if (!templateVersion.value) {
+        templateVersion.value = preferredVersionOf(templateVersionEntries.value);
+      }
     } catch (error) {
       templateVersionsError.value = messageOf(error, 'Could not reach the registry.');
     }

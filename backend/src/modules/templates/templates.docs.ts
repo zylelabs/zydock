@@ -85,7 +85,8 @@ export const templatesDocs = {
     tags: ['Templates'],
     summary: 'List the selectable versions of a template',
     description:
-      'Union of the curated `versions.available` list (always present, `origin: "catalog"`) with ' +
+      'Union of the curated `versions.available` list (`origin: "catalog"`, empty when the ' +
+      'manifest curates nothing) with ' +
       'tags read from the image registry when the template declares `versions.registry` ' +
       '(`origin: "registry"`), sorted by semantic version when every tag parses as one, otherwise ' +
       'by recency. `search` filters both before the `versions.registry.limit` cutoff is applied. A ' +
