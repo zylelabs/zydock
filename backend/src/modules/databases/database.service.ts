@@ -1,4 +1,5 @@
 import type { DatabaseCredentials, DatabaseStats } from '../../providers/database';
+import config from '../../config';
 import { resolveContainerProvider } from '../../providers/container';
 import { resolveDatabaseProvider, type DatabaseStatus } from '../../providers/database';
 import { volumeNameOf } from '../../providers/database/container.provider';
@@ -13,8 +14,9 @@ import {
   findApplicationWithSecrets,
   listApplicationsOfOrganization,
 } from '../applications/application.service';
-import { composeContainerNameOf } from '../deployments/naming';
+import { APPLICATION_LABEL, composeContainerNameOf } from '../deployments/naming';
 import { buildAgentConnection, listServersOfOrganization } from '../servers/server.service';
+import { peakConnectionsOf, recordDatabaseSample } from './database-sample.service';
 import databaseModel from './database.model';
 import type { CreateDatabaseDTO, DatabaseEngineName } from './database.schema';
 import { DEFAULT_VERSIONS } from './database.schema';
@@ -309,15 +311,109 @@ const managedConsumersOf = async (database: ManagedDatabase): Promise<DatabaseCo
   return consumers;
 };
 
-export const findDatabaseConsumers = (database: ManagedDatabase): Promise<DatabaseConsumer[]> =>
+const declaredConsumersOf = (database: ManagedDatabase): Promise<DatabaseConsumer[]> =>
   database.source === 'compose' ? composeConsumerOf(database) : managedConsumersOf(database);
+
+const measureConsumerConnections = async (database: ManagedDatabase, server: Server) => {
+  const credentials = await readCredentials(database);
+  const containers = resolveContainerProvider(buildAgentConnection(server));
+
+  const [clients, containerList] = await Promise.all([
+    providerOf(server, database.engine).getClientConnections(database.containerId!, credentials),
+    containers.listContainers(),
+  ]);
+
+  const applicationIdByAddress = new Map<string, string>();
+
+  for (const container of containerList) {
+    const applicationId = container.labels[APPLICATION_LABEL];
+
+    if (!applicationId || !container.addresses) {
+      continue;
+    }
+
+    for (const address of Object.values(container.addresses)) {
+      applicationIdByAddress.set(address, applicationId);
+    }
+  }
+
+  const byApplication = new Map<string, number>();
+  let otherConnections = 0;
+
+  for (const [ip, count] of Object.entries(clients)) {
+    const applicationId = applicationIdByAddress.get(ip);
+
+    if (applicationId) {
+      byApplication.set(applicationId, (byApplication.get(applicationId) ?? 0) + count);
+    } else {
+      otherConnections += count;
+    }
+  }
+
+  return { byApplication, otherConnections };
+};
+
+export type DatabaseConsumersResult = {
+  items: DatabaseConsumer[];
+  otherConnections?: number;
+  degraded?: { reason: string };
+};
+
+export const findDatabaseConsumers = async (
+  database: ManagedDatabase,
+  server: Server,
+): Promise<DatabaseConsumersResult> => {
+  const declared = await declaredConsumersOf(database);
+
+  if (!database.containerId) {
+    return { items: declared };
+  }
+
+  if (!server.agent.token) {
+    return { items: declared, degraded: { reason: 'This server has no agent yet' } };
+  }
+
+  try {
+    const { byApplication, otherConnections } = await measureConsumerConnections(database, server);
+
+    const items = declared.map(item => {
+      const connections = byApplication.get(item.applicationId);
+
+      if (connections === undefined) {
+        return item;
+      }
+
+      byApplication.delete(item.applicationId);
+
+      return { ...item, connections };
+    });
+
+    const extraApplicationIds = [...byApplication.keys()];
+    const extraApplications = extraApplicationIds.length
+      ? await findApplicationNames(extraApplicationIds)
+      : [];
+
+    const extraItems = extraApplications.map(application => ({
+      applicationId: String(application._id),
+      name: application.name,
+      connections: byApplication.get(String(application._id)),
+    }));
+
+    return {
+      items: [...items, ...extraItems],
+      otherConnections: otherConnections > 0 ? otherConnections : undefined,
+    };
+  } catch (error) {
+    return { items: declared, degraded: { reason: errorMessage(error) } };
+  }
+};
 
 const uptimeSecondsOf = (startedAt?: string) =>
   startedAt
     ? Math.max(0, Math.floor((Date.now() - new Date(startedAt).getTime()) / 1000))
     : undefined;
 
-const measureDatabase = async (
+export const measureDatabase = async (
   database: ManagedDatabase,
   server: Server,
 ): Promise<DatabaseStats & { uptimeSeconds?: number }> => {
@@ -334,6 +430,8 @@ const measureDatabase = async (
 
 export type DatabaseStatsResult = DatabaseStats & {
   uptimeSeconds?: number;
+  peakConnections?: number;
+  peakWindowHours: number;
   degraded?: { reason: string };
 };
 
@@ -341,22 +439,39 @@ export const fetchDatabaseStats = async (
   database: ManagedDatabase,
   server: Server,
 ): Promise<DatabaseStatsResult> => {
+  const databaseId = String(database._id);
+  const peakWindowHours = config.databaseMetrics.peakWindowHours;
+  const peakConnections = (await peakConnectionsOf([databaseId], peakWindowHours)).get(databaseId);
+
   if (!database.containerId) {
-    return {};
+    return { peakConnections, peakWindowHours };
   }
 
   if (!server.agent.token) {
-    return { degraded: { reason: 'This server has no agent yet' } };
+    return {
+      peakConnections,
+      peakWindowHours,
+      degraded: { reason: 'This server has no agent yet' },
+    };
   }
 
   try {
-    return await measureDatabase(database, server);
+    const stats = await measureDatabase(database, server);
+
+    void recordDatabaseSample(databaseId, stats);
+
+    return { ...stats, peakConnections, peakWindowHours };
   } catch (error) {
-    return { degraded: { reason: errorMessage(error) } };
+    return { peakConnections, peakWindowHours, degraded: { reason: errorMessage(error) } };
   }
 };
 
-export type DatabaseStatsItem = DatabaseStats & { databaseId: string; uptimeSeconds?: number };
+export type DatabaseStatsItem = DatabaseStats & {
+  databaseId: string;
+  uptimeSeconds?: number;
+  peakConnections?: number;
+  peakWindowHours: number;
+};
 
 export type ServerDegradation = { serverId: string; reason: string };
 
@@ -369,19 +484,25 @@ export const fetchOrganizationDatabaseStats = async (
   ]);
 
   const serverById = new Map(servers.map(server => [String(server._id), server]));
+  const peakWindowHours = config.databaseMetrics.peakWindowHours;
+  const peakByDatabase = await peakConnectionsOf(
+    databases.map(database => String(database._id)),
+    peakWindowHours,
+  );
 
   const outcomes = await Promise.all(
     databases.map(async database => {
       const databaseId = String(database._id);
       const server = serverById.get(String(database.serverId));
+      const peakConnections = peakByDatabase.get(databaseId);
 
       if (!database.containerId || !server) {
-        return { item: { databaseId } as DatabaseStatsItem };
+        return { item: { databaseId, peakConnections, peakWindowHours } as DatabaseStatsItem };
       }
 
       if (!server.agent.token) {
         return {
-          item: { databaseId } as DatabaseStatsItem,
+          item: { databaseId, peakConnections, peakWindowHours } as DatabaseStatsItem,
           degraded: { serverId: String(server._id), reason: 'This server has no agent yet' },
         };
       }
@@ -389,10 +510,10 @@ export const fetchOrganizationDatabaseStats = async (
       try {
         const stats = await measureDatabase(database, server);
 
-        return { item: { databaseId, ...stats } };
+        return { item: { databaseId, ...stats, peakConnections, peakWindowHours } };
       } catch (error) {
         return {
-          item: { databaseId } as DatabaseStatsItem,
+          item: { databaseId, peakConnections, peakWindowHours } as DatabaseStatsItem,
           degraded: { serverId: String(server._id), reason: errorMessage(error) },
         };
       }
@@ -464,6 +585,11 @@ const listDatabasesOfOrganizationWithSecrets = (organizationId: string) =>
     .find({ organizationId })
     .select('+credentials.password +credentials.connectionUri')
     .sort({ createdAt: 1 });
+
+export const listRunningManagedDatabasesWithSecrets = () =>
+  databaseModel
+    .find({ containerId: { $exists: true }, status: 'running' })
+    .select('+credentials.password +credentials.connectionUri');
 
 const connectionOf = (database: ManagedDatabase) => {
   if (database.source === 'managed') {

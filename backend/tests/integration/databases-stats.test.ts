@@ -11,6 +11,9 @@ import {
 import { hashPassword } from '../../src/modules/users/user.service';
 import userModel from '../../src/modules/users/user.model';
 import databaseModel from '../../src/modules/databases/database.model';
+import databaseSampleModel from '../../src/modules/databases/database-sample.model';
+import applicationModel from '../../src/modules/applications/application.model';
+import { APPLICATION_LABEL } from '../../src/modules/deployments/naming';
 import { encryptSecret } from '../../src/utils/crypto';
 
 let app: ReturnType<typeof createApp>;
@@ -70,6 +73,28 @@ const installAgentMock = () => {
         restartCount: 0,
         ports: [],
       });
+    }
+
+    throw new Error(`Unhandled agent request in test mock: ${method} ${path}`);
+  }) as typeof fetch;
+};
+
+const installAgentWithConsumersMock = (containers: unknown[]) => {
+  globalThis.fetch = (async (input: string | URL, init?: RequestInit) => {
+    const url = new URL(String(input));
+    const method = init?.method ?? 'GET';
+    const path = url.pathname;
+
+    if (method === 'POST' && path === `/api/containers/${containerId}/exec`) {
+      return jsonResponse({
+        exitCode: 0,
+        stdout: `${statsStdout}\nclient=10.0.0.20 3`,
+        stderr: '',
+      });
+    }
+
+    if (method === 'GET' && path === '/api/containers') {
+      return jsonResponse(containers);
     }
 
     throw new Error(`Unhandled agent request in test mock: ${method} ${path}`);
@@ -339,6 +364,133 @@ describe('database stats and consumers routes', () => {
       expect(response.status).toBe(200);
       expect(body.items).toEqual([]);
       expect(JSON.stringify(body)).not.toContain('secret');
+    });
+
+    test('a responding agent counts connections by application container ip', async () => {
+      const application = await applicationModel.create({
+        organizationId,
+        projectId: new mongoose.Types.ObjectId(),
+        environmentId: new mongoose.Types.ObjectId(),
+        serverId,
+        name: 'consumer-app-with-count',
+        slug: 'consumer-app-with-count',
+        source: 'git',
+      });
+
+      installAgentWithConsumersMock([
+        {
+          id: 'app-container',
+          name: 'app-container',
+          image: 'app:latest',
+          state: 'running',
+          health: 'none',
+          restartCount: 0,
+          ports: [],
+          labels: { [APPLICATION_LABEL]: String(application._id) },
+          addresses: { proxy: '10.0.0.20' },
+          protected: false,
+        },
+      ]);
+
+      try {
+        const response = await json(
+          `/organizations/${organizationId}/databases/${databaseId}/consumers`,
+          'GET',
+          undefined,
+          accessToken,
+        );
+        const body = (await response.json()) as {
+          items: { applicationId: string; connections?: number }[];
+          degraded?: unknown;
+        };
+
+        expect(response.status).toBe(200);
+        expect(body.degraded).toBeUndefined();
+
+        const item = body.items.find(entry => entry.applicationId === String(application._id));
+
+        expect(item?.connections).toBe(3);
+        expect(JSON.stringify(body)).not.toContain('10.0.0.20');
+      } finally {
+        restoreFetch();
+        await applicationModel.deleteOne({ _id: application._id });
+      }
+    });
+
+    test('an unreachable agent degrades to a 200 with items but no connection counts', async () => {
+      installUnreachableAgentMock();
+
+      try {
+        const response = await json(
+          `/organizations/${organizationId}/databases/${databaseId}/consumers`,
+          'GET',
+          undefined,
+          accessToken,
+        );
+        const body = (await response.json()) as {
+          items: { connections?: number }[];
+          degraded?: { reason: string };
+        };
+
+        expect(response.status).toBe(200);
+        expect(body.degraded?.reason).toBeString();
+        expect(body.items.every(item => item.connections === undefined)).toBe(true);
+      } finally {
+        restoreFetch();
+      }
+    });
+  });
+
+  describe('peakConnections', () => {
+    test('appears once a sample exists, even with the agent unreachable', async () => {
+      await databaseSampleModel.create({
+        databaseId,
+        capturedAt: new Date(),
+        connections: 118,
+      });
+
+      installUnreachableAgentMock();
+
+      try {
+        const response = await json(
+          `/organizations/${organizationId}/databases/${databaseId}/stats`,
+          'GET',
+          undefined,
+          accessToken,
+        );
+        const body = (await response.json()) as {
+          peakConnections?: number;
+          peakWindowHours: number;
+          degraded?: { reason: string };
+        };
+
+        expect(response.status).toBe(200);
+        expect(body.peakConnections).toBe(118);
+        expect(body.peakWindowHours).toBeGreaterThan(0);
+        expect(body.degraded?.reason).toBeString();
+      } finally {
+        restoreFetch();
+        await databaseSampleModel.deleteMany({ databaseId });
+      }
+    });
+
+    test('is absent without any sample', async () => {
+      installAgentMock();
+
+      try {
+        const response = await json(
+          `/organizations/${organizationId}/databases/${databaseId}/stats`,
+          'GET',
+          undefined,
+          accessToken,
+        );
+        const body = (await response.json()) as { peakConnections?: number };
+
+        expect(response.status).toBe(200);
+        expect(body.peakConnections).toBeUndefined();
+      } finally {
+        restoreFetch();
+      }
     });
   });
 });

@@ -16,6 +16,7 @@ import {
   bootstrapDashboard,
   resolveDashboardCorsOrigins,
 } from './modules/dashboard/dashboard.service';
+import { bootstrapDatabaseMetrics } from './modules/databases/database-sample.service';
 import { ensureLocalServer } from './modules/servers/local-server.service';
 import { syncAgentBundles } from './modules/servers/provisioning.service';
 import { allTemplates } from './modules/templates/catalog.service';
@@ -31,6 +32,7 @@ const connect = () => {
     .then(ensureLocalServer)
     .then(startWorker)
     .then(() => void bootstrapUpdates())
+    .then(() => void bootstrapDatabaseMetrics())
     .then(bootstrapDashboard)
     .then(() => void ensureDashboardRoutes())
     .then(() =>

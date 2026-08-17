@@ -41,5 +41,16 @@ type ManagedDatabase = BaseDocument<DatabaseData>;
 interface DatabaseConsumer {
   applicationId: string;
   name: string;
-  variableKey: string;
+  variableKey?: string;
+  connections?: number;
 }
+
+interface DatabaseSampleData {
+  databaseId: string;
+  capturedAt: Date;
+  connections?: number;
+  maxConnections?: number;
+  sizeBytes?: number;
+}
+
+type DatabaseSample = BaseDocument<DatabaseSampleData>;

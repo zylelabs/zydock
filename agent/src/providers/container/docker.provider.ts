@@ -239,7 +239,26 @@ type DockerInspect = {
     ExitCode?: number;
     Health?: { Status?: string };
   };
-  NetworkSettings?: { Ports?: Record<string, unknown> };
+  NetworkSettings?: {
+    Ports?: Record<string, unknown>;
+    Networks?: Record<string, { IPAddress?: string }>;
+  };
+};
+
+const parseAddresses = (
+  raw: Record<string, { IPAddress?: string }> | undefined,
+): Record<string, string> | undefined => {
+  if (!raw) {
+    return undefined;
+  }
+
+  const entries = Object.entries(raw).filter(([, network]) => Boolean(network.IPAddress));
+
+  if (!entries.length) {
+    return undefined;
+  }
+
+  return Object.fromEntries(entries.map(([name, network]) => [name, network.IPAddress as string]));
 };
 
 const toContainerInfo = (inspect: DockerInspect): ContainerInfo => ({
@@ -254,6 +273,7 @@ const toContainerInfo = (inspect: DockerInspect): ContainerInfo => ({
   restartCount: inspect.RestartCount ?? 0,
   ports: parsePorts(inspect.NetworkSettings?.Ports),
   labels: inspect.Config?.Labels ?? {},
+  addresses: parseAddresses(inspect.NetworkSettings?.Networks),
 });
 
 const inspectMany = async (ids: string[]): Promise<ContainerInfo[]> => {

@@ -68,6 +68,10 @@ export type DatabaseProvider = {
   getStatus: (id: string) => Promise<DatabaseStatus>;
   getCredentials: (id: string) => Promise<DatabaseCredentials>;
   getStats: (id: string, credentials: DatabaseCredentials) => Promise<DatabaseStats>;
+  getClientConnections: (
+    id: string,
+    credentials: DatabaseCredentials,
+  ) => Promise<Record<string, number>>;
   backup: (spec: DatabaseBackupSpec) => Promise<DatabaseBackup>;
   restore: (spec: DatabaseBackupSpec) => Promise<void>;
 };

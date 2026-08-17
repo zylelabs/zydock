@@ -51,6 +51,15 @@ export const ENGINES: Record<DatabaseEngine, EngineConfig> = {
         username,
         database ?? '',
       ),
+    clients: ({ username, password, database }) =>
+      shell(
+        'PGPASSWORD="$1" psql -U "$2" -d "$3" -tAc "' +
+          "SELECT 'client=' || host(client_addr) || ' ' || count(*) FROM pg_stat_activity " +
+          'WHERE client_addr IS NOT NULL GROUP BY host(client_addr)"',
+        password,
+        username,
+        database ?? '',
+      ),
     extension: 'dump',
   },
   mysql: {
@@ -83,6 +92,15 @@ export const ENGINES: Record<DatabaseEngine, EngineConfig> = {
           `"; ${diskScript(MYSQL_DATA_PATH)}`,
         password,
         database ?? '',
+      ),
+    clients: ({ password }) =>
+      shell(
+        'mysql -uroot -p"$1" -N -e "' +
+          "SELECT CONCAT('client=', SUBSTRING_INDEX(HOST, ':', 1), ' ', COUNT(*)) " +
+          'FROM information_schema.processlist ' +
+          "WHERE SUBSTRING_INDEX(HOST, ':', 1) <> 'localhost' AND ID <> CONNECTION_ID() " +
+          "GROUP BY SUBSTRING_INDEX(HOST, ':', 1)\"",
+        password,
       ),
     extension: 'sql',
   },
@@ -124,6 +142,20 @@ export const ENGINES: Record<DatabaseEngine, EngineConfig> = {
         password,
         database ?? '',
       ),
+    clients: ({ username, password }) =>
+      shell(
+        'mongosh --quiet -u "$1" -p "$2" --authenticationDatabase admin --eval "' +
+          'const counts = {}; ' +
+          "db.getSiblingDB('admin').aggregate([{ \\$currentOp: { allUsers: true } }]).forEach(op => { " +
+          'if (!op.client) { return; } ' +
+          "const ip = op.client.split(':')[0]; " +
+          'counts[ip] = (counts[ip] || 0) + 1; ' +
+          '}); ' +
+          "Object.entries(counts).forEach(([ip, count]) => print('client=' + ip + ' ' + count))" +
+          '"',
+        username,
+        password,
+      ),
     extension: 'archive',
   },
   redis: {
@@ -154,6 +186,13 @@ export const ENGINES: Record<DatabaseEngine, EngineConfig> = {
           'echo "versionLabel=$VER"',
           diskScript(REDIS_DATA_PATH),
         ].join('; '),
+        password,
+      ),
+    clients: ({ password }) =>
+      shell(
+        'redis-cli --no-auth-warning -a "$1" CLIENT LIST | ' +
+          "grep -o 'addr=[^ ]*' | cut -d= -f2 | cut -d: -f1 | sort | uniq -c | " +
+          'awk \'{print "client=" $2 " " $1}\'',
         password,
       ),
     restartAfterRestore: true,

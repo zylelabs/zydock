@@ -25,6 +25,7 @@ export type EngineConfig = {
   dump: (credentials: DatabaseCredentials) => string[];
   restore: (credentials: DatabaseCredentials) => string[];
   stats: (credentials: DatabaseCredentials) => string[];
+  clients: (credentials: DatabaseCredentials) => string[];
   restartAfterRestore?: boolean;
   extension: string;
 };
@@ -109,6 +110,33 @@ const parseStats = (stdout: string): DatabaseStats => {
   };
 };
 
+const parseClients = (stdout: string): Record<string, number> => {
+  const clients: Record<string, number> = {};
+
+  for (const line of stdout.split('\n')) {
+    if (!line.startsWith('client=')) {
+      continue;
+    }
+
+    const separatorIndex = line.indexOf(' ', 'client='.length);
+
+    if (separatorIndex <= 0) {
+      continue;
+    }
+
+    const ip = line.slice('client='.length, separatorIndex).trim();
+    const count = Number(line.slice(separatorIndex + 1).trim());
+
+    if (!ip || !Number.isFinite(count)) {
+      continue;
+    }
+
+    clients[ip] = count;
+  }
+
+  return clients;
+};
+
 const toInstance = (container: ContainerInfo, spec: DatabaseSpec): DatabaseInstance => ({
   id: container.id,
   name: spec.name,
@@ -179,6 +207,19 @@ export const createContainerDatabaseProvider = (
     return parseStats(result.stdout);
   };
 
+  const getClientConnections = async (
+    id: string,
+    credentials: DatabaseCredentials,
+  ): Promise<Record<string, number>> => {
+    const result = await containers.execCommand(id, { command: engine.clients(credentials) });
+
+    if (result.exitCode !== 0) {
+      return {};
+    }
+
+    return parseClients(result.stdout);
+  };
+
   const unsupportedCredentials = (): Promise<DatabaseCredentials> => {
     throw new Error('Credentials are managed by the databases module, not the provider');
   };
@@ -216,6 +257,7 @@ export const createContainerDatabaseProvider = (
     getStatus,
     getCredentials: unsupportedCredentials,
     getStats,
+    getClientConnections,
     backup,
     restore,
   };

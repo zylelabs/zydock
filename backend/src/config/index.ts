@@ -152,6 +152,12 @@ export default {
     retentionHours: readNumber('METRICS_RETENTION_HOURS', 168),
     streamIntervalSeconds: readNumber('METRICS_STREAM_INTERVAL_SECONDS', 5),
   },
+  databaseMetrics: {
+    enabled: readBoolean('DATABASE_METRICS_ENABLED', true),
+    sampleIntervalMinutes: readNumber('DATABASE_METRICS_SAMPLE_INTERVAL_MINUTES', 5),
+    retentionHours: readNumber('DATABASE_METRICS_RETENTION_HOURS', 48),
+    peakWindowHours: readNumber('DATABASE_METRICS_PEAK_WINDOW_HOURS', 24),
+  },
   notifications: {
     retentionHours: readNumber('NOTIFICATIONS_RETENTION_HOURS', 720),
   },

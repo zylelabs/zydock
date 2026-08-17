@@ -67,6 +67,7 @@ export type ContainerInfo = {
   restartCount: number;
   ports: PortBinding[];
   labels: Record<string, string>;
+  addresses?: Record<string, string>;
   protected: boolean;
 };
 
