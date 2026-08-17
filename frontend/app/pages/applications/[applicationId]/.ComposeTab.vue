@@ -114,10 +114,6 @@
     }
   };
 
-  const secretKeys = computed(
-    () => new Set(props.application.variables.filter(variable => variable.secret).map(v => v.key)),
-  );
-
   const { data: templateData } = useLazyAsyncData<{ template: Template | null }>(
     () => `application-${props.application.id}-origin-template`,
     async () => {
@@ -620,28 +616,6 @@
         >{{ application.compose?.content }}</pre>
     </Card>
 
-    <Card
-      title="Variables"
-      description="Values never leave the platform through this tab — secrets are shown as keys only."
-      content-class="p-0"
-    >
-      <Row
-        v-for="variable in application.variables"
-        :key="variable.key"
-        class="grid-cols-[1fr_auto]"
-      >
-        <span class="font-mono text-caption text-ink">{{ variable.key }}</span>
-        <Tag v-if="secretKeys.has(variable.key)">secret</Tag>
-      </Row>
-
-      <p
-        v-if="!application.variables.length"
-        class="px-4.25 py-6 text-center text-caption text-ink-2"
-      >
-        No variables.
-      </p>
-    </Card>
-
     <Confirm
       v-model:open="confirmRestartOpen"
       title="Restart service"
@@ -654,7 +628,7 @@
     <Modal :open="confirmOpen" @on-close-modal="handleCloseConfirm">
       <Card
         :title="confirmTitle"
-        class="w-[32rem] max-w-full"
+        class="w-lg max-w-full"
         close-button
         @on-close="handleCloseConfirm"
       >
