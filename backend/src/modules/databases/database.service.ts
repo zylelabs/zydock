@@ -1,15 +1,20 @@
-import type { DatabaseCredentials } from '../../providers/database';
+import type { DatabaseCredentials, DatabaseStats } from '../../providers/database';
 import { resolveContainerProvider } from '../../providers/container';
 import { resolveDatabaseProvider, type DatabaseStatus } from '../../providers/database';
 import { volumeNameOf } from '../../providers/database/container.provider';
 import { ENGINES } from '../../providers/database/engines';
 import { resolveStorageProvider } from '../../providers/storage';
-import { generateUniqueSlug } from '../../utils';
+import { errorMessage, generateUniqueSlug } from '../../utils';
 import { decryptSecret, encryptSecret } from '../../utils/crypto';
 import { logError } from '../../utils/logger';
-import { decryptVariables, findApplicationWithSecrets } from '../applications/application.service';
+import {
+  decryptVariables,
+  findApplicationNames,
+  findApplicationWithSecrets,
+  listApplicationsOfOrganization,
+} from '../applications/application.service';
 import { composeContainerNameOf } from '../deployments/naming';
-import { buildAgentConnection } from '../servers/server.service';
+import { buildAgentConnection, listServersOfOrganization } from '../servers/server.service';
 import databaseModel from './database.model';
 import type { CreateDatabaseDTO, DatabaseEngineName } from './database.schema';
 import { DEFAULT_VERSIONS } from './database.schema';
@@ -261,6 +266,155 @@ export const readCredentials = async (database: ManagedDatabase): Promise<Databa
   };
 };
 
+const composeConsumerOf = async (database: ManagedDatabase): Promise<DatabaseConsumer[]> => {
+  if (!database.link) {
+    return [];
+  }
+
+  const [application] = await findApplicationNames([database.link.applicationId]);
+
+  if (!application) {
+    return [];
+  }
+
+  return [
+    {
+      applicationId: String(application._id),
+      name: application.name,
+      variableKey: database.link.password.key!,
+    },
+  ];
+};
+
+const managedConsumersOf = async (database: ManagedDatabase): Promise<DatabaseConsumer[]> => {
+  const credentials = await readCredentials(database);
+  const applications = await listApplicationsOfOrganization(String(database.organizationId));
+  const consumers: DatabaseConsumer[] = [];
+
+  for (const application of applications) {
+    const variable = decryptVariables(application.variables).find(
+      candidate =>
+        candidate.value === credentials.host || candidate.value === credentials.connectionUri,
+    );
+
+    if (variable) {
+      consumers.push({
+        applicationId: String(application._id),
+        name: application.name,
+        variableKey: variable.key,
+      });
+    }
+  }
+
+  return consumers;
+};
+
+export const findDatabaseConsumers = (database: ManagedDatabase): Promise<DatabaseConsumer[]> =>
+  database.source === 'compose' ? composeConsumerOf(database) : managedConsumersOf(database);
+
+const uptimeSecondsOf = (startedAt?: string) =>
+  startedAt
+    ? Math.max(0, Math.floor((Date.now() - new Date(startedAt).getTime()) / 1000))
+    : undefined;
+
+const measureDatabase = async (
+  database: ManagedDatabase,
+  server: Server,
+): Promise<DatabaseStats & { uptimeSeconds?: number }> => {
+  const credentials = await readCredentials(database);
+  const containers = resolveContainerProvider(buildAgentConnection(server));
+
+  const [stats, container] = await Promise.all([
+    providerOf(server, database.engine).getStats(database.containerId!, credentials),
+    containers.inspectContainer(database.containerId!),
+  ]);
+
+  return { ...stats, uptimeSeconds: uptimeSecondsOf(container?.startedAt) };
+};
+
+export type DatabaseStatsResult = DatabaseStats & {
+  uptimeSeconds?: number;
+  degraded?: { reason: string };
+};
+
+export const fetchDatabaseStats = async (
+  database: ManagedDatabase,
+  server: Server,
+): Promise<DatabaseStatsResult> => {
+  if (!database.containerId) {
+    return {};
+  }
+
+  if (!server.agent.token) {
+    return { degraded: { reason: 'This server has no agent yet' } };
+  }
+
+  try {
+    return await measureDatabase(database, server);
+  } catch (error) {
+    return { degraded: { reason: errorMessage(error) } };
+  }
+};
+
+export type DatabaseStatsItem = DatabaseStats & { databaseId: string; uptimeSeconds?: number };
+
+export type ServerDegradation = { serverId: string; reason: string };
+
+export const fetchOrganizationDatabaseStats = async (
+  organizationId: string,
+): Promise<{ items: DatabaseStatsItem[]; degraded?: ServerDegradation[] }> => {
+  const [databases, servers] = await Promise.all([
+    listDatabasesOfOrganizationWithSecrets(organizationId),
+    listServersOfOrganization(organizationId).select('+agent.token'),
+  ]);
+
+  const serverById = new Map(servers.map(server => [String(server._id), server]));
+
+  const outcomes = await Promise.all(
+    databases.map(async database => {
+      const databaseId = String(database._id);
+      const server = serverById.get(String(database.serverId));
+
+      if (!database.containerId || !server) {
+        return { item: { databaseId } as DatabaseStatsItem };
+      }
+
+      if (!server.agent.token) {
+        return {
+          item: { databaseId } as DatabaseStatsItem,
+          degraded: { serverId: String(server._id), reason: 'This server has no agent yet' },
+        };
+      }
+
+      try {
+        const stats = await measureDatabase(database, server);
+
+        return { item: { databaseId, ...stats } };
+      } catch (error) {
+        return {
+          item: { databaseId } as DatabaseStatsItem,
+          degraded: { serverId: String(server._id), reason: errorMessage(error) },
+        };
+      }
+    }),
+  );
+
+  const degradedByServer = new Map<string, string>();
+
+  for (const outcome of outcomes) {
+    if (outcome.degraded && !degradedByServer.has(outcome.degraded.serverId)) {
+      degradedByServer.set(outcome.degraded.serverId, outcome.degraded.reason);
+    }
+  }
+
+  return {
+    items: outcomes.map(outcome => outcome.item),
+    degraded: degradedByServer.size
+      ? [...degradedByServer.entries()].map(([serverId, reason]) => ({ serverId, reason }))
+      : undefined,
+  };
+};
+
 export const registerComposeDatabases = async (
   application: Application,
   databases: TemplateDatabase[],
@@ -304,6 +458,12 @@ export const findDatabasesOfApplication = (applicationId: string) =>
 
 export const listDatabasesOfOrganization = (organizationId: string) =>
   databaseModel.find({ organizationId }).sort({ createdAt: 1 });
+
+const listDatabasesOfOrganizationWithSecrets = (organizationId: string) =>
+  databaseModel
+    .find({ organizationId })
+    .select('+credentials.password +credentials.connectionUri')
+    .sort({ createdAt: 1 });
 
 const connectionOf = (database: ManagedDatabase) => {
   if (database.source === 'managed') {

@@ -47,6 +47,26 @@ const credentialsSchema = {
 
 const unreachable = errorRes('The agent of the server could not be reached.');
 
+const databaseStatsFields = {
+  sizeBytes: { type: 'number' },
+  connections: { type: 'number' },
+  maxConnections: { type: 'number' },
+  versionLabel: { type: 'string' },
+  diskTotalBytes: { type: 'number' },
+  diskUsedBytes: { type: 'number' },
+  uptimeSeconds: { type: 'number' },
+} as const;
+
+const databaseStatsItemSchema = {
+  type: 'object',
+  properties: { databaseId: { type: 'string' }, ...databaseStatsFields },
+};
+
+const serverDegradationSchema = {
+  type: 'object',
+  properties: { serverId: { type: 'string' }, reason: { type: 'string' } },
+};
+
 export const databasesDocs = {
   list: {
     tags: ['Databases'],
@@ -87,6 +107,80 @@ export const databasesDocs = {
     security: bearerOrApiKeyAuth,
     responses: {
       200: jsonRes('Database.', { type: 'object', properties: { database: databaseSchema } }),
+      404: errorRes('Database not found.'),
+    },
+  },
+  stats: {
+    tags: ['Databases'],
+    summary: 'Read live storage and connection metrics for every database of an organization',
+    description:
+      'Runs one command inside each database container through the agent, plus one container ' +
+      'inspect for uptime — two agent calls per database, never a query against the platform ' +
+      "database itself. Degrades to `200` with the item's metrics omitted and a `degraded` entry " +
+      "whenever a server's agent is unreachable, grouped once per server rather than once per " +
+      'database, so it never returns a 5xx. A database without a container yet is still listed, ' +
+      'with no metrics.',
+    security: bearerOrApiKeyAuth,
+    responses: {
+      200: jsonRes('Database stats.', {
+        type: 'object',
+        properties: {
+          items: { type: 'array', items: databaseStatsItemSchema },
+          degraded: { type: 'array', nullable: true, items: serverDegradationSchema },
+        },
+      }),
+      404: errorRes('Organization not found.'),
+    },
+  },
+  databaseStats: {
+    tags: ['Databases'],
+    summary: 'Read live storage and connection metrics for a single database',
+    description:
+      'Same measurement as the bulk `/stats` route, scoped to one database. Degrades to `200` ' +
+      'with `degraded: { reason }` whenever the agent is unreachable, the server has no agent ' +
+      'yet, or the database has no container yet, never a 5xx.',
+    security: bearerOrApiKeyAuth,
+    responses: {
+      200: jsonRes('Database stats.', {
+        type: 'object',
+        properties: {
+          ...databaseStatsFields,
+          degraded: {
+            type: 'object',
+            nullable: true,
+            properties: { reason: { type: 'string' } },
+          },
+        },
+      }),
+      404: errorRes('Database not found.'),
+    },
+  },
+  consumers: {
+    tags: ['Databases'],
+    summary: 'List the applications that reference this database',
+    description:
+      'For a database linked to a compose application, the linked application. For a managed ' +
+      'database, every application in the organization whose decrypted variables match this ' +
+      "database's host or connection URI. Never returns a variable value — only the application " +
+      'and the key of the variable that matched.',
+    security: bearerOrApiKeyAuth,
+    responses: {
+      200: jsonRes('Consumers.', {
+        type: 'object',
+        properties: {
+          items: {
+            type: 'array',
+            items: {
+              type: 'object',
+              properties: {
+                applicationId: { type: 'string' },
+                name: { type: 'string' },
+                variableKey: { type: 'string' },
+              },
+            },
+          },
+        },
+      }),
       404: errorRes('Database not found.'),
     },
   },

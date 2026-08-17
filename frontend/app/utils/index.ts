@@ -54,6 +54,26 @@ export const formatDuration = (milliseconds?: number) => {
   return `${Math.floor(seconds / 60)}m ${String(seconds % 60).padStart(2, '0')}s`;
 };
 
+export const formatUptime = (seconds?: number) => {
+  if (!seconds) {
+    return '—';
+  }
+
+  const days = Math.floor(seconds / 86400);
+
+  if (days >= 1) {
+    return `${days} day${days === 1 ? '' : 's'}`;
+  }
+
+  const hours = Math.floor(seconds / 3600);
+
+  if (hours >= 1) {
+    return `${hours}h`;
+  }
+
+  return `${Math.floor(seconds / 60)}m`;
+};
+
 export const formatRelativeTime = (value?: string | Date) => {
   if (!value) {
     return undefined;

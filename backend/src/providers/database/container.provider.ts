@@ -9,6 +9,7 @@ import type {
   DatabaseProvider,
   DatabaseProviderDependencies,
   DatabaseSpec,
+  DatabaseStats,
   DatabaseStatus,
   ProvisionedDatabase,
 } from './database.contract';
@@ -23,6 +24,7 @@ export type EngineConfig = {
   connectionUri: (credentials: EngineCredentials & { host: string }) => string;
   dump: (credentials: DatabaseCredentials) => string[];
   restore: (credentials: DatabaseCredentials) => string[];
+  stats: (credentials: DatabaseCredentials) => string[];
   restartAfterRestore?: boolean;
   extension: string;
 };
@@ -59,6 +61,53 @@ const volumeNameOf = (name: string) => `zydock-db-${name}-data`;
 
 const toStatus = (container: ContainerInfo | null): DatabaseStatus =>
   container ? (STATE_TO_STATUS[container.state] ?? 'unknown') : 'unknown';
+
+const NUMERIC_STATS_KEYS = [
+  'sizeBytes',
+  'connections',
+  'maxConnections',
+  'diskTotalBytes',
+  'diskUsedBytes',
+  'dataPathSizeBytes',
+] as const;
+
+const parseStats = (stdout: string): DatabaseStats => {
+  const values: Partial<Record<(typeof NUMERIC_STATS_KEYS)[number] | 'versionLabel', string>> = {};
+
+  for (const line of stdout.split('\n')) {
+    const separatorIndex = line.indexOf('=');
+
+    if (separatorIndex <= 0) {
+      continue;
+    }
+
+    const key = line.slice(0, separatorIndex).trim();
+    const value = line.slice(separatorIndex + 1).trim();
+
+    if (key === 'versionLabel' || (NUMERIC_STATS_KEYS as readonly string[]).includes(key)) {
+      values[key as keyof typeof values] = value;
+    }
+  }
+
+  const toNumber = (value?: string) => {
+    if (value === undefined) {
+      return undefined;
+    }
+
+    const parsed = Number(value);
+
+    return Number.isFinite(parsed) ? parsed : undefined;
+  };
+
+  return {
+    sizeBytes: toNumber(values.sizeBytes) ?? toNumber(values.dataPathSizeBytes),
+    connections: toNumber(values.connections),
+    maxConnections: toNumber(values.maxConnections),
+    versionLabel: values.versionLabel,
+    diskTotalBytes: toNumber(values.diskTotalBytes),
+    diskUsedBytes: toNumber(values.diskUsedBytes),
+  };
+};
 
 const toInstance = (container: ContainerInfo, spec: DatabaseSpec): DatabaseInstance => ({
   id: container.id,
@@ -120,6 +169,16 @@ export const createContainerDatabaseProvider = (
   const getStatus = async (id: string): Promise<DatabaseStatus> =>
     toStatus(await containers.inspectContainer(id));
 
+  const getStats = async (id: string, credentials: DatabaseCredentials): Promise<DatabaseStats> => {
+    const result = await containers.execCommand(id, { command: engine.stats(credentials) });
+
+    if (result.exitCode !== 0) {
+      return {};
+    }
+
+    return parseStats(result.stdout);
+  };
+
   const unsupportedCredentials = (): Promise<DatabaseCredentials> => {
     throw new Error('Credentials are managed by the databases module, not the provider');
   };
@@ -156,6 +215,7 @@ export const createContainerDatabaseProvider = (
     destroy: (id, removeData) => containers.removeContainer(id, removeData),
     getStatus,
     getCredentials: unsupportedCredentials,
+    getStats,
     backup,
     restore,
   };

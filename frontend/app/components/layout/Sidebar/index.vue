@@ -3,6 +3,7 @@
   import { useProjects } from '~/composables/services/useProjects';
   import { useServers } from '~/composables/services/useServers';
   import { useBackups } from '~/composables/services/useBackups';
+  import { useDatabases } from '~/composables/services/useDatabases';
   import {
     applicationStatusDot,
     useApplications,
@@ -43,6 +44,7 @@
 
   const projectsCount = ref<number | null>(null);
   const applicationsCount = ref<number | null>(null);
+  const databasesCount = ref<number | null>(null);
   const serversCount = ref<number | null>(null);
   const backupsCount = ref<number | null>(null);
   const countsLoading = ref(false);
@@ -54,15 +56,17 @@
 
     countsLoading.value = true;
 
-    const [projects, applications, servers, backups] = await Promise.all([
+    const [projects, applications, databases, servers, backups] = await Promise.all([
       useProjects().list({ size: 1 }),
       useApplications().list({ size: 1 }),
+      useDatabases().list({ size: 1 }),
       useServers().list({ size: 1 }),
       useBackups().list({ size: 1 }),
     ]).catch(() => []);
 
     projectsCount.value = projects?.total ?? null;
     applicationsCount.value = applications?.total ?? null;
+    databasesCount.value = databases?.total ?? null;
     serversCount.value = servers?.total ?? null;
     backupsCount.value = backups?.total ?? null;
     countsLoading.value = false;
@@ -85,6 +89,13 @@
       to: '/applications',
       count: applicationsCount,
       match: path => path.startsWith('/applications') && path !== '/applications/new',
+    },
+    {
+      id: 'databases',
+      label: 'Databases',
+      to: '/databases',
+      count: databasesCount,
+      match: path => path.startsWith('/databases'),
     },
     {
       id: 'servers',

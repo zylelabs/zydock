@@ -20,7 +20,10 @@ import {
 } from './database.schema';
 import {
   destroyDatabase,
+  fetchDatabaseStats,
+  fetchOrganizationDatabaseStats,
   findDatabase,
+  findDatabaseConsumers,
   findDatabaseWithSecrets,
   provisionDatabase,
   readCredentials,
@@ -88,6 +91,19 @@ post(
 );
 
 get(
+  '/stats',
+  databasesDocs.stats,
+  authMiddleware,
+  validator('param', organizationIdParamSchema),
+  createOrganizationRoleGuard('member'),
+  async (c: Context) => {
+    const { organizationId } = c.req.valid('param' as never) as OrganizationIdParam;
+
+    return c.json(await fetchOrganizationDatabaseStats(organizationId));
+  },
+);
+
+get(
   '/:databaseId',
   databasesDocs.get,
   authMiddleware,
@@ -111,6 +127,50 @@ get(
     return c.json({
       database: serializeDatabase((await findDatabase(organizationId, databaseId))!),
     });
+  },
+);
+
+get(
+  '/:databaseId/stats',
+  databasesDocs.databaseStats,
+  authMiddleware,
+  validator('param', databaseIdParamSchema),
+  createOrganizationRoleGuard('member'),
+  async (c: Context) => {
+    const { organizationId, databaseId } = c.req.valid('param' as never) as DatabaseIdParam;
+
+    const database = await findDatabaseWithSecrets(organizationId, databaseId);
+
+    if (!database) {
+      return c.json({ error: 'Database not found' }, 404);
+    }
+
+    const server = await findServerWithAgentToken(organizationId, String(database.serverId));
+
+    if (!server) {
+      return c.json({ error: 'Server not found' }, 404);
+    }
+
+    return c.json(await fetchDatabaseStats(database, server));
+  },
+);
+
+get(
+  '/:databaseId/consumers',
+  databasesDocs.consumers,
+  authMiddleware,
+  validator('param', databaseIdParamSchema),
+  createOrganizationRoleGuard('member'),
+  async (c: Context) => {
+    const { organizationId, databaseId } = c.req.valid('param' as never) as DatabaseIdParam;
+
+    const database = await findDatabaseWithSecrets(organizationId, databaseId);
+
+    if (!database) {
+      return c.json({ error: 'Database not found' }, 404);
+    }
+
+    return c.json({ items: await findDatabaseConsumers(database) });
   },
 );
 
