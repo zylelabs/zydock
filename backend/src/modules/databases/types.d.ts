@@ -37,3 +37,9 @@ interface DatabaseData {
 }
 
 type ManagedDatabase = BaseDocument<DatabaseData>;
+
+interface DatabaseConsumer {
+  applicationId: string;
+  name: string;
+  variableKey: string;
+}

@@ -39,6 +39,8 @@
     <Card :title="title" class="w-[32rem] max-w-full" close-button @on-close="handleClose">
       <p class="text-body text-ink-2">{{ message }}</p>
 
+      <slot />
+
       <Input
         v-if="confirmText"
         v-model="typedText"

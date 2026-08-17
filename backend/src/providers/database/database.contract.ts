@@ -50,6 +50,15 @@ export type ProvisionedDatabase = {
   credentials: DatabaseCredentials;
 };
 
+export type DatabaseStats = {
+  sizeBytes?: number;
+  connections?: number;
+  maxConnections?: number;
+  versionLabel?: string;
+  diskTotalBytes?: number;
+  diskUsedBytes?: number;
+};
+
 export type DatabaseProvider = {
   provision: (spec: DatabaseSpec) => Promise<ProvisionedDatabase>;
   start: (id: string) => Promise<void>;
@@ -58,6 +67,7 @@ export type DatabaseProvider = {
   destroy: (id: string, removeData?: boolean) => Promise<void>;
   getStatus: (id: string) => Promise<DatabaseStatus>;
   getCredentials: (id: string) => Promise<DatabaseCredentials>;
+  getStats: (id: string, credentials: DatabaseCredentials) => Promise<DatabaseStats>;
   backup: (spec: DatabaseBackupSpec) => Promise<DatabaseBackup>;
   restore: (spec: DatabaseBackupSpec) => Promise<void>;
 };
