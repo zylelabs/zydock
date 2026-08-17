@@ -92,7 +92,7 @@
     </p>
   </Card>
 
-  <template v-else>
+  <div v-else class="flex flex-col gap-4.5">
     <Card title="Git webhook" content-class="p-0">
       <template #right>
         <Button
@@ -209,5 +209,5 @@
         </div>
       </div>
     </Card>
-  </template>
+  </div>
 </template>

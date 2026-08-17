@@ -2,7 +2,7 @@
   import OverviewTab from './.OverviewTab.vue';
   import NetworkTab from './.NetworkTab.vue';
   import VariablesTab from './.VariablesTab.vue';
-  import AdvancedTab from './.AdvancedTab.vue';
+  import SettingsTab from './.SettingsTab.vue';
   import ComposeTab from './.ComposeTab.vue';
   import {
     applicationStatusDot,
@@ -187,14 +187,14 @@
     }
   };
 
-  type TabId = 'overview' | 'network' | 'variables' | 'compose' | 'advanced';
+  type TabId = 'overview' | 'network' | 'variables' | 'compose' | 'settings';
 
   const TABS: { id: TabId; label: string }[] = [
     { id: 'overview', label: 'Overview' },
     { id: 'network', label: 'Domains & network' },
     { id: 'variables', label: 'Variables' },
     { id: 'compose', label: 'Compose' },
-    { id: 'advanced', label: 'Advanced' },
+    { id: 'settings', label: 'Settings' },
   ];
 
   const visibleTabs = computed(() => {
@@ -344,7 +344,7 @@
       :application="application"
       :can-manage="canManage"
     />
-    <AdvancedTab v-else :application="application" :can-manage="canManage" @refresh="refresh" />
+    <SettingsTab v-else :application="application" :can-manage="canManage" @refresh="refresh" />
   </Content>
 
   <Content v-else>
