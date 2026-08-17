@@ -4,7 +4,6 @@
   import VariablesTab from './.VariablesTab.vue';
   import AdvancedTab from './.AdvancedTab.vue';
   import ComposeTab from './.ComposeTab.vue';
-  import ServicesTab from './.ServicesTab.vue';
   import {
     applicationStatusDot,
     useApplications,
@@ -76,21 +75,6 @@
         : Promise.resolve(null),
     { server: false, watch: [() => session.organizationId, applicationId], default: () => null },
   );
-
-  const { data: servicesData } = useLazyAsyncData(
-    () => `application-${applicationId.value}-services`,
-    () =>
-      application.value?.source === 'compose'
-        ? applicationsApi.services(applicationId.value)
-        : Promise.resolve({ services: [] }),
-    {
-      server: false,
-      watch: [applicationId, () => application.value?.source],
-      default: () => ({ services: [] }),
-    },
-  );
-
-  const applicationServices = computed(() => servicesData.value?.services ?? []);
 
   const { data: server } = useLazyAsyncData(
     () => `application-${applicationId.value}-server`,
@@ -203,11 +187,10 @@
     }
   };
 
-  type TabId = 'overview' | 'services' | 'network' | 'variables' | 'compose' | 'advanced';
+  type TabId = 'overview' | 'network' | 'variables' | 'compose' | 'advanced';
 
   const TABS: { id: TabId; label: string }[] = [
     { id: 'overview', label: 'Overview' },
-    { id: 'services', label: 'Services' },
     { id: 'network', label: 'Domains & network' },
     { id: 'variables', label: 'Variables' },
     { id: 'compose', label: 'Compose' },
@@ -218,10 +201,6 @@
     const tabs = TABS.filter(tab => {
       if (tab.id === 'compose') {
         return application.value?.source === 'compose';
-      }
-
-      if (tab.id === 'services') {
-        return application.value?.source === 'compose' && applicationServices.value.length > 1;
       }
 
       return true;
@@ -336,11 +315,6 @@
       :application="application"
       :can-manage="canManage"
       @refresh="refresh"
-    />
-    <ServicesTab
-      v-else-if="activeTab === 'services'"
-      :application="application"
-      :can-manage="canManage"
     />
     <NetworkTab
       v-else-if="activeTab === 'network'"
