@@ -2,7 +2,6 @@
   import { useApplications, type Application } from '~/composables/services/useApplications';
 
   const props = defineProps<{ application: Application; canManage: boolean }>();
-  const emit = defineEmits<{ refresh: [] }>();
 
   const applicationsApi = useApplications();
   const session = useSessionStore();
@@ -12,12 +11,12 @@
     (error as { message?: string }).message || fallback;
 
   const confirmDeleteOpen = ref(false);
-  const deletingApp = ref(false);
+  const deleting = ref(false);
   const deleteError = ref('');
 
-  const handleDeleteApplication = async () => {
+  const handleDelete = async () => {
     deleteError.value = '';
-    deletingApp.value = true;
+    deleting.value = true;
 
     try {
       const projectId = props.application.projectId;
@@ -31,29 +30,18 @@
       await navigateTo(projectId ? `/projects/${projectId}` : '/projects');
     } catch (error) {
       deleteError.value = messageOf(error, 'Failed to delete the application.');
-      deletingApp.value = false;
+      deleting.value = false;
     }
   };
 </script>
 
 <template>
-  <div class="flex max-w-205 flex-col gap-4.5">
-    <GitCredentialsCard
-      v-if="application.source === 'git'"
-      :application="application"
-      @refresh="emit('refresh')"
-    />
-    <ResourcesCard
-      v-if="application.source === 'git'"
-      :application="application"
-      :can-manage="canManage"
-      @refresh="emit('refresh')"
-    />
+  <Card v-if="!canManage" title="Danger zone">
+    <p class="text-caption text-ink-2">Only an owner or admin can delete the application.</p>
+  </Card>
 
-    <div
-      v-if="canManage"
-      class="flex items-center gap-4 rounded-card border border-failed/30 bg-failed/5 p-4.25"
-    >
+  <div v-else class="flex flex-col gap-4.5">
+    <div class="flex items-center gap-4 rounded-card border border-failed/30 bg-failed/5 p-4.25">
       <div class="flex-1">
         <div class="text-caption font-semibold text-failed">Delete application</div>
         <div class="mt-0.75 text-caption text-ink-2">
@@ -72,8 +60,8 @@
       :message="`Delete “${application.name}”? Its deployments and domains are removed too. This cannot be undone.`"
       confirm-label="Delete"
       danger
-      :loading="deletingApp"
-      @confirm="handleDeleteApplication"
+      :loading="deleting"
+      @confirm="handleDelete"
     />
   </div>
 </template>
