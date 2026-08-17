@@ -55,6 +55,8 @@ const databaseStatsFields = {
   diskTotalBytes: { type: 'number' },
   diskUsedBytes: { type: 'number' },
   uptimeSeconds: { type: 'number' },
+  peakConnections: { type: 'number' },
+  peakWindowHours: { type: 'number' },
 } as const;
 
 const databaseStatsItemSchema = {
@@ -100,6 +102,32 @@ export const databasesDocs = {
       502: unreachable,
     },
   },
+  versions: {
+    tags: ['Databases'],
+    summary: 'List the available image versions for every engine',
+    description:
+      'Reads the 10 most recent tags per engine from Docker Hub, cached for ' +
+      '`REGISTRY_TAGS_TTL_HOURS` hours and served stale if Docker Hub is unreachable. Falls back to ' +
+      'a hardcoded list when the registry lookup is disabled or fails outright.',
+    security: bearerOrApiKeyAuth,
+    responses: {
+      200: jsonRes('Versions by engine.', {
+        type: 'object',
+        properties: {
+          versions: {
+            type: 'object',
+            properties: {
+              postgresql: { type: 'array', items: { type: 'string' } },
+              mysql: { type: 'array', items: { type: 'string' } },
+              mongodb: { type: 'array', items: { type: 'string' } },
+              redis: { type: 'array', items: { type: 'string' } },
+            },
+          },
+        },
+      }),
+      404: errorRes('Organization not found.'),
+    },
+  },
   get: {
     tags: ['Databases'],
     summary: 'Read a managed database',
@@ -119,7 +147,10 @@ export const databasesDocs = {
       "database itself. Degrades to `200` with the item's metrics omitted and a `degraded` entry " +
       "whenever a server's agent is unreachable, grouped once per server rather than once per " +
       'database, so it never returns a 5xx. A database without a container yet is still listed, ' +
-      'with no metrics.',
+      'with no metrics. `peakConnections` is the highest connection count sampled by the platform ' +
+      'itself over the last `peakWindowHours`, read from Mongo in a single aggregation for the ' +
+      "whole list — it never depends on the agent, so it's still present when a server's agent is " +
+      'unreachable. Absent when no sample fell inside the window, never `0`.',
     security: bearerOrApiKeyAuth,
     responses: {
       200: jsonRes('Database stats.', {
@@ -138,7 +169,8 @@ export const databasesDocs = {
     description:
       'Same measurement as the bulk `/stats` route, scoped to one database. Degrades to `200` ' +
       'with `degraded: { reason }` whenever the agent is unreachable, the server has no agent ' +
-      'yet, or the database has no container yet, never a 5xx.',
+      'yet, or the database has no container yet, never a 5xx. `peakConnections` still arrives ' +
+      "in that case — it comes from the platform's own samples, not from the agent.",
     security: bearerOrApiKeyAuth,
     responses: {
       200: jsonRes('Database stats.', {
@@ -159,10 +191,15 @@ export const databasesDocs = {
     tags: ['Databases'],
     summary: 'List the applications that reference this database',
     description:
-      'For a database linked to a compose application, the linked application. For a managed ' +
-      'database, every application in the organization whose decrypted variables match this ' +
-      "database's host or connection URI. Never returns a variable value — only the application " +
-      'and the key of the variable that matched.',
+      'Union of who declares the database (compose link, or a decrypted variable matching its ' +
+      "host or connection URI) and who connects to it (the container's client IP, matched against " +
+      "every container's network address on the server). An application that connects without a " +
+      'matching variable is still listed, without `variableKey`. Connections from an IP that ' +
+      "doesn't match any container are summed in `otherConnections`, never guessed into an " +
+      'application. Degrades to `200` with `degraded: { reason }` and no `connections` counts ' +
+      'whenever the agent is unreachable — the declared list is unaffected. Never returns a ' +
+      'variable value or a container IP — only the application, the key of the variable that ' +
+      'matched, and a connection count.',
     security: bearerOrApiKeyAuth,
     responses: {
       200: jsonRes('Consumers.', {
@@ -175,9 +212,16 @@ export const databasesDocs = {
               properties: {
                 applicationId: { type: 'string' },
                 name: { type: 'string' },
-                variableKey: { type: 'string' },
+                variableKey: { type: 'string', nullable: true },
+                connections: { type: 'number', nullable: true },
               },
             },
+          },
+          otherConnections: { type: 'number', nullable: true },
+          degraded: {
+            type: 'object',
+            nullable: true,
+            properties: { reason: { type: 'string' } },
           },
         },
       }),

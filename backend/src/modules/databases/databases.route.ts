@@ -8,6 +8,7 @@ import { OrganizationIdParam, organizationIdParamSchema } from '../organizations
 import { createOrganizationRoleGuard } from '../organizations/organizations.middleware';
 import { findServerWithAgentToken } from '../servers/server.service';
 import databaseModel from './database.model';
+import { fetchAllEngineVersions } from './database-versions.service';
 import {
   CreateDatabaseDTO,
   createDatabaseSchema,
@@ -104,6 +105,17 @@ get(
 );
 
 get(
+  '/versions',
+  databasesDocs.versions,
+  authMiddleware,
+  validator('param', organizationIdParamSchema),
+  createOrganizationRoleGuard('member'),
+  async (c: Context) => {
+    return c.json({ versions: await fetchAllEngineVersions() });
+  },
+);
+
+get(
   '/:databaseId',
   databasesDocs.get,
   authMiddleware,
@@ -170,7 +182,13 @@ get(
       return c.json({ error: 'Database not found' }, 404);
     }
 
-    return c.json({ items: await findDatabaseConsumers(database) });
+    const server = await findServerWithAgentToken(organizationId, String(database.serverId));
+
+    if (!server) {
+      return c.json({ error: 'Server not found' }, 404);
+    }
+
+    return c.json(await findDatabaseConsumers(database, server));
   },
 );
 

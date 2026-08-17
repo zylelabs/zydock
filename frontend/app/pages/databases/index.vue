@@ -1,4 +1,5 @@
 <script setup lang="ts">
+  import CreateDatabasePanel from '~/components/databases/CreateDatabasePanel.vue';
   import { useBackups, type Backup } from '~/composables/services/useBackups';
   import {
     useDatabases,
@@ -13,6 +14,8 @@
 
   const session = useSessionStore();
   const { current } = useOrganizations();
+
+  const canManage = computed(() => ['owner', 'admin'].includes(current.value?.role ?? ''));
 
   const databasesApi = useDatabases();
   const serversApi = useServers();
@@ -36,7 +39,7 @@
 
   const { getCachedData, markFetched } = useNavigationCache();
 
-  const { data, status } = useLazyAsyncData(
+  const { data, refresh, status } = useLazyAsyncData(
     'databases-list',
     async () => {
       const result = session.organizationId ? await load() : empty;
@@ -92,7 +95,9 @@
     { immediate: true },
   );
 
-  const sumStats = (field: 'sizeBytes' | 'diskTotalBytes' | 'connections' | 'maxConnections') =>
+  const sumStats = (
+    field: 'sizeBytes' | 'diskTotalBytes' | 'connections' | 'maxConnections' | 'peakConnections',
+  ) =>
     databases.value.reduce((total, database) => {
       const value = statsByDatabase.get(database.id)?.[field];
 
@@ -107,6 +112,18 @@
   const totalDiskCapacity = computed(() => sumStats('diskTotalBytes'));
   const totalConnections = computed(() => sumStats('connections'));
   const totalMaxConnections = computed(() => sumStats('maxConnections'));
+  const totalPeakConnections = computed(() => sumStats('peakConnections'));
+  const hasPeakConnections = computed(() =>
+    databases.value.some(
+      database => statsByDatabase.get(database.id)?.peakConnections !== undefined,
+    ),
+  );
+
+  const connectionsNote = computed(() =>
+    hasPeakConnections.value
+      ? `of ${totalMaxConnections.value} · peak ${totalPeakConnections.value}`
+      : `of ${totalMaxConnections.value}`,
+  );
 
   const completedBackups = computed(() =>
     backups.value
@@ -141,10 +158,31 @@
   const serverName = (database: Database) =>
     servers.value.find(server => server.id === database.serverId)?.name;
 
+  const toast = useToast();
+
+  const adding = ref(false);
+
+  const openAdd = () => {
+    adding.value = true;
+  };
+
+  const handleCreated = async (database: Database) => {
+    toast.success({ title: 'Database created', message: `${database.name} is provisioning.` });
+    await refresh();
+    navigateTo(`/databases/${database.id}`);
+  };
+
   const { set: setNavbar } = useNavbar();
 
   watchEffect(() => {
-    setNavbar({ title: 'Databases', context: current.value?.name });
+    setNavbar({
+      title: 'Databases',
+      context: current.value?.name,
+      action:
+        current.value && canManage.value && !adding.value
+          ? { label: 'New database', icon: 'proicons:add', onClick: openAdd }
+          : undefined,
+    });
   });
 </script>
 
@@ -158,6 +196,8 @@
     />
 
     <div v-else class="flex flex-col gap-4.5">
+      <CreateDatabasePanel v-model:open="adding" :servers="servers" @created="handleCreated" />
+
       <div class="grid grid-cols-4 gap-3.5">
         <Metric
           label="Databases"
@@ -182,7 +222,7 @@
             <Skeleton v-if="!statsLoaded" class="h-7 w-20" />
             <template v-else>
               <span class="text-metric text-ink">{{ totalConnections }}</span>
-              <span class="text-caption text-ink-3">of {{ totalMaxConnections }}</span>
+              <span class="text-caption text-ink-3">{{ connectionsNote }}</span>
             </template>
           </div>
         </div>
@@ -196,9 +236,12 @@
 
       <EmptyState
         v-else-if="!databases.length"
+        variant="action"
         title="No databases yet."
-        description="Managed databases show up here once provisioned."
-      />
+        description="Create a database and it provisions on the server you pick."
+      >
+        <Button v-if="canManage" theme="primary" @click="openAdd">New database</Button>
+      </EmptyState>
 
       <Card v-else content-class="p-0">
         <div
