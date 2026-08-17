@@ -229,79 +229,94 @@
 
 <template>
   <Content v-if="application">
-    <div class="mb-4.5 flex flex-wrap items-center gap-2.5">
-      <div
-        class="flex items-center gap-1.5 rounded-full border border-edge bg-card px-2.75 py-1.25 text-[12.5px] text-ink"
-      >
-        <StatusDot :status="applicationStatusDot(application.status)" />
-        {{ STATUS_LABEL[application.status] }}
+    <Card content-class="flex flex-wrap items-center gap-4 p-4.25" class="mb-4.5">
+      <div class="flex min-w-0 flex-1 items-center gap-3">
+        <div
+          class="flex size-10 shrink-0 items-center justify-center rounded-lg bg-accent/15 text-accent"
+        >
+          <Icon name="lucide:box" class="size-5" />
+        </div>
+
+        <div class="min-w-0">
+          <div class="flex flex-wrap items-center gap-2">
+            <span class="truncate text-body font-semibold text-ink">{{ application.name }}</span>
+            <Tag v-if="application.origin">Template · {{ application.origin.templateId }}</Tag>
+          </div>
+
+          <div class="flex min-w-0 items-center gap-1.5 font-mono text-caption text-ink-2">
+            <a
+              v-if="applicationUrl"
+              :href="applicationUrl.href"
+              target="_blank"
+              rel="noopener noreferrer"
+              class="flex min-w-0 items-center gap-1.5 transition-colors hover:text-ink"
+            >
+              <span class="truncate">{{ applicationUrl.label }}</span>
+              <span v-if="applicationUrl.local" class="shrink-0 font-sans">(local)</span>
+              <Icon name="lucide:external-link" class="size-3.5 shrink-0" />
+            </a>
+            <span v-else class="truncate">{{ application.slug }}</span>
+            <span v-if="server" class="truncate">· {{ server.name }}</span>
+          </div>
+        </div>
       </div>
 
-      <Tag v-if="application.origin"
-        >Created from template · {{ application.origin.templateId }}</Tag
-      >
-
-      <a
-        v-if="applicationUrl"
-        :href="applicationUrl.href"
-        target="_blank"
-        rel="noopener noreferrer"
-        class="flex min-w-0 items-center gap-1.5 font-mono text-[12.5px] text-ink-2 transition-colors hover:text-ink"
-      >
-        <span class="truncate">{{ applicationUrl.label }}</span>
-        <span v-if="applicationUrl.local" class="shrink-0 font-sans text-ink-2">(local)</span>
-        <Icon name="lucide:external-link" class="size-3.5 shrink-0" />
-      </a>
-
-      <div class="flex-1" />
-
-      <Button theme="secondary" size="sm" :to="`/applications/${application.id}/logs`">
-        Logs
-      </Button>
-      <Button theme="secondary" size="sm" :to="`/applications/${application.id}/access`">
-        Access
-      </Button>
-      <Button theme="secondary" size="sm" :to="`/applications/${application.id}/console`">
-        Console
-      </Button>
-
-      <template v-if="canManage">
-        <Button
-          v-if="application.status === 'running'"
-          theme="secondary"
-          size="sm"
-          :disabled="lifecycleBusy === 'stop'"
-          @click="runLifecycle('stop')"
+      <div class="flex shrink-0 flex-wrap items-center gap-2">
+        <div
+          class="flex items-center gap-1.5 rounded-full border border-edge bg-card px-2.75 py-1.25 text-[12.5px] text-ink"
         >
-          <Icon v-if="lifecycleBusy === 'stop'" name="svg-spinners:tadpole" class="size-4" />
-          Stop
+          <StatusDot :status="applicationStatusDot(application.status)" />
+          {{ STATUS_LABEL[application.status] }}
+        </div>
+
+        <Button theme="secondary" size="sm" :to="`/applications/${application.id}/logs`">
+          Logs
         </Button>
-        <Button
-          v-else-if="application.status === 'stopped'"
-          theme="secondary"
-          size="sm"
-          :disabled="lifecycleBusy === 'start'"
-          @click="runLifecycle('start')"
-        >
-          <Icon v-if="lifecycleBusy === 'start'" name="svg-spinners:tadpole" class="size-4" />
-          Start
+        <Button theme="secondary" size="sm" :to="`/applications/${application.id}/access`">
+          Access
         </Button>
-        <Button
-          v-if="application.status === 'running'"
-          theme="secondary"
-          size="sm"
-          :disabled="lifecycleBusy === 'restart'"
-          @click="runLifecycle('restart')"
-        >
-          <Icon v-if="lifecycleBusy === 'restart'" name="svg-spinners:tadpole" class="size-4" />
-          Restart
+        <Button theme="secondary" size="sm" :to="`/applications/${application.id}/console`">
+          Console
         </Button>
-        <Button theme="primary" size="sm" :disabled="deploying" @click="triggerDeploy">
-          <Icon v-if="deploying" name="svg-spinners:tadpole" class="size-4" />
-          {{ application.status === 'created' ? 'Deploy' : 'Redeploy' }}
-        </Button>
-      </template>
-    </div>
+
+        <template v-if="canManage">
+          <Button
+            v-if="application.status === 'running'"
+            theme="secondary"
+            size="sm"
+            :disabled="lifecycleBusy === 'stop'"
+            @click="runLifecycle('stop')"
+          >
+            <Icon v-if="lifecycleBusy === 'stop'" name="svg-spinners:tadpole" class="size-4" />
+            Stop
+          </Button>
+          <Button
+            v-else-if="application.status === 'stopped'"
+            theme="secondary"
+            size="sm"
+            :disabled="lifecycleBusy === 'start'"
+            @click="runLifecycle('start')"
+          >
+            <Icon v-if="lifecycleBusy === 'start'" name="svg-spinners:tadpole" class="size-4" />
+            Start
+          </Button>
+          <Button
+            v-if="application.status === 'running'"
+            theme="secondary"
+            size="sm"
+            :disabled="lifecycleBusy === 'restart'"
+            @click="runLifecycle('restart')"
+          >
+            <Icon v-if="lifecycleBusy === 'restart'" name="svg-spinners:tadpole" class="size-4" />
+            Restart
+          </Button>
+          <Button theme="primary" size="sm" :disabled="deploying" @click="triggerDeploy">
+            <Icon v-if="deploying" name="svg-spinners:tadpole" class="size-4" />
+            {{ application.status === 'created' ? 'Deploy' : 'Redeploy' }}
+          </Button>
+        </template>
+      </div>
+    </Card>
 
     <Alert v-if="actionError" theme="error" class="mb-4.5">{{ actionError }}</Alert>
     <Alert v-if="application.lastError" theme="error" class="mb-4.5">{{
@@ -336,10 +351,14 @@
   </Content>
 
   <Content v-else>
-    <div class="mb-4.5 flex flex-wrap items-center gap-2.5">
-      <Skeleton class="h-7 w-24 rounded-full" />
+    <div class="mb-4.5 flex flex-wrap items-center gap-4">
+      <Skeleton class="size-10 rounded-lg" />
+      <div class="flex flex-col gap-1.5">
+        <Skeleton class="h-5 w-40" />
+        <Skeleton class="h-4 w-56" />
+      </div>
       <div class="flex-1" />
-      <Skeleton class="h-8 w-20" />
+      <Skeleton class="h-8 w-24 rounded-full" />
       <Skeleton class="h-8 w-20" />
     </div>
 
