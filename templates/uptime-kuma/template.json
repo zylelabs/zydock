@@ -14,17 +14,5 @@
   "expose": { "service": "app", "port": 3001, "domain": true },
   "databases": [],
   "inputs": [],
-  "secrets": [],
-  "versions": {
-    "key": "VERSION",
-    "default": "2",
-    "available": [
-      { "value": "2", "label": "2.x (stable)" },
-      { "value": "1", "label": "1.x (legacy)" }
-    ],
-    "registry": {
-      "include": "^v?\\d+(\\.\\d+){0,2}$",
-      "limit": 50
-    }
-  }
+  "secrets": []
 }
