@@ -1,0 +1,31 @@
+{
+  "id": "umami",
+  "version": 1,
+  "name": "Umami",
+  "tagline": "Privacy-first web analytics without cookies or tracking",
+  "category": "analytics",
+  "tags": ["analytics", "privacy", "metrics"],
+  "website": "https://umami.is",
+  "documentation": "https://umami.is/docs",
+  "license": "MIT",
+  "author": "zydock",
+  "origin": "official",
+  "docker_compose": "docker-compose.yml",
+  "expose": { "service": "app", "port": 3000, "domain": true },
+  "databases": [
+    {
+      "service": "db",
+      "engine": "postgresql",
+      "credentials": {
+        "username": { "value": "umami" },
+        "password": { "key": "POSTGRES_PASSWORD" },
+        "database": { "value": "umami" }
+      }
+    }
+  ],
+  "inputs": [],
+  "secrets": [
+    { "key": "POSTGRES_PASSWORD", "generate": "password" },
+    { "key": "APP_SECRET", "generate": "hex32" }
+  ]
+}
