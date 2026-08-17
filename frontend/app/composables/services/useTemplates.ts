@@ -44,7 +44,7 @@ export interface TemplateVersionsRegistry {
 
 export interface TemplateVersions {
   key: string;
-  default: string;
+  default?: string;
   available: TemplateVersionEntry[];
   registry?: TemplateVersionsRegistry;
 }
@@ -122,6 +122,11 @@ export const mergeVersionOptions = (
 
   return [{ value: ensureValue, label: curatedEntry?.label, origin: 'catalog' }, ...base];
 };
+
+const PLAIN_VERSION_PATTERN = /^v?\d+(\.\d+){0,2}$/;
+
+export const preferredVersionOf = (options: TemplateVersionOption[]): string =>
+  (options.find(option => PLAIN_VERSION_PATTERN.test(option.value)) ?? options[0])?.value ?? '';
 
 export const templateVersionSelectOptions = (
   options: { value: string; label?: string; updatedAt?: string }[],

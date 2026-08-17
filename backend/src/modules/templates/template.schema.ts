@@ -91,7 +91,25 @@ export const MAX_VERSION_TAG_LENGTH = 128;
 export const testVersionPattern = (pattern: string, value: string): boolean =>
   new RegExp(pattern).test(value.slice(0, MAX_VERSION_TAG_LENGTH));
 
-export const DEFAULT_VERSION_INCLUDE_PATTERN = '^v?\\d+(\\.\\d+){0,2}$';
+export const DEFAULT_VERSION_INCLUDE_PATTERN = '^(?=.*\\d)[A-Za-z0-9_][A-Za-z0-9._-]{0,127}$';
+
+export const DEFAULT_VERSION_EXCLUDE_PATTERN = [
+  '(^|[-_.])(latest|nightly|canary|edge|unstable|rolling|snapshot|dev|devel|develop|main|master|trunk|next|insider|insiders)([-_.]|$)',
+  '^sha(256)?[-:_]',
+  '^[0-9a-f]{7,}$',
+  '^\\d{4}-?\\d{2}-?\\d{2}([-_.]|$)',
+  '^pr-?\\d+([-_.]|$)',
+].join('|');
+
+export const DEFAULT_VERSION_KEY = 'VERSION';
+
+export const DEFAULT_VERSION_REGISTRY_LIMIT = 50;
+
+export const implicitTemplateVersions = (): TemplateVersions => ({
+  key: DEFAULT_VERSION_KEY,
+  available: [],
+  registry: { limit: DEFAULT_VERSION_REGISTRY_LIMIT },
+});
 
 const versionPatternSchema = z.string().trim().min(1).max(MAX_VERSION_PATTERN_LENGTH);
 
@@ -99,7 +117,7 @@ const templateVersionsRegistrySchema = z
   .object({
     include: versionPatternSchema.optional(),
     exclude: versionPatternSchema.optional(),
-    limit: z.coerce.number().int().min(1).max(200).default(50),
+    limit: z.coerce.number().int().min(1).max(200).default(DEFAULT_VERSION_REGISTRY_LIMIT),
   })
   .superRefine((registry, ctx) => {
     (['include', 'exclude'] as const).forEach(field => {
@@ -123,9 +141,9 @@ const templateVersionsRegistrySchema = z
 
 const templateVersionsSchema = z
   .object({
-    key: templateKeySchema,
-    default: z.string().trim().min(1).max(120),
-    available: z.array(templateVersionEntrySchema).min(1).max(30),
+    key: templateKeySchema.default(DEFAULT_VERSION_KEY),
+    default: z.string().trim().min(1).max(120).optional(),
+    available: z.array(templateVersionEntrySchema).max(30).default([]),
     registry: templateVersionsRegistrySchema.optional(),
   })
   .superRefine((versions, ctx) => {
@@ -149,14 +167,29 @@ const templateVersionsSchema = z
       });
     }
 
-    if (!values.includes(versions.default)) {
+    if (versions.default === 'latest') {
+      ctx.addIssue({
+        code: z.ZodIssueCode.custom,
+        message: '"latest" is not allowed as a version value',
+        path: ['default'],
+      });
+    }
+
+    if (values.length > 0 && versions.default !== undefined && !values.includes(versions.default)) {
       ctx.addIssue({
         code: z.ZodIssueCode.custom,
         message: '"default" must be one of "available[].value"',
         path: ['default'],
       });
     }
-  });
+  })
+  // Without a curated list there is nothing to pick from, so the registry becomes the source of
+  // both the selectable versions and the default one.
+  .transform(versions =>
+    versions.available.length === 0 && !versions.registry
+      ? { ...versions, registry: { limit: DEFAULT_VERSION_REGISTRY_LIMIT } }
+      : versions,
+  );
 
 const rawTemplateSchema = z
   .object({

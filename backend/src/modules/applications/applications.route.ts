@@ -1,5 +1,7 @@
 import type { Context } from 'hono';
 import { createRouter, validator } from 'hono-route-docs';
+import { errorMessage } from '../../utils';
+import { agentFailureStatus } from '../../utils/agent';
 import { paginationQuery } from '../../utils/pagination';
 import { authMiddleware } from '../auth/auth.middleware';
 import { findDeployment, serializeDeployment } from '../deployments/deployment.service';
@@ -12,10 +14,13 @@ import {
 import { enqueueDeployment, enqueueRollback } from '../deployments/pipeline.service';
 import { validateComposeSecurity } from '../compose/compose.schema';
 import {
+  describeApplicationServices,
   destroyComposeProject,
+  fetchApplicationServiceStatus,
   listApplicationServices,
   parseComposeDocument,
   publishedPortsOf,
+  restartApplicationService,
 } from '../compose/compose.service';
 import { ensureAutoDomain, refreshAutoDomainAfterUpdate } from '../domains/auto-domain.service';
 import { findGitSource } from '../git-sources/git-source.service';
@@ -35,6 +40,8 @@ import { findHostPortConflict } from './port-guard.service';
 import {
   ApplicationIdParam,
   applicationIdParamSchema,
+  ApplicationServiceParam,
+  applicationServiceParamSchema,
   ApplicationVariableKeyParam,
   applicationVariableKeyParamSchema,
   ApplyTemplateUpdateDTO,
@@ -324,7 +331,61 @@ get(
       return c.json({ error: 'Application not found' }, 404);
     }
 
-    return c.json({ services: listApplicationServices(application) });
+    return c.json(await describeApplicationServices(application));
+  },
+);
+
+get(
+  '/:applicationId/services/status',
+  applicationsDocs.servicesStatus,
+  authMiddleware,
+  validator('param', applicationIdParamSchema),
+  createOrganizationRoleGuard('member'),
+  async (c: Context) => {
+    const { organizationId, applicationId } = c.req.valid('param' as never) as ApplicationIdParam;
+
+    const application = await findApplication(organizationId, applicationId);
+
+    if (!application) {
+      return c.json({ error: 'Application not found' }, 404);
+    }
+
+    return c.json(await fetchApplicationServiceStatus(application));
+  },
+);
+
+post(
+  '/:applicationId/services/:service/restart',
+  applicationsDocs.servicesRestart,
+  authMiddleware,
+  validator('param', applicationServiceParamSchema),
+  createOrganizationRoleGuard('admin'),
+  async (c: Context) => {
+    const { organizationId, applicationId, service } = c.req.valid(
+      'param' as never,
+    ) as ApplicationServiceParam;
+
+    const application = await findApplication(organizationId, applicationId);
+
+    if (!application) {
+      return c.json({ error: 'Application not found' }, 404);
+    }
+
+    if (application.source !== 'compose') {
+      return c.json({ error: 'Only compose applications have services to restart' }, 409);
+    }
+
+    if (!listApplicationServices(application).some(candidate => candidate.service === service)) {
+      return c.json({ error: `Service "${service}" was not found in this application` }, 404);
+    }
+
+    try {
+      await restartApplicationService(application, service);
+    } catch (error) {
+      return c.json({ error: errorMessage(error) }, agentFailureStatus(error));
+    }
+
+    return c.json({ message: 'Service restarted successfully' });
   },
 );
 

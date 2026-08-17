@@ -51,8 +51,22 @@ describe('listApplicationServices', () => {
 
   test('derives service and container name from the compose content', () => {
     expect(listApplicationServices(composeApplication)).toEqual([
-      { service: 'app', containerName: 'zydock-n8n-abc-app-1', exposed: true },
-      { service: 'db', containerName: 'zydock-n8n-abc-db-1', exposed: false },
+      {
+        service: 'app',
+        containerName: 'zydock-n8n-abc-app-1',
+        exposed: true,
+        role: 'primary',
+        image: 'n8n',
+        internalPort: 5678,
+      },
+      {
+        service: 'db',
+        containerName: 'zydock-n8n-abc-db-1',
+        exposed: false,
+        role: 'linked',
+        image: 'postgres',
+        internalPort: undefined,
+      },
     ]);
   });
 
@@ -68,6 +82,27 @@ describe('listApplicationServices', () => {
     } as unknown as Application;
 
     expect(listApplicationServices(broken)).toEqual([]);
+  });
+
+  test('extracts the internalPort of a linked service from its first declared target port', () => {
+    const application = {
+      source: 'compose',
+      slug: 'stack-abc',
+      compose: {
+        content:
+          'services:\n  app:\n    image: n8n\n  db:\n    image: postgres\n    ports:\n      - "5432:5432"\n',
+        expose: { service: 'app', port: 5678 },
+      },
+    } as unknown as Application;
+
+    expect(listApplicationServices(application).find(service => service.service === 'db')).toEqual({
+      service: 'db',
+      containerName: 'zydock-stack-abc-db-1',
+      exposed: false,
+      role: 'linked',
+      image: 'postgres',
+      internalPort: 5432,
+    });
   });
 });
 

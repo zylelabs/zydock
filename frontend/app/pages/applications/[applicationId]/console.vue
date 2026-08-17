@@ -51,14 +51,6 @@
     { server: false, watch: [() => session.organizationId, applicationId], default: () => null },
   );
 
-  const serviceOptions = computed(
-    () =>
-      data.value?.services.map(entry => ({
-        value: entry.service,
-        label: entry.exposed ? `${entry.service} (exposed)` : entry.service,
-      })) ?? [],
-  );
-
   const containerId = computed(() => {
     if (!data.value) {
       return undefined;
@@ -88,14 +80,6 @@
 <template>
   <Content>
     <div v-if="data && containerId" class="flex flex-col gap-2.5">
-      <Select
-        v-if="serviceOptions.length > 1"
-        v-model="selectedService"
-        label="Service"
-        :options="serviceOptions"
-        boxed
-        class="max-w-60"
-      />
       <Terminal
         :key="containerId"
         :server-id="data.serverId"

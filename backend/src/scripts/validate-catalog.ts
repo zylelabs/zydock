@@ -9,6 +9,7 @@ import {
 } from '../modules/templates/catalog.service';
 import { renderTemplate } from '../modules/templates/render.service';
 import {
+  DEFAULT_VERSION_EXCLUDE_PATTERN,
   DEFAULT_VERSION_INCLUDE_PATTERN,
   testVersionPattern,
 } from '../modules/templates/template.schema';
@@ -209,6 +210,7 @@ const checkRegistryVersions = async (template: Template): Promise<CatalogFailure
 
   const { host, path } = registryReferenceOf(repository);
   const includePattern = registry.include ?? DEFAULT_VERSION_INCLUDE_PATTERN;
+  const excludePattern = registry.exclude ?? DEFAULT_VERSION_EXCLUDE_PATTERN;
   const defaultValue = template.versions!.default;
 
   try {
@@ -225,9 +227,31 @@ const checkRegistryVersions = async (template: Template): Promise<CatalogFailure
     }
 
     const failures: CatalogFailure[] = [];
+
+    if (defaultValue === undefined) {
+      const matching = tags.filter(
+        tag =>
+          tag.name !== 'latest' &&
+          testVersionPattern(includePattern, tag.name) &&
+          !testVersionPattern(excludePattern, tag.name),
+      );
+
+      if (matching.length === 0) {
+        failures.push({
+          templateId: template.id,
+          check: 'registry',
+          message:
+            `no tag of "${repository}" matches "versions.registry" policy (include ` +
+            `"${includePattern}", exclude "${excludePattern}"), so no default version can be resolved`,
+        });
+      }
+
+      return failures;
+    }
+
     const matchesPolicy =
       testVersionPattern(includePattern, defaultValue) &&
-      (!registry.exclude || !testVersionPattern(registry.exclude, defaultValue));
+      !testVersionPattern(excludePattern, defaultValue);
 
     if (!matchesPolicy) {
       failures.push({
@@ -235,7 +259,7 @@ const checkRegistryVersions = async (template: Template): Promise<CatalogFailure
         check: 'registry',
         message:
           `"versions.default" ("${defaultValue}") does not match "versions.registry" policy ` +
-          `(include "${includePattern}"${registry.exclude ? `, exclude "${registry.exclude}"` : ''})`,
+          `(include "${includePattern}", exclude "${excludePattern}")`,
       });
     }
 
