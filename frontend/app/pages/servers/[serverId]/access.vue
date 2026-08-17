@@ -95,7 +95,7 @@
 
   const handleHostClick = (entry: AccessLogEntry) => {
     if (entry.applicationId) {
-      navigateTo(`/applications/${entry.applicationId}/access`);
+      navigateTo(`/applications/${entry.applicationId}/logs?view=access`);
     }
   };
 

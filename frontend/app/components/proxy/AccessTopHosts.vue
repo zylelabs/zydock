@@ -16,7 +16,7 @@
     <template v-for="host in hosts" :key="host.host">
       <Row
         v-if="host.applicationId"
-        :to="`/applications/${host.applicationId}/access`"
+        :to="`/applications/${host.applicationId}/logs?view=access`"
         class="grid-cols-[1fr_auto]"
       >
         <div class="min-w-0">
