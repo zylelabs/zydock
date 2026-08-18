@@ -124,6 +124,6 @@ describe('renderTemplate', () => {
           serverHost: 'host1',
         },
       ),
-    ).toThrow(/Input "API_KEY" is required/);
+    ).toThrow(/"API key" is required/);
   });
 });
