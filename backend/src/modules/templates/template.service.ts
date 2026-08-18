@@ -17,9 +17,11 @@ import { registryReferenceOf, validateComposeSecurity } from '../compose/compose
 import {
   applicationPortMappingsOf,
   applicationVolumesOf,
+  findComposeService,
+  hostPortBindingsOf,
+  memoryLimitToMb,
   parseComposeDocument,
-  publishedPortsOf,
-  resolveComposeVariables,
+  parseComposeWithVariables,
 } from '../compose/compose.service';
 import { ensureAutoDomain } from '../domains/auto-domain.service';
 import {
@@ -45,11 +47,9 @@ import type {
 } from './template.schema';
 
 const parseRenderedCompose = (composeYaml: string, env: string): ParsedCompose =>
-  parseComposeDocument(
-    resolveComposeVariables(
-      composeYaml,
-      Object.fromEntries(parseEnvContent(env).map(({ key, value }) => [key, value])),
-    ),
+  parseComposeWithVariables(
+    composeYaml,
+    Object.fromEntries(parseEnvContent(env).map(({ key, value }) => [key, value])),
   );
 
 const hostPortInputKeyOf = (
@@ -128,6 +128,16 @@ export const listTemplates = ({
   };
 };
 
+const templateMemoryLimitMbOf = (template: Template): number | undefined => {
+  try {
+    const parsed = parseComposeDocument(template.dockerComposeContent);
+
+    return memoryLimitToMb(findComposeService(parsed, template.expose.service)?.memoryLimit);
+  } catch {
+    return undefined;
+  }
+};
+
 export const serializeTemplate = (template: Template) => ({
   id: template.id,
   version: template.version,
@@ -147,6 +157,7 @@ export const serializeTemplate = (template: Template) => ({
   inputs: template.inputs,
   secrets: template.secrets.map(secret => ({ key: secret.key, generate: secret.generate })),
   versions: template.versions,
+  memoryLimitMb: templateMemoryLimitMbOf(template),
 });
 
 const PASSWORD_ALPHABET = 'ABCDEFGHJKLMNPQRSTUVWXYZabcdefghijkmnopqrstuvwxyz23456789';
@@ -780,7 +791,7 @@ export const applyTemplateUpdate = async (
 
   const conflict = await findHostPortConflict(
     String(application.serverId),
-    publishedPortsOf(rendered),
+    hostPortBindingsOf(rendered),
     String(application._id),
   );
 
@@ -822,6 +833,7 @@ export const applyTemplateUpdate = async (
           service: template.expose.service,
           port: template.expose.port,
           kind: template.expose.kind,
+          startupTimeoutSeconds: template.expose.startup_timeout_seconds,
         },
       },
       variables,
@@ -916,7 +928,7 @@ export const deployTemplateApplication = async (params: {
   const { composeYaml, env } = renderTemplate(template, inputValues, context);
 
   const rendered = parseRenderedCompose(composeYaml, env);
-  const conflict = await findHostPortConflict(String(server._id), publishedPortsOf(rendered));
+  const conflict = await findHostPortConflict(String(server._id), hostPortBindingsOf(rendered));
 
   if (conflict) {
     throwHostPortConflict(conflict, hostPortInputKeyOf(template, conflict.port, inputValues));
@@ -939,6 +951,7 @@ export const deployTemplateApplication = async (params: {
         service: template.expose.service,
         port: template.expose.port,
         kind: template.expose.kind,
+        startupTimeoutSeconds: template.expose.startup_timeout_seconds,
       },
     },
     variables,
@@ -959,13 +972,12 @@ export const deployTemplateApplication = async (params: {
       },
       portMappings: applicationPortMappingsOf(rendered),
       volumes: applicationVolumesOf(rendered, containerNameOf(slug)),
+      autoDomainDisabled: !template.expose.domain,
     });
 
     await registerComposeDatabases(application, template.databases);
 
-    if (template.expose.kind === 'http' && template.expose.domain) {
-      await ensureAutoDomain(application);
-    }
+    await ensureAutoDomain(application);
 
     const deployment = body.deployNow
       ? await enqueueDeployment({ application, trigger: 'manual', triggeredBy })

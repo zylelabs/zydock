@@ -58,6 +58,7 @@ export const createApplication = async (
     origin?: ApplicationOrigin;
     portMappings?: ApplicationPortMapping[];
     volumes?: ApplicationVolume[];
+    autoDomainDisabled?: boolean;
   },
 ) => {
   const base = {
@@ -72,6 +73,9 @@ export const createApplication = async (
     variables: encryptVariables(body.variables),
     restartPolicy: body.restartPolicy,
     ...(options?.origin ? { origin: options.origin } : {}),
+    ...(options?.autoDomainDisabled === undefined
+      ? {}
+      : { autoDomainDisabled: options.autoDomainDisabled }),
   };
 
   if (body.source === 'compose') {

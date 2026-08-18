@@ -8,6 +8,14 @@
 
   const resources = computed(() => props.application.resources);
 
+  const isCompose = computed(() => props.application.source === 'compose');
+
+  const description = computed(() =>
+    isCompose.value
+      ? 'Ceiling the container may use on the server. It overrides the deploy.resources.limits of the compose file from the next deploy on. Empty means the limit declared in the compose file.'
+      : 'Ceiling the container may use on the server. Empty means no limit.',
+  );
+
   const messageOf = (error: unknown, fallback: string) =>
     (error as { message?: string }).message || fallback;
 
@@ -60,11 +68,7 @@
 </script>
 
 <template>
-  <Card
-    title="Resource limits"
-    description="Ceiling the container may use on the server. Empty means no limit."
-    content-class="p-0"
-  >
+  <Card title="Resource limits" :description="description" content-class="p-0">
     <template v-if="canManage" #right>
       <Button v-if="!editing" theme="secondary" size="xs" @click="startEdit">Edit</Button>
     </template>
@@ -72,12 +76,20 @@
     <template v-if="!editing">
       <Row as="div" class="flex items-baseline">
         <div class="w-33 shrink-0 text-caption text-ink-2">CPUs</div>
-        <div class="font-mono text-caption text-ink">{{ resources?.cpus ?? 'No limit' }}</div>
+        <div class="font-mono text-caption text-ink">
+          {{ resources?.cpus ?? (isCompose ? 'From the compose file' : 'No limit') }}
+        </div>
       </Row>
       <Row as="div" class="flex items-baseline">
         <div class="w-33 shrink-0 text-caption text-ink-2">Memory</div>
         <div class="font-mono text-caption text-ink">
-          {{ resources?.memoryMb != null ? resources.memoryMb + ' MB' : 'No limit' }}
+          {{
+            resources?.memoryMb != null
+              ? resources.memoryMb + ' MB'
+              : isCompose
+                ? 'From the compose file'
+                : 'No limit'
+          }}
         </div>
       </Row>
     </template>

@@ -12,6 +12,7 @@ export const applicationComposeExposeSchema = z.object({
     .regex(/^[a-zA-Z0-9][a-zA-Z0-9_.-]*$/, 'Invalid service name'),
   port: z.coerce.number().int().min(1).max(65535),
   kind: z.enum(['http', 'tcp', 'udp']).default('http'),
+  startupTimeoutSeconds: z.coerce.number().int().min(30).max(3600).optional(),
 });
 
 export type ApplicationComposeExposeDTO = z.infer<typeof applicationComposeExposeSchema>;

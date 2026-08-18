@@ -9,20 +9,22 @@ const RESERVED_HOST_PORTS: Record<number, string> = {
   443: 'the Zydock proxy (:443)',
 };
 
+export type HostPortBinding = { port: number; protocol: 'tcp' | 'udp' };
+
 export type HostPortConflict = { port: number; owner: string };
 
 export const findHostPortConflict = async (
   serverId: string,
-  hostPorts: number[],
+  hostPorts: HostPortBinding[],
   excludeApplicationId?: string,
 ): Promise<HostPortConflict | null> => {
   if (!hostPorts.length) {
     return null;
   }
 
-  for (const port of hostPorts) {
-    if (RESERVED_HOST_PORTS[port]) {
-      return { port, owner: RESERVED_HOST_PORTS[port] };
+  for (const binding of hostPorts) {
+    if (RESERVED_HOST_PORTS[binding.port]) {
+      return { port: binding.port, owner: RESERVED_HOST_PORTS[binding.port] };
     }
   }
 
@@ -42,7 +44,15 @@ export const findHostPortConflict = async (
       }
 
       for (const binding of container.ports) {
-        if (binding.hostPort && hostPorts.includes(binding.hostPort)) {
+        if (binding.hostPort === undefined) {
+          continue;
+        }
+
+        const taken = hostPorts.some(
+          wanted => wanted.port === binding.hostPort && wanted.protocol === binding.protocol,
+        );
+
+        if (taken) {
           return { port: binding.hostPort, owner: container.name };
         }
       }

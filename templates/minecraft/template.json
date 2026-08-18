@@ -16,7 +16,8 @@
     "port": 25565,
     "kind": "tcp",
     "host_port_key": "HOST_PORT",
-    "domain": false
+    "domain": false,
+    "startup_timeout_seconds": 600
   },
   "versions": {
     "key": "IMAGE_TAG",
@@ -34,14 +35,17 @@
       "label": "Server port",
       "type": "number",
       "default": 25565,
-      "required": true
+      "required": true,
+      "min": 1024,
+      "max": 65535
     },
     {
       "key": "EULA",
       "label": "I accept the Minecraft EULA (https://aka.ms/MinecraftEULA)",
       "type": "boolean",
       "default": false,
-      "required": true
+      "required": true,
+      "must_be_true": true
     },
     {
       "key": "MINECRAFT_VERSION",
@@ -63,7 +67,9 @@
       "label": "Java heap size (keep it below the application memory limit)",
       "type": "text",
       "default": "2G",
-      "required": true
+      "required": true,
+      "pattern": "^\\d+[MG]$",
+      "help": "Java heap only. Keep it under the application memory limit, leaving room for the JVM itself, or the container is killed for running out of memory."
     },
     {
       "key": "OPS",

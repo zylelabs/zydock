@@ -84,6 +84,25 @@ export const containersDocs = {
       423: protectedRes,
     },
   },
+  reachability: {
+    tags: ['Containers'],
+    summary: 'Probe a published port from the host',
+    description:
+      'Opens a TCP connection (or sends a UDP datagram) to 127.0.0.1:<port> from the agent host. ' +
+      'Always targets loopback — never an arbitrary host — and carries no application payload.',
+    security: agentAuth,
+    responses: {
+      200: jsonRes('Probe result.', {
+        type: 'object',
+        properties: {
+          reachable: { type: 'boolean' },
+          latencyMs: { type: 'number' },
+          error: { type: 'string' },
+        },
+      }),
+      404: errorRes('Container not found.'),
+    },
+  },
   remove: {
     tags: ['Containers'],
     summary: 'Remove a container',

@@ -71,6 +71,17 @@ post(
       return c.json({ error: 'Application not found in this organization' }, 400);
     }
 
+    if (application.source === 'compose' && application.compose?.expose.kind !== 'http') {
+      return c.json(
+        {
+          error:
+            'This application is not reached over HTTP ("expose.kind" is not "http"), ' +
+            'so it cannot have a domain',
+        },
+        400,
+      );
+    }
+
     if (await hostnameTaken(body.hostname)) {
       return c.json({ error: 'This hostname is already in use' }, 409);
     }

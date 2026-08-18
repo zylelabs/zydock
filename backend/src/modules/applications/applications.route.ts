@@ -18,10 +18,11 @@ import {
   applicationVolumesOf,
   describeApplicationServices,
   destroyComposeProject,
+  fetchApplicationReachability,
   fetchApplicationServiceStatus,
+  hostPortBindingsOf,
   listApplicationServices,
-  parseComposeDocument,
-  publishedPortsOf,
+  parseComposeWithVariables,
   restartApplicationService,
 } from '../compose/compose.service';
 import { containerNameOf } from '../deployments/naming';
@@ -39,7 +40,7 @@ import {
   regenerateTemplateSecret,
 } from '../templates/template.service';
 import applicationModel from './application.model';
-import { findHostPortConflict } from './port-guard.service';
+import { findHostPortConflict, type HostPortBinding } from './port-guard.service';
 import {
   ApplicationIdParam,
   applicationIdParamSchema,
@@ -79,6 +80,9 @@ import { webhookDocs } from './webhook.docs';
 import { configureWebhook, removeWebhook } from './webhook.service';
 
 const { router, get, post, patch, put, delete: del } = createRouter();
+
+const variableMapOf = (variables: { key: string; value: string }[]): Record<string, string> =>
+  Object.fromEntries(variables.map(({ key, value }) => [key, value]));
 
 const isGitSourceUsable = async (organizationId: string, gitSourceId: string) => {
   const gitSource = await findGitSource(organizationId, gitSourceId);
@@ -162,10 +166,13 @@ post(
     let composeSlug: string | undefined;
 
     if (body.source === 'compose') {
-      let hostPorts: number[];
+      let hostPorts: HostPortBinding[];
 
       try {
-        const parsed = parseComposeDocument(body.compose.content);
+        const parsed = parseComposeWithVariables(
+          body.compose.content,
+          variableMapOf(body.variables),
+        );
 
         if (!parsed.services.some(service => service.name === body.compose.expose.service)) {
           return c.json(
@@ -176,7 +183,7 @@ post(
 
         validateComposeSecurity(parsed);
 
-        hostPorts = publishedPortsOf(parsed);
+        hostPorts = hostPortBindingsOf(parsed);
         composePortMappings = applicationPortMappingsOf(parsed);
         composeSlug = await uniqueSlug(body.environmentId, body.name);
         composeVolumes = applicationVolumesOf(parsed, containerNameOf(composeSlug));
@@ -202,7 +209,10 @@ post(
 
       const conflict = await findHostPortConflict(
         body.serverId,
-        body.portMappings.map(mapping => mapping.hostPort),
+        body.portMappings.map(mapping => ({
+          port: mapping.hostPort,
+          protocol: mapping.protocol,
+        })),
       );
 
       if (conflict) {
@@ -276,7 +286,10 @@ patch(
         const service = body.compose.expose?.service ?? application.compose?.expose.service;
 
         try {
-          const parsed = parseComposeDocument(body.compose.content);
+          const parsed = parseComposeWithVariables(
+            body.compose.content,
+            variableMapOf(decryptVariables(application.variables)),
+          );
 
           if (service && !parsed.services.some(candidate => candidate.name === service)) {
             return c.json({ error: `Service "${service}" was not found in the compose file` }, 400);
@@ -286,7 +299,7 @@ patch(
 
           const conflict = await findHostPortConflict(
             body.serverId ?? String(application.serverId),
-            publishedPortsOf(parsed),
+            hostPortBindingsOf(parsed),
             applicationId,
           );
 
@@ -313,7 +326,10 @@ patch(
 
       const conflict = await findHostPortConflict(
         body.serverId ?? String(application.serverId),
-        (body.portMappings ?? application.portMappings).map(mapping => mapping.hostPort),
+        (body.portMappings ?? application.portMappings).map(mapping => ({
+          port: mapping.hostPort,
+          protocol: mapping.protocol,
+        })),
         applicationId,
       );
 
@@ -376,6 +392,29 @@ get(
     }
 
     return c.json(await fetchApplicationServiceStatus(application));
+  },
+);
+
+get(
+  '/:applicationId/reachability',
+  applicationsDocs.reachability,
+  authMiddleware,
+  validator('param', applicationIdParamSchema),
+  createOrganizationRoleGuard('member'),
+  async (c: Context) => {
+    const { organizationId, applicationId } = c.req.valid('param' as never) as ApplicationIdParam;
+
+    const application = await findApplication(organizationId, applicationId);
+
+    if (!application) {
+      return c.json({ error: 'Application not found' }, 404);
+    }
+
+    if ((application.portMappings ?? []).length === 0) {
+      return c.json({ error: 'Application has no published ports' }, 404);
+    }
+
+    return c.json(await fetchApplicationReachability(application));
   },
 );
 
@@ -444,11 +483,59 @@ put(
     const { organizationId, applicationId } = c.req.valid('param' as never) as ApplicationIdParam;
     const body = c.req.valid('json' as never) as ReplaceVariablesDTO;
 
-    if (!(await findApplication(organizationId, applicationId))) {
+    const application = await findApplication(organizationId, applicationId);
+
+    if (!application) {
       return c.json({ error: 'Application not found' }, 404);
     }
 
+    let composePortMappings: ApplicationPortMapping[] | undefined;
+    let composeVolumes: ApplicationVolume[] | undefined;
+
+    if (application.source === 'compose' && application.compose) {
+      try {
+        const parsed = parseComposeWithVariables(
+          application.compose.content,
+          variableMapOf(body.variables),
+        );
+
+        const conflict = await findHostPortConflict(
+          String(application.serverId),
+          hostPortBindingsOf(parsed),
+          applicationId,
+        );
+
+        if (conflict) {
+          const key = body.variables.find(
+            variable => Number(variable.value) === conflict.port,
+          )?.key;
+
+          return c.json(
+            {
+              error: key
+                ? `Variable "${key}" asks for host port ${conflict.port}, already in use by ${conflict.owner}`
+                : `Host port ${conflict.port} is already in use by ${conflict.owner}`,
+              ...(key ? { field: key } : {}),
+            },
+            400,
+          );
+        }
+
+        composePortMappings = applicationPortMappingsOf(parsed);
+        composeVolumes = applicationVolumesOf(parsed, containerNameOf(application.slug));
+      } catch (error) {
+        return c.json({ error: error instanceof Error ? error.message : String(error) }, 400);
+      }
+    }
+
     await replaceVariables(applicationId, body.variables);
+
+    if (composePortMappings) {
+      await updateApplication(application, {
+        portMappings: composePortMappings,
+        volumes: composeVolumes,
+      });
+    }
 
     return c.json({ variables: body.variables });
   },

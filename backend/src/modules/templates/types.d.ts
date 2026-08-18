@@ -5,6 +5,11 @@ interface TemplateInput {
   options?: string[];
   default?: string | number | boolean;
   required: boolean;
+  min?: number;
+  max?: number;
+  pattern?: string;
+  help?: string;
+  must_be_true?: boolean;
 }
 
 interface TemplateSecret {
@@ -18,6 +23,7 @@ interface TemplateExpose {
   kind: import('./template.schema').TemplateExposeKind;
   host_port_key?: string;
   domain: boolean;
+  startup_timeout_seconds?: number;
 }
 
 interface TemplateCredentialRef {

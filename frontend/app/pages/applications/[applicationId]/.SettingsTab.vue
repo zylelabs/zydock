@@ -14,8 +14,12 @@
     { id: 'danger', label: 'Danger zone', icon: 'lucide:triangle-alert', danger: true },
   ];
 
+  const GIT_ONLY_SECTIONS: SectionId[] = ['healthcheck', 'git'];
+
   const visibleSections = computed(() =>
-    SECTIONS.filter(section => section.id === 'danger' || props.application.source === 'git'),
+    SECTIONS.filter(
+      section => !GIT_ONLY_SECTIONS.includes(section.id) || props.application.source === 'git',
+    ),
   );
 
   const activeSection = ref<SectionId>(visibleSections.value[0]?.id ?? 'danger');

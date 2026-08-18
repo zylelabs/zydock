@@ -24,7 +24,13 @@ const templateSchema = {
         kind: { type: 'string', enum: ['http', 'tcp', 'udp'] },
         host_port_key: { type: 'string' },
         domain: { type: 'boolean' },
+        startup_timeout_seconds: { type: 'integer' },
       },
+    },
+    memoryLimitMb: {
+      type: 'integer',
+      description:
+        'Memory limit the compose file declares for the exposed service, when it declares one.',
     },
     databases: {
       type: 'array',

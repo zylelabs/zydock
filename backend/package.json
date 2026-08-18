@@ -8,6 +8,7 @@
     "start": "bun run index.ts",
     "seed": "bun run src/seeds/index.ts",
     "validate:catalog": "bun run src/scripts/validate-catalog.ts",
+    "fix:non-http-auto-domains": "bun run src/scripts/remove-non-http-auto-domains.ts",
     "build": "bun build index.ts --compile --outfile server",
     "typecheck": "tsc --noEmit",
     "test": "bun test",

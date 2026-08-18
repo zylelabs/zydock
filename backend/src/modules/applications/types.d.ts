@@ -18,6 +18,7 @@ interface ApplicationComposeExpose {
   service: string;
   port: number;
   kind: 'http' | 'tcp' | 'udp';
+  startupTimeoutSeconds?: number;
 }
 
 interface ApplicationCompose {

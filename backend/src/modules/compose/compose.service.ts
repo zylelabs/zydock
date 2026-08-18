@@ -1,11 +1,12 @@
 import { parse } from 'yaml';
 import { resolveComposeProvider } from '../../providers/compose';
+import { resolveContainerProvider } from '../../providers/container';
 import { errorMessage, escapeRegex } from '../../utils';
 import { decryptSecret } from '../../utils/crypto';
 import { decryptVariables } from '../applications/application.service';
 import { findDatabasesOfApplication } from '../databases/database.service';
 import type { DatabaseEngineName } from '../databases/database.schema';
-import { composeContainerNameOf, composeProjectOf } from '../deployments/naming';
+import { composeContainerNameOf, composeProjectOf, containerNameOf } from '../deployments/naming';
 import { listDomainsOfApplication } from '../domains/domain.service';
 import { fetchServerContainerMetrics } from '../metrics/metric.service';
 import { buildAgentConnection, findServerById } from '../servers/server.service';
@@ -89,15 +90,41 @@ const parsePorts = (definition: unknown): ParsedComposePort[] => {
   return raw.map(parsePortEntry).filter((port): port is ParsedComposePort => port !== null);
 };
 
-const hasMemoryLimit = (definition: unknown): boolean => {
+const memoryLimitOf = (definition: unknown): string | undefined => {
   if (!definition || typeof definition !== 'object') {
-    return false;
+    return undefined;
   }
 
   const deploy = (definition as { deploy?: { resources?: { limits?: { memory?: unknown } } } })
     .deploy;
 
-  return Boolean(deploy?.resources?.limits?.memory);
+  const memory = deploy?.resources?.limits?.memory;
+
+  return memory === undefined || memory === null ? undefined : String(memory);
+};
+
+const MEMORY_LIMIT_PATTERN = /^(\d+(?:\.\d+)?)\s*(b|k|m|g|kb|mb|gb)?$/i;
+
+const MEMORY_LIMIT_UNITS: Record<string, number> = {
+  b: 1 / (1024 * 1024),
+  k: 1 / 1024,
+  kb: 1 / 1024,
+  m: 1,
+  mb: 1,
+  g: 1024,
+  gb: 1024,
+};
+
+export const memoryLimitToMb = (value: string | undefined): number | undefined => {
+  const match = value?.trim().match(MEMORY_LIMIT_PATTERN);
+
+  if (!match) {
+    return undefined;
+  }
+
+  const amount = Number(match[1]) * MEMORY_LIMIT_UNITS[(match[2] ?? 'b').toLowerCase()]!;
+
+  return amount > 0 ? Math.round(amount) : undefined;
 };
 
 const imageOf = (definition: unknown): string | undefined => {
@@ -142,7 +169,7 @@ export const parseComposeDocument = (content: string): ParsedCompose => {
       name,
       image: imageOf(definition),
       ports: parsePorts(definition),
-      hasMemoryLimit: hasMemoryLimit(definition),
+      memoryLimit: memoryLimitOf(definition),
       raw: (definition && typeof definition === 'object' ? definition : {}) as Record<
         string,
         unknown
@@ -150,6 +177,11 @@ export const parseComposeDocument = (content: string): ParsedCompose => {
     })),
   };
 };
+
+export const parseComposeWithVariables = (
+  content: string,
+  variables: Record<string, string>,
+): ParsedCompose => parseComposeDocument(resolveComposeVariables(content, variables));
 
 export const findComposeService = (parsed: ParsedCompose, name: string) =>
   parsed.services.find(service => service.name === name);
@@ -169,6 +201,14 @@ export const publishedPortMappingsOf = (parsed: ParsedCompose): PublishedPortMap
         typeof port.published === 'number' && typeof port.target === 'number',
     ),
   );
+
+export const hostPortBindingsOf = (
+  parsed: ParsedCompose,
+): { port: number; protocol: 'tcp' | 'udp' }[] =>
+  publishedPortMappingsOf(parsed).map(mapping => ({
+    port: mapping.published,
+    protocol: mapping.protocol,
+  }));
 
 export const applicationPortMappingsOf = (parsed: ParsedCompose): ApplicationPortMapping[] =>
   publishedPortMappingsOf(parsed).map(mapping => ({
@@ -434,6 +474,63 @@ export const fetchApplicationServiceStatus = async (
     return { services };
   } catch (error) {
     return { services: [], degraded: { reason: errorMessage(error) } };
+  }
+};
+
+export type ApplicationReachabilityEntry = {
+  hostPort: number;
+  protocol: 'tcp' | 'udp';
+  reachable: boolean;
+  latencyMs?: number;
+  error?: string;
+};
+
+export const fetchApplicationReachability = async (
+  application: Application,
+): Promise<{ mappings: ApplicationReachabilityEntry[]; degraded?: { reason: string } }> => {
+  const portMappings = application.portMappings ?? [];
+
+  if (portMappings.length === 0) {
+    return { mappings: [] };
+  }
+
+  const server = await findServerById(String(application.serverId));
+
+  if (!server?.agent.token) {
+    return { mappings: [], degraded: { reason: 'This server has no agent yet' } };
+  }
+
+  try {
+    const containers = resolveContainerProvider(buildAgentConnection(server));
+    const containerId =
+      application.source === 'compose' && application.compose
+        ? composeContainerNameOf(application.slug, application.compose.expose.service)
+        : containerNameOf(application.slug);
+
+    const mappings = await Promise.all(
+      portMappings.map(async mapping => {
+        try {
+          const result = await containers.checkReachability(
+            containerId,
+            mapping.hostPort,
+            mapping.protocol,
+          );
+
+          return { hostPort: mapping.hostPort, protocol: mapping.protocol, ...result };
+        } catch (error) {
+          return {
+            hostPort: mapping.hostPort,
+            protocol: mapping.protocol,
+            reachable: false,
+            error: errorMessage(error),
+          };
+        }
+      }),
+    );
+
+    return { mappings };
+  } catch (error) {
+    return { mappings: [], degraded: { reason: errorMessage(error) } };
   }
 };
 

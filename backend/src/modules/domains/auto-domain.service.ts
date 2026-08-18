@@ -46,6 +46,17 @@ export const ensureAutoDomain = async (application: Application) => {
     return undefined;
   }
 
+  const exposeKind =
+    application.source === 'compose' ? application.compose?.expose.kind : undefined;
+
+  if (exposeKind && exposeKind !== 'http') {
+    logInfo('Skipped automatic domain: application is not reached over HTTP', {
+      application: applicationId,
+      kind: exposeKind,
+    });
+    return undefined;
+  }
+
   try {
     const existing = await listDomainsOfApplication(applicationId);
 

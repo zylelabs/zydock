@@ -14,7 +14,7 @@ interface ParsedComposeService {
   name: string;
   image?: string;
   ports: ParsedComposePort[];
-  hasMemoryLimit: boolean;
+  memoryLimit?: string;
   raw: Record<string, unknown>;
 }
 

@@ -1,4 +1,5 @@
 import config from '../../config';
+import { errorMessage } from '../../utils';
 import { resolveComposeProvider, type ComposeServiceStatus } from '../../providers/compose';
 import {
   resolveContainerProvider,
@@ -230,15 +231,27 @@ const replaceContainer = async (
   return created;
 };
 
-type HealthcheckExpectation = { expectsHealth: boolean; settleMs: number };
+type HealthcheckExpectation = {
+  expectsHealth: boolean;
+  settleMs: number;
+  timeoutSeconds?: number;
+  onProgress?: (message: string) => void;
+};
 
 const healthcheckStep = async (
   connection: AgentConnection,
   containerId: string,
-  { expectsHealth, settleMs }: HealthcheckExpectation,
+  { expectsHealth, settleMs, timeoutSeconds, onProgress }: HealthcheckExpectation,
 ) => {
   const containers = resolveContainerProvider(connection);
-  const deadline = Date.now() + config.deploy.healthcheckTimeoutSeconds * 1000;
+
+  const limitSeconds = Math.min(
+    timeoutSeconds ?? config.deploy.healthcheckTimeoutSeconds,
+    config.deploy.healthcheckMaxSeconds,
+  );
+
+  const startedAt = Date.now();
+  const deadline = startedAt + limitSeconds * 1000;
 
   let last = 'unknown';
   let baselineRestarts: number | undefined;
@@ -280,10 +293,51 @@ const healthcheckStep = async (
       }
     }
 
+    onProgress?.(
+      `Waiting for the container to be ready — ${last} ` +
+        `(${Math.round((Date.now() - startedAt) / 1000)}s of ${limitSeconds}s)`,
+    );
+
     await Bun.sleep(HEALTHCHECK_POLL_MS);
   }
 
-  throw new Error(`The container did not become healthy in time (last state: ${last})`);
+  if (expectsHealth) {
+    throw new Error(
+      `The healthcheck declared by the compose file did not report "healthy" within ${limitSeconds}s ` +
+        `(last state: ${last}) — raise "expose.startup_timeout_seconds" in the template if this ` +
+        'service needs longer to start',
+    );
+  }
+
+  throw new Error(
+    `The container did not become healthy in time (last state: ${last}, waited ${limitSeconds}s)`,
+  );
+};
+
+const reachabilitySummary = async (
+  containers: ReturnType<typeof resolveContainerProvider>,
+  containerId: string,
+  portMappings: ApplicationPortMapping[],
+): Promise<string> => {
+  const results = await Promise.all(
+    portMappings.map(async mapping => {
+      try {
+        const result = await containers.checkReachability(
+          containerId,
+          mapping.hostPort,
+          mapping.protocol,
+        );
+
+        return `${mapping.hostPort}/${mapping.protocol}: ${
+          result.reachable ? 'responding' : 'nothing listening'
+        }`;
+      } catch (error) {
+        return `${mapping.hostPort}/${mapping.protocol}: reachability check failed (${errorMessage(error)})`;
+      }
+    }),
+  );
+
+  return results.join(', ');
 };
 
 const renderComposeStep = async (
@@ -461,7 +515,12 @@ export const runDeployment = async (deploymentId: string) => {
       const domains = await applyApplicationDomains(application, connection);
 
       if (domains.length === 0) {
-        await finishStep('No domain configured for this application', 'skipped');
+        await finishStep(
+          application.compose!.expose.kind === 'http'
+            ? 'No domain configured for this application'
+            : 'This application is reached over its published port and does not go through the proxy',
+          'skipped',
+        );
       } else {
         await finishStep(domains.map(domain => domain.hostname).join(', '));
       }
@@ -491,14 +550,21 @@ export const runDeployment = async (deploymentId: string) => {
       try {
         startStep('healthcheck');
 
+        const expectsHealth = Boolean(exposedRow?.health && exposedRow.health !== 'none');
         const isHttp = application.compose!.expose.kind === 'http';
 
         const state = await healthcheckStep(connection, containerId, {
-          expectsHealth: isHttp && Boolean(exposedRow?.health && exposedRow.health !== 'none'),
-          settleMs: isHttp ? 0 : RUNNING_SETTLE_MS,
+          expectsHealth,
+          settleMs: !expectsHealth && !isHttp ? RUNNING_SETTLE_MS : 0,
+          timeoutSeconds: application.compose!.expose.startupTimeoutSeconds,
+          onProgress: message => containerLog.push(message),
         });
 
-        await finishStep(state);
+        const reachability = isHttp
+          ? ''
+          : await reachabilitySummary(containers, containerId, application.portMappings ?? []);
+
+        await finishStep(reachability ? `${state} — ${reachability}` : state);
       } finally {
         bootLogsAbort.abort();
         await bootLogsPromise;

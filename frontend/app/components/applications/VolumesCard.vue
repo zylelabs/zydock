@@ -8,6 +8,14 @@
 
   const volumes = computed(() => props.application.volumes ?? []);
 
+  const isCompose = computed(() => props.application.source === 'compose');
+
+  const description = computed(() =>
+    isCompose.value
+      ? 'Mounts declared in the compose file. Edit them in the compose file itself.'
+      : 'Host paths and named volumes mounted into the container.',
+  );
+
   const messageOf = (error: unknown, fallback: string) =>
     (error as { message?: string }).message || fallback;
 
@@ -61,12 +69,8 @@
 </script>
 
 <template>
-  <Card
-    title="Volumes"
-    description="Host paths and named volumes mounted into the container."
-    content-class="p-0"
-  >
-    <template v-if="canManage" #right>
+  <Card title="Volumes" :description="description" content-class="p-0">
+    <template v-if="canManage && !isCompose" #right>
       <Button v-if="!editing" theme="secondary" size="xs" @click="startEdit">Edit</Button>
     </template>
 
@@ -81,6 +85,16 @@
             </div>
           </div>
         </div>
+      </Row>
+
+      <Row v-if="isCompose && volumes.length" as="div" class="flex items-baseline">
+        <div class="w-33 shrink-0 text-caption text-ink-2">Contents</div>
+        <NuxtLink
+          :to="`/applications/${application.id}/files`"
+          class="text-caption text-accent underline"
+        >
+          Browse files
+        </NuxtLink>
       </Row>
     </template>
 

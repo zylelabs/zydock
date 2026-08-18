@@ -126,6 +126,7 @@ export default {
   deploy: {
     workspacePath: readString('DEPLOY_WORKSPACE_PATH', '/var/lib/zydock/builds'),
     healthcheckTimeoutSeconds: readNumber('DEPLOY_HEALTHCHECK_TIMEOUT_SECONDS', 180),
+    healthcheckMaxSeconds: readNumber('DEPLOY_HEALTHCHECK_MAX_SECONDS', 3600),
     logLines: readNumber('DEPLOY_LOG_LINES', 500),
   },
   logs: {

@@ -1,6 +1,10 @@
 <script setup lang="ts">
   import { z } from 'zod';
-  import { useApplications, type Application } from '~/composables/services/useApplications';
+  import {
+    useApplications,
+    type Application,
+    type ApplicationExposeKind,
+  } from '~/composables/services/useApplications';
   import {
     deploymentStatusDot,
     useDeployments,
@@ -8,9 +12,14 @@
   } from '~/composables/services/useDeployments';
   import { useDomains } from '~/composables/services/useDomains';
   import { useMetrics } from '~/composables/services/useMetrics';
+  import { useServers } from '~/composables/services/useServers';
   import { formatDuration } from '~/utils';
 
-  const props = defineProps<{ application: Application; canManage: boolean }>();
+  const props = defineProps<{
+    application: Application;
+    canManage: boolean;
+    exposeKind: ApplicationExposeKind;
+  }>();
   const emit = defineEmits<{ refresh: [] }>();
 
   const session = useSessionStore();
@@ -18,6 +27,7 @@
   const { list: listDeployments } = useDeployments();
   const metricsApi = useMetrics();
   const domainsApi = useDomains();
+  const serversApi = useServers();
 
   const emptyDomains = { items: [], total: 0, page: 1, size: 0, pages: 0 };
 
@@ -39,6 +49,41 @@
 
     return items.find(domain => domain.auto) ?? items[0];
   });
+
+  const { data: server } = useLazyAsyncData(
+    () => `application-${props.application.id}-overview-server`,
+    async () => {
+      const { server: item } = await serversApi.get(props.application.serverId);
+
+      return item;
+    },
+    { server: false, watch: [() => props.application.serverId], default: () => null },
+  );
+
+  const primaryEndpoint = computed(() => {
+    const host = server.value?.publicIp;
+    const mappings = props.application.portMappings ?? [];
+    const mapping =
+      mappings.find(item => item.containerPort === props.application.port) ?? mappings[0];
+
+    if (!host || !mapping) {
+      return null;
+    }
+
+    return { label: `${host}:${mapping.hostPort}`, protocol: mapping.protocol };
+  });
+
+  const endpointCopied = ref(false);
+
+  const copyEndpoint = async () => {
+    if (!primaryEndpoint.value) {
+      return;
+    }
+
+    await navigator.clipboard.writeText(primaryEndpoint.value.label);
+    endpointCopied.value = true;
+    setTimeout(() => (endpointCopied.value = false), 2000);
+  };
 
   const domainCopied = ref(false);
 
@@ -312,6 +357,34 @@
         @click="copyDomainUrl"
       >
         <Icon :name="domainCopied ? 'lucide:check' : 'lucide:copy'" class="size-3.5" />
+      </button>
+    </div>
+
+    <div
+      v-else-if="primaryEndpoint"
+      class="flex items-center gap-2.5 rounded-card border border-edge bg-card px-4 py-3"
+    >
+      <Icon name="lucide:plug" class="size-4 shrink-0 text-ink-2" />
+      <a
+        v-if="exposeKind === 'http'"
+        :href="`http://${primaryEndpoint.label}`"
+        target="_blank"
+        rel="noopener noreferrer"
+        class="truncate font-mono text-caption text-ink hover:underline"
+      >
+        {{ primaryEndpoint.label }}
+      </a>
+      <span v-else class="truncate font-mono text-caption text-ink">
+        {{ primaryEndpoint.label }}
+      </span>
+      <Tag>{{ primaryEndpoint.protocol }}</Tag>
+      <button
+        type="button"
+        title="Copy endpoint"
+        class="cursor-pointer rounded-control p-1 text-ink-2 hover:bg-inset hover:text-ink"
+        @click="copyEndpoint"
+      >
+        <Icon :name="endpointCopied ? 'lucide:check' : 'lucide:copy'" class="size-3.5" />
       </button>
     </div>
 
