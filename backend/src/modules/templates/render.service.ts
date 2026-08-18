@@ -33,13 +33,53 @@ const assertAnswersAreDeclared = (template: TemplateManifest, answers: RenderTem
   }
 };
 
-const assertRequiredInputsArePresent = (
-  template: TemplateManifest,
-  values: Record<string, string>,
-) => {
+const throwInputError = (message: string, key: string): never => {
+  const error = new Error(message) as Error & { field?: string };
+
+  error.field = key;
+
+  throw error;
+};
+
+const describeRange = (input: TemplateInput): string => {
+  if (input.min !== undefined && input.max !== undefined) {
+    return `between ${input.min} and ${input.max}`;
+  }
+
+  return input.min !== undefined ? `${input.min} or greater` : `${input.max} or lower`;
+};
+
+const assertInputValuesAreValid = (template: TemplateManifest, values: Record<string, string>) => {
   for (const input of template.inputs) {
-    if (input.required && values[input.key] === undefined) {
-      throw new Error(`Input "${input.key}" is required for template "${template.id}"`);
+    const value = values[input.key];
+
+    if (input.required && value === undefined) {
+      throwInputError(`"${input.label}" is required for template "${template.id}"`, input.key);
+    }
+
+    if (input.must_be_true && value !== 'true') {
+      throwInputError(`"${input.label}" must be accepted to continue`, input.key);
+    }
+
+    if (value === undefined || value === '') {
+      continue;
+    }
+
+    if (input.type === 'number' && (input.min !== undefined || input.max !== undefined)) {
+      const numeric = Number(value);
+
+      const outOfRange =
+        !Number.isFinite(numeric) ||
+        (input.min !== undefined && numeric < input.min) ||
+        (input.max !== undefined && numeric > input.max);
+
+      if (outOfRange) {
+        throwInputError(`"${input.label}" must be ${describeRange(input)}`, input.key);
+      }
+    }
+
+    if (input.type === 'text' && input.pattern && !new RegExp(input.pattern).test(value)) {
+      throwInputError(`"${input.label}" has an invalid value`, input.key);
     }
   }
 
@@ -75,7 +115,7 @@ export const renderTemplate = (
 
   const values = { ...defaults, ...answers };
 
-  assertRequiredInputsArePresent(template, values);
+  assertInputValuesAreValid(template, values);
 
   const env = { ...values, ...contextVariablesOf(context) };
 

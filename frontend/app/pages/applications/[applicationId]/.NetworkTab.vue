@@ -1,31 +1,20 @@
 <script setup lang="ts">
-  import type { Application } from '~/composables/services/useApplications';
-  import { useDomains } from '~/composables/services/useDomains';
+  import type { Status } from '~/components/elements/StatusDot.vue';
+  import type { Application, ApplicationExposeKind } from '~/composables/services/useApplications';
+  import { useApplications } from '~/composables/services/useApplications';
   import { useServers } from '~/composables/services/useServers';
 
-  const props = defineProps<{ application: Application; canManage: boolean }>();
+  const props = defineProps<{
+    application: Application;
+    canManage: boolean;
+    exposeKind: ApplicationExposeKind;
+  }>();
   const emit = defineEmits<{ refresh: [] }>();
 
-  const session = useSessionStore();
-  const domainsApi = useDomains();
   const serversApi = useServers();
+  const applicationsApi = useApplications();
 
-  const emptyDomains = { items: [], total: 0, page: 1, size: 0, pages: 0 };
-
-  const { data: domainsData } = useLazyAsyncData(
-    () => `application-${props.application.id}-network-domains`,
-    () =>
-      session.organizationId
-        ? domainsApi.list({ applicationId: props.application.id })
-        : Promise.resolve(emptyDomains),
-    {
-      server: false,
-      watch: [() => session.organizationId, () => props.application.id],
-      default: () => emptyDomains,
-    },
-  );
-
-  const hasActiveDomain = computed(() => (domainsData.value?.items.length ?? 0) > 0);
+  const isHttp = computed(() => props.exposeKind === 'http');
 
   const { data: server } = useLazyAsyncData(
     () => `application-${props.application.id}-network-server`,
@@ -39,16 +28,61 @@
 
   const portMappings = computed(() => props.application.portMappings ?? []);
 
+  const endpointsTitle = computed(() => (isHttp.value ? 'Reachable without a domain' : 'Endpoint'));
+
+  const { data: reachability } = useLazyAsyncData(
+    () => `application-${props.application.id}-reachability`,
+    async () => {
+      const { mappings } = await applicationsApi.reachability(props.application.id);
+
+      return mappings;
+    },
+    {
+      server: false,
+      watch: [() => props.application.id],
+      default: () => [],
+      immediate: portMappings.value.length > 0,
+    },
+  );
+
+  type ReachabilityStatus = 'responding' | 'blocked' | 'unreachable';
+
+  const STATUS_META: Record<ReachabilityStatus, { dot: Status; label: string }> = {
+    responding: { dot: 'live', label: 'Responding' },
+    blocked: {
+      dot: 'attn',
+      label: 'Port open on the host, blocked from outside — check the provider firewall',
+    },
+    unreachable: { dot: 'failed', label: 'Nothing listening' },
+  };
+
+  const statusOf = (hostPort: number, protocol: string): ReachabilityStatus | null => {
+    const result = reachability.value?.find(
+      entry => entry.hostPort === hostPort && entry.protocol === protocol,
+    );
+
+    if (!result) {
+      return null;
+    }
+
+    if (!result.reachable) {
+      return 'unreachable';
+    }
+
+    return props.application.status === 'running' ? 'responding' : 'blocked';
+  };
+
   const endpoints = computed(() => {
     const host = server.value?.publicIp;
 
-    if (!host || hasActiveDomain.value) {
+    if (!host) {
       return [];
     }
 
     return portMappings.value.map(mapping => ({
       label: `${host}:${mapping.hostPort}`,
       protocol: mapping.protocol,
+      status: statusOf(mapping.hostPort, mapping.protocol),
     }));
   });
 
@@ -67,9 +101,13 @@
 
 <template>
   <div class="flex max-w-205 flex-col gap-4.5">
-    <DomainsCard :application-id="application.id" :can-manage="canManage" />
+    <DomainsCard v-if="isHttp" :application-id="application.id" :can-manage="canManage" />
+    <p v-else class="text-caption text-ink-2">
+      Domains route requests through the HTTP proxy. This application is reached over
+      {{ exposeKind.toUpperCase() }}, which never goes through the proxy.
+    </p>
 
-    <Card v-if="endpoints.length" title="Reachable without a domain" content-class="p-0">
+    <Card v-if="endpoints.length" :title="endpointsTitle" content-class="p-0">
       <Row
         v-for="endpoint in endpoints"
         :key="endpoint.label"
@@ -89,6 +127,11 @@
           />
         </button>
         <Tag>{{ endpoint.protocol }}</Tag>
+        <StatusDot
+          v-if="endpoint.status"
+          :status="STATUS_META[endpoint.status].dot"
+          :title="STATUS_META[endpoint.status].label"
+        />
       </Row>
     </Card>
 

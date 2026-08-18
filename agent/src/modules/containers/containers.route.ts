@@ -14,12 +14,15 @@ import {
   createContainerSchema,
   ExecDTO,
   execSchema,
+  ReachabilityBody,
+  reachabilityBodySchema,
 } from './containers.schema';
 import {
   assertUnprotected,
   isProtectedContainer,
   protectedResourceStatus,
 } from './protection.service';
+import { checkReachability } from './reachability.service';
 
 const { router, get, post, delete: del } = createRouter();
 
@@ -230,6 +233,24 @@ get(
         stop();
       }
     });
+  },
+);
+
+post(
+  '/:id/reachability',
+  containersDocs.reachability,
+  agentAuthMiddleware,
+  validator('param', containerIdParamSchema),
+  validator('json', reachabilityBodySchema),
+  async (c: Context) => {
+    const { id } = c.req.valid('param' as never) as ContainerIdParam;
+    const { port, protocol } = c.req.valid('json' as never) as ReachabilityBody;
+
+    if (!(await containers.inspectContainer(id))) {
+      return c.json({ error: 'Container not found' }, 404);
+    }
+
+    return c.json(await checkReachability(port, protocol));
   },
 );
 

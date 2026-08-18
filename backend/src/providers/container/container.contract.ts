@@ -140,6 +140,12 @@ export type VolumeInfo = {
   protected: boolean;
 };
 
+export type ReachabilityResult = {
+  reachable: boolean;
+  latencyMs?: number;
+  error?: string;
+};
+
 export type ArchiveStream = ReadableStream<Uint8Array>;
 
 export type VolumeFileEntry = {
@@ -157,6 +163,11 @@ export type ContainerProvider = {
   restartContainer: (id: string) => Promise<void>;
   removeContainer: (id: string, removeVolumes?: boolean) => Promise<void>;
   inspectContainer: (id: string) => Promise<ContainerInfo | null>;
+  checkReachability: (
+    id: string,
+    port: number,
+    protocol: 'tcp' | 'udp',
+  ) => Promise<ReachabilityResult>;
   listContainers: (filter?: ContainerFilter) => Promise<ContainerInfo[]>;
   getLogs: (id: string, query?: LogQuery) => Promise<LogEntry[]>;
   streamLogs: (id: string, query?: LogStreamQuery) => AsyncIterable<LogEntry>;

@@ -56,6 +56,13 @@ export const execSchema = z.object({
 
 export type ExecDTO = z.infer<typeof execSchema>;
 
+export const reachabilityBodySchema = z.object({
+  port: z.number().int().min(1).max(65535),
+  protocol: z.enum(['tcp', 'udp']).default('tcp'),
+});
+
+export type ReachabilityBody = z.infer<typeof reachabilityBodySchema>;
+
 export const logQuerySchema = z.object({
   tail: z.coerce.number().int().min(1).max(10000).optional(),
   since: z.string().optional(),

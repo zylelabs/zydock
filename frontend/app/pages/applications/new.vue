@@ -149,6 +149,12 @@
   const templateVersion = ref('');
   const templateMemoryMb = ref('');
 
+  const templateMemoryPlaceholder = computed(() =>
+    selectedTemplate.value?.memoryLimitMb
+      ? `Template declares ${selectedTemplate.value.memoryLimitMb} MB`
+      : 'Default is 512 MB — often too low for this workload',
+  );
+
   const templateVersionsListing = ref<TemplateVersionsListing | null>(null);
   const templateVersionsError = ref('');
 
@@ -505,6 +511,11 @@
       for (const input of selectedTemplate.value.inputs) {
         if (input.required && !templateInputValues[input.key]?.trim()) {
           fieldErrors[`input.${input.key}`] = `Enter ${input.label.toLowerCase()}`;
+          continue;
+        }
+
+        if (input.must_be_true && templateInputValues[input.key] !== 'true') {
+          fieldErrors[`input.${input.key}`] = `You must accept "${input.label}" to continue`;
         }
       }
     }
@@ -662,7 +673,7 @@
               value: templateEndpointPreview.value ?? 'no public IP configured on the server',
             }
           : { label: 'Domain', value: template?.expose.domain ? 'automatic' : 'none' },
-        ...(template?.expose.kind !== 'http' && templateMemoryMb.value.trim()
+        ...(templateMemoryMb.value.trim()
           ? [{ label: 'Memory limit', value: `${templateMemoryMb.value} MB` }]
           : []),
         { label: 'Volumes', value: 'defined in the template’s compose file' },
@@ -895,15 +906,14 @@
                   :inputs="selectedTemplate?.inputs ?? []"
                   :values="templateInputValues"
                   :errors="templateInputError"
-                  :host-port-key="selectedTemplate?.expose.host_port_key"
                   @update:value="(key, value) => (templateInputValues[key] = value)"
                 />
 
                 <Input
-                  v-if="selectedTemplate && selectedTemplate.expose.kind !== 'http'"
+                  v-if="selectedTemplate"
                   v-model="templateMemoryMb"
                   label="Memory limit (MB)"
-                  placeholder="Default is 512 MB — often too low for this workload"
+                  :placeholder="templateMemoryPlaceholder"
                   type="number"
                   mono
                   boxed

@@ -5,6 +5,8 @@ const RESERVED_PREFIX = 'ZYDOCK_';
 
 const KEY_PATTERN = /^[A-Z][A-Z0-9_]*$/;
 
+export const MAX_VERSION_PATTERN_LENGTH = 200;
+
 const isNotReserved = (key: string) => !key.startsWith(RESERVED_PREFIX);
 
 export const TEMPLATE_INPUT_TYPES = ['text', 'password', 'number', 'boolean', 'select'] as const;
@@ -46,10 +48,66 @@ const templateInputSchema = z
     options: z.array(z.string().trim().min(1).max(120)).min(1).max(50).optional(),
     default: z.union([z.string(), z.number(), z.boolean()]).optional(),
     required: z.boolean().default(false),
+    min: z.coerce.number().int().optional(),
+    max: z.coerce.number().int().optional(),
+    pattern: z.string().trim().min(1).max(MAX_VERSION_PATTERN_LENGTH).optional(),
+    help: z.string().trim().min(1).max(300).optional(),
+    must_be_true: z.boolean().default(false),
   })
-  .refine(input => input.type !== 'select' || Boolean(input.options?.length), {
-    message: '"select" inputs require "options"',
-    path: ['options'],
+  .superRefine((input, ctx) => {
+    if (input.type === 'select' && !input.options?.length) {
+      ctx.addIssue({
+        code: z.ZodIssueCode.custom,
+        message: '"select" inputs require "options"',
+        path: ['options'],
+      });
+    }
+
+    (['min', 'max'] as const).forEach(field => {
+      if (input[field] !== undefined && input.type !== 'number') {
+        ctx.addIssue({
+          code: z.ZodIssueCode.custom,
+          message: `"${field}" is only allowed when "type" is "number"`,
+          path: [field],
+        });
+      }
+    });
+
+    if (input.min !== undefined && input.max !== undefined && input.min > input.max) {
+      ctx.addIssue({
+        code: z.ZodIssueCode.custom,
+        message: '"min" cannot be greater than "max"',
+        path: ['min'],
+      });
+    }
+
+    if (input.pattern !== undefined) {
+      if (input.type !== 'text') {
+        ctx.addIssue({
+          code: z.ZodIssueCode.custom,
+          message: '"pattern" is only allowed when "type" is "text"',
+          path: ['pattern'],
+        });
+      } else {
+        try {
+          new RegExp(input.pattern);
+        } catch {
+          ctx.addIssue({
+            code: z.ZodIssueCode.custom,
+            message: '"pattern" is not a valid regular expression',
+            path: ['pattern'],
+          });
+        }
+      }
+    }
+
+    if (input.must_be_true && input.type !== 'boolean') {
+      ctx.addIssue({
+        code: z.ZodIssueCode.custom,
+        message: '"must_be_true" is only allowed when "type" is "boolean"',
+        path: ['must_be_true'],
+      });
+    }
   });
 
 const templateSecretSchema = z.object({
@@ -68,6 +126,7 @@ const templateExposeSchema = z
     kind: z.enum(TEMPLATE_EXPOSE_KINDS).default('http'),
     host_port_key: templateKeySchema.optional(),
     domain: z.boolean().default(true),
+    startup_timeout_seconds: z.coerce.number().int().min(30).max(3600).optional(),
   })
   .superRefine((expose, ctx) => {
     if (expose.kind === 'http' && expose.host_port_key !== undefined) {
@@ -116,8 +175,6 @@ const templateVersionEntrySchema = z.object({
   value: z.string().trim().min(1).max(120),
   label: z.string().trim().min(1).max(120).optional(),
 });
-
-export const MAX_VERSION_PATTERN_LENGTH = 200;
 
 export const MAX_VERSION_TAG_LENGTH = 128;
 

@@ -124,6 +124,14 @@ export interface ApplicationServiceStatus {
   cpuPercent?: number;
 }
 
+export interface ApplicationReachability {
+  hostPort: number;
+  protocol: 'tcp' | 'udp';
+  reachable: boolean;
+  latencyMs?: number;
+  error?: string;
+}
+
 export type ComposeDiffLineType = 'context' | 'added' | 'removed';
 
 export interface ComposeDiffLine {
@@ -339,6 +347,11 @@ export const useApplications = () => {
   const restartService = (applicationId: string, service: string) =>
     api.post<{ message: string }>(`${base()}/${applicationId}/services/${service}/restart`);
 
+  const reachability = (applicationId: string) =>
+    api.get<{ mappings: ApplicationReachability[]; degraded?: { reason: string } }>(
+      `${base()}/${applicationId}/reachability`,
+    );
+
   return {
     list,
     get,
@@ -360,5 +373,6 @@ export const useApplications = () => {
     services,
     serviceStatus,
     restartService,
+    reachability,
   };
 };

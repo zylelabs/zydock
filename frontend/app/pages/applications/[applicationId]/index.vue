@@ -5,6 +5,7 @@
   import SettingsTab from './.SettingsTab.vue';
   import ComposeTab from './.ComposeTab.vue';
   import {
+    applicationExposeKind,
     applicationStatusDot,
     useApplications,
     type ApplicationStatus,
@@ -92,6 +93,10 @@
     { server: false, watch: [() => application.value?.serverId], default: () => null },
   );
 
+  const exposeKind = computed(() =>
+    application.value ? applicationExposeKind(application.value) : 'http',
+  );
+
   const applicationUrl = computed(() => {
     const domains = domainsData.value?.items ?? [];
     const domain = domains.find(item => item.status === 'active') ?? domains[0];
@@ -114,7 +119,7 @@
     const label = `${host}:${mapping.hostPort}`;
 
     return {
-      href: mapping.protocol === 'tcp' ? `http://${label}` : undefined,
+      href: exposeKind.value === 'http' ? `http://${label}` : undefined,
       label,
       protocol: mapping.protocol,
       local: true,
@@ -365,12 +370,14 @@
       v-if="activeTab === 'overview'"
       :application="application"
       :can-manage="canManage"
+      :expose-kind="exposeKind"
       @refresh="refresh"
     />
     <NetworkTab
       v-else-if="activeTab === 'network'"
       :application="application"
       :can-manage="canManage"
+      :expose-kind="exposeKind"
       @refresh="refresh"
     />
     <VariablesTab

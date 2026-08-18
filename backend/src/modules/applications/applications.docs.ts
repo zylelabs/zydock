@@ -367,6 +367,42 @@ export const applicationsDocs = {
       404: errorRes('Application not found.'),
     },
   },
+  reachability: {
+    tags: ['Applications'],
+    summary: "Probe an application's published ports from the host",
+    description:
+      'Opens a TCP connection (or sends a UDP datagram) to each published port from the agent ' +
+      'host. Only affirms one thing on its own: whether nothing is listening. 404 when the ' +
+      'application has no published ports. Degrades to `{ mappings: [], degraded: { reason } }` ' +
+      'with a 200 whenever the agent is unreachable or the server has no agent yet.',
+    security: bearerOrApiKeyAuth,
+    responses: {
+      200: jsonRes('Reachability per port mapping.', {
+        type: 'object',
+        properties: {
+          mappings: {
+            type: 'array',
+            items: {
+              type: 'object',
+              properties: {
+                hostPort: { type: 'number' },
+                protocol: { type: 'string', enum: ['tcp', 'udp'] },
+                reachable: { type: 'boolean' },
+                latencyMs: { type: 'number' },
+                error: { type: 'string' },
+              },
+            },
+          },
+          degraded: {
+            type: 'object',
+            nullable: true,
+            properties: { reason: { type: 'string' } },
+          },
+        },
+      }),
+      404: errorRes('Application not found or has no published ports.'),
+    },
+  },
   servicesRestart: {
     tags: ['Applications'],
     summary: 'Restart a single service of a compose application',

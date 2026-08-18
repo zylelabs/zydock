@@ -76,6 +76,7 @@ const applicationSchema = new Schema(
         service: { type: String, trim: true },
         port: { type: Number },
         kind: { type: String, enum: ['http', 'tcp', 'udp'], default: 'http' },
+        startupTimeoutSeconds: { type: Number },
       },
     },
     origin: {

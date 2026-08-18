@@ -13,6 +13,11 @@ export interface TemplateInput {
   options?: string[];
   default?: string | number | boolean;
   required: boolean;
+  min?: number;
+  max?: number;
+  pattern?: string;
+  help?: string;
+  must_be_true?: boolean;
 }
 
 export interface TemplateSecret {
@@ -90,6 +95,7 @@ export interface Template {
   inputs: TemplateInput[];
   secrets: TemplateSecret[];
   versions?: TemplateVersions;
+  memoryLimitMb?: number;
 }
 
 export type TemplateFilter = {

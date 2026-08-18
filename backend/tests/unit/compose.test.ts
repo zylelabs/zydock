@@ -292,7 +292,7 @@ describe('renderOverrideDocument', () => {
     restartPolicy: 'unless-stopped',
   } as unknown as Application;
 
-  const serviceOf = (name: string, hasMemoryLimit = false) => ({ name, hasMemoryLimit });
+  const serviceOf = (name: string, memoryLimit?: string) => ({ name, memoryLimit });
 
   test('injects Zydock labels, network and restart policy for every service', () => {
     const output = renderOverrideDocument(
@@ -340,7 +340,7 @@ describe('renderOverrideDocument', () => {
   });
 
   test('does not override a memory limit the service already declares', () => {
-    const output = renderOverrideDocument([serviceOf('app', true)], application, 'deployment-1');
+    const output = renderOverrideDocument([serviceOf('app', '4G')], application, 'deployment-1');
     const document = parse(output) as {
       services: Record<string, { deploy?: { resources?: { limits?: { memory?: string } } } }>;
     };
@@ -350,7 +350,7 @@ describe('renderOverrideDocument', () => {
 
   test('application-level resources take precedence over both defaults', () => {
     const output = renderOverrideDocument(
-      [serviceOf('app', true)],
+      [serviceOf('app', '4G')],
       { ...application, resources: { memoryMb: 1024, cpus: 2 } } as unknown as Application,
       'deployment-1',
     );

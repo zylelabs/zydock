@@ -14,6 +14,7 @@ import type {
   LogQuery,
   LogStreamQuery,
   NetworkInfo,
+  ReachabilityResult,
   VolumeFileEntry,
   VolumeInfo,
 } from './container.contract';
@@ -73,6 +74,12 @@ export const createRemoteContainerProvider = (
 
       return (await response.json()) as ContainerInfo;
     },
+
+    checkReachability: (id, port, protocol) =>
+      json<ReachabilityResult>(`${containerPath(id)}/reachability`, {
+        method: 'POST',
+        body: { port, protocol },
+      }),
 
     listContainers: (filter: ContainerFilter = {}) => {
       const query = searchParams({ state: filter.state, namePrefix: filter.namePrefix });

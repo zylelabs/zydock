@@ -29,11 +29,15 @@ const dummyValueFor = (field: TemplateInput | TemplateSecret): string => {
   }
 
   if (field.type === 'boolean') {
-    return 'false';
+    return field.must_be_true ? 'true' : 'false';
+  }
+
+  if (field.default !== undefined && String(field.default).length > 0) {
+    return String(field.default);
   }
 
   if (field.type === 'number') {
-    return '10000';
+    return String(field.min ?? Math.min(10000, field.max ?? 10000));
   }
 
   return field.options?.[0] ?? 'value';
