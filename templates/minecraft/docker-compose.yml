@@ -14,6 +14,12 @@ services:
       ENABLE_RCON: 'false'
     volumes:
       - minecraft-data:/data
+    healthcheck:
+      test: ['CMD', 'mc-health']
+      interval: 10s
+      timeout: 5s
+      retries: 3
+      start_period: 160s
     deploy:
       resources:
         limits:
