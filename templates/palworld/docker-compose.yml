@@ -1,0 +1,32 @@
+services:
+  app:
+    image: thijsvanloef/palworld-server-docker:${VERSION}
+    stop_grace_period: 30s
+    ports:
+      - '${HOST_PORT}:8211/udp'
+    environment:
+      PORT: 8211
+      PLAYERS: ${PLAYERS}
+      SERVER_NAME: ${SERVER_NAME}
+      SERVER_DESCRIPTION: ${SERVER_DESCRIPTION}
+      SERVER_PASSWORD: ${SERVER_PASSWORD}
+      ADMIN_PASSWORD: ${ADMIN_PASSWORD}
+      MULTITHREADING: ${MULTITHREADING}
+      UPDATE_ON_BOOT: ${UPDATE_ON_BOOT}
+      COMMUNITY: 'false'
+      RCON_ENABLED: 'false'
+    volumes:
+      - palworld-data:/palworld
+    healthcheck:
+      test: ['CMD-SHELL', 'pgrep PalServer-Linux > /dev/null']
+      interval: 15s
+      timeout: 5s
+      retries: 3
+      start_period: 600s
+    deploy:
+      resources:
+        limits:
+          memory: 16G
+
+volumes:
+  palworld-data:

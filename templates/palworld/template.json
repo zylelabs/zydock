@@ -1,0 +1,96 @@
+{
+  "id": "palworld",
+  "version": 1,
+  "name": "Palworld Server",
+  "tagline": "Dedicated Palworld server reachable over UDP, kept updated from SteamCMD",
+  "category": "games",
+  "tags": ["game-server", "palworld", "steam"],
+  "website": "https://github.com/thijsvanloef/palworld-server-docker",
+  "documentation": "https://palworld-server-docker.loef.dev/",
+  "license": "MIT (image) — Palworld itself is distributed by Pocketpair through Steam",
+  "author": "zydock",
+  "origin": "official",
+  "docker_compose": "docker-compose.yml",
+  "expose": {
+    "service": "app",
+    "port": 8211,
+    "kind": "udp",
+    "host_port_key": "HOST_PORT",
+    "domain": false,
+    "startup_timeout_seconds": 1800
+  },
+  "versions": {
+    "key": "VERSION",
+    "default": "v2.7.2",
+    "available": [
+      { "value": "v2.7.2", "label": "2.7.2 — pinned patch, the safest choice" },
+      { "value": "v2.7", "label": "2.7 — follows the newest 2.7 patch" },
+      { "value": "v2", "label": "2 — follows the newest 2.x release" },
+      { "value": "v1", "label": "1 — legacy, no longer receiving fixes" }
+    ],
+    "registry": {
+      "include": "^v\\d+(\\.\\d+){0,2}$",
+      "limit": 50
+    }
+  },
+  "inputs": [
+    {
+      "key": "HOST_PORT",
+      "label": "Server port",
+      "type": "number",
+      "default": 8211,
+      "required": true,
+      "min": 1024,
+      "max": 65535
+    },
+    {
+      "key": "SERVER_NAME",
+      "label": "Server name",
+      "type": "text",
+      "default": "Palworld Server",
+      "required": true
+    },
+    {
+      "key": "SERVER_DESCRIPTION",
+      "label": "Server description (optional)",
+      "type": "text",
+      "default": "",
+      "required": false
+    },
+    {
+      "key": "SERVER_PASSWORD",
+      "label": "Join password (optional)",
+      "type": "password",
+      "default": "",
+      "required": false,
+      "help": "Players type this password to join. Leave it empty to let anyone with the address connect."
+    },
+    {
+      "key": "PLAYERS",
+      "label": "Maximum players",
+      "type": "number",
+      "default": 16,
+      "required": true,
+      "min": 1,
+      "max": 32,
+      "help": "Palworld supports up to 32 players, and each one costs memory. Keep it near what the application memory limit can carry."
+    },
+    {
+      "key": "MULTITHREADING",
+      "label": "Enable multithreading",
+      "type": "boolean",
+      "default": true,
+      "required": true
+    },
+    {
+      "key": "UPDATE_ON_BOOT",
+      "label": "Check for a game update on every start",
+      "type": "boolean",
+      "default": true,
+      "required": true,
+      "help": "Keeps the server on the newest build, at the cost of a SteamCMD download check before every start."
+    }
+  ],
+  "secrets": [{ "key": "ADMIN_PASSWORD", "generate": "password" }],
+  "databases": []
+}
