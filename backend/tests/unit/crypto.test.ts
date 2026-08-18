@@ -22,5 +22,11 @@ describe('crypto (AES-256-GCM)', () => {
 
   test('a malformed payload is rejected', () => {
     expect(() => decryptSecret('not-a-valid-payload')).toThrow('Malformed encrypted payload');
+    expect(() => decryptSecret('')).toThrow('Malformed encrypted payload');
+    expect(() => decryptSecret('iv.tag')).toThrow('Malformed encrypted payload');
+  });
+
+  test('a round-trip recovers an empty plaintext', () => {
+    expect(decryptSecret(encryptSecret(''))).toBe('');
   });
 });
