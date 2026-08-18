@@ -243,6 +243,17 @@ describe('listApplicationServices', () => {
 });
 
 describe('secretValuesOf / maskSecrets', () => {
+  test('skips a secret it cannot decrypt, so masking never breaks the caller', () => {
+    const application = {
+      variables: [
+        { key: 'BROKEN', value: 'not-an-encrypted-payload', secret: true },
+        { key: 'GOOD', value: encryptSecret('sup3r-secret'), secret: true },
+      ],
+    } as unknown as Application;
+
+    expect(secretValuesOf(application)).toEqual(['sup3r-secret']);
+  });
+
   test('secretValuesOf only decrypts variables flagged as secret', () => {
     const application = {
       variables: [

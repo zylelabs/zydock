@@ -1,6 +1,7 @@
 import { parse } from 'yaml';
 import { resolveComposeProvider } from '../../providers/compose';
 import { errorMessage, escapeRegex } from '../../utils';
+import { decryptSecret } from '../../utils/crypto';
 import { decryptVariables } from '../applications/application.service';
 import { findDatabasesOfApplication } from '../databases/database.service';
 import type { DatabaseEngineName } from '../databases/database.schema';
@@ -243,9 +244,17 @@ export const renderEnvFile = (application: Application): string =>
     .join('\n');
 
 export const secretValuesOf = (application: Application): string[] =>
-  decryptVariables(application.variables)
-    .filter(variable => variable.secret && variable.value.length > 0)
-    .map(variable => variable.value);
+  application.variables
+    .filter(variable => variable.secret)
+    .flatMap(variable => {
+      try {
+        const value = decryptSecret(variable.value);
+
+        return value.length > 0 ? [value] : [];
+      } catch {
+        return [];
+      }
+    });
 
 export const maskSecrets = (text: string, secretValues: string[]): string =>
   secretValues.reduce(

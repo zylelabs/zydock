@@ -22,7 +22,7 @@ export const encryptSecret = (plaintext: string) => {
 export const decryptSecret = (payload: string) => {
   const [iv, tag, encrypted] = payload.split('.');
 
-  if (!iv || !tag || !encrypted) {
+  if (!iv || !tag || encrypted === undefined) {
     throw new Error('Malformed encrypted payload');
   }
 
