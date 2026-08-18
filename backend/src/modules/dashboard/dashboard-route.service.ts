@@ -57,6 +57,7 @@ export const applyDashboardRoutes = async (domain: string) => {
     upstreams: [upstreamOf(config.backendUrl)],
   });
 
+  await proxy.removeRoute(DASHBOARD_ROUTE_ID);
   await proxy.upsertRoute({
     id: DASHBOARD_ROUTE_ID,
     isDefault: true,

@@ -166,7 +166,8 @@ describe('dashboard — applyDashboardRoutes', () => {
 
     await withFetch(upsertOkTrackingOrder(calls), () => applyDashboardRoutes(''));
 
-    const methodsOf = (path: string) => calls.find(call => call.path.endsWith(path))?.method;
+    const methodsOf = (path: string) =>
+      [...calls].reverse().find(call => call.path.endsWith(path))?.method;
 
     expect(methodsOf('/proxy/routes/system-dashboard-websocket')).toBe('PUT');
     expect(methodsOf('/proxy/routes/system-dashboard-console')).toBe('PUT');
@@ -174,6 +175,23 @@ describe('dashboard — applyDashboardRoutes', () => {
     expect(methodsOf('/proxy/routes/system-dashboard-domain-websocket')).toBe('DELETE');
     expect(methodsOf('/proxy/routes/system-dashboard-domain-console')).toBe('DELETE');
     expect(methodsOf('/proxy/routes/system-dashboard-domain')).toBe('DELETE');
+  });
+
+  test('the catch-all is removed and recreated so it always lands after the prefixed routes, even on an upgrade where it already existed', async () => {
+    const calls: { path: string; method: string }[] = [];
+
+    await withFetch(upsertOkTrackingOrder(calls), () => applyDashboardRoutes(''));
+
+    const indexOf = (path: string, method: string) =>
+      calls.findIndex(call => call.path.endsWith(path) && call.method === method);
+
+    const deleteIndex = indexOf('/proxy/routes/system-dashboard', 'DELETE');
+    const putIndex = indexOf('/proxy/routes/system-dashboard', 'PUT');
+    const consoleIndex = indexOf('/proxy/routes/system-dashboard-console', 'PUT');
+
+    expect(deleteIndex).toBeGreaterThanOrEqual(0);
+    expect(putIndex).toBeGreaterThan(deleteIndex);
+    expect(deleteIndex).toBeGreaterThan(consoleIndex);
   });
 
   test('with a domain, publishes all six routes with the websocket and console routes of each group before the catch-all', async () => {
