@@ -21,6 +21,8 @@ const templateSchema = {
       properties: {
         service: { type: 'string' },
         port: { type: 'integer' },
+        kind: { type: 'string', enum: ['http', 'tcp', 'udp'] },
+        host_port_key: { type: 'string' },
         domain: { type: 'boolean' },
       },
     },
@@ -64,11 +66,12 @@ export const templatesDocs = {
   list: {
     tags: ['Templates'],
     summary: 'List the marketplace catalog',
-    description: 'Read-only, embedded catalog. Filters by free-text search and category.',
+    description: 'Read-only, embedded catalog. Filters by free-text search, category and origin.',
     security: bearerOrApiKeyAuth,
     parameters: [
       { name: 'search', in: 'query', schema: { type: 'string' } },
       { name: 'category', in: 'query', schema: { type: 'string' } },
+      { name: 'origin', in: 'query', schema: { type: 'string', enum: ['official', 'community'] } },
     ],
     responses: { 200: jsonRes('Templates.', paginatedSchema(templateSchema)) },
   },
@@ -79,6 +82,19 @@ export const templatesDocs = {
     responses: {
       200: jsonRes('Template.', templateResponse),
       404: errorRes('Template not found.'),
+    },
+  },
+  icon: {
+    tags: ['Templates'],
+    summary: 'Read a template icon',
+    description: 'Serves the icon file declared in the template manifest, if any.',
+    security: bearerOrApiKeyAuth,
+    responses: {
+      200: {
+        description: 'Icon file.',
+        content: { 'image/svg+xml': { schema: { type: 'string', format: 'binary' } } },
+      },
+      404: errorRes('Template not found or has no icon.'),
     },
   },
   versions: {

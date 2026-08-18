@@ -34,6 +34,7 @@ import queueRoute from './queue/queue.route';
 import heartbeatRoute from './servers/heartbeat.route';
 import serversRoute from './servers/servers.route';
 import templatesRoute from './templates/templates.route';
+import templateSourcesRoute from './templates/template-sources.route';
 import updatesRoute from './updates/updates.route';
 import usersRoute from './users/users.route';
 import websocketRoute from './websocket/websocket.route';
@@ -85,6 +86,7 @@ route('/organizations/:organizationId/backups', backupsRoute);
 route('/queue', queueRoute);
 
 route('/templates', templatesRoute);
+route('/template-sources', templateSourcesRoute);
 
 route('/updates', updatesRoute);
 

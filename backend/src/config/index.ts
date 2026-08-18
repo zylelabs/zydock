@@ -166,6 +166,8 @@ export default {
   },
   templates: {
     catalogPath: readString('TEMPLATES_CATALOG_PATH', '../templates'),
+    sourcesCachePath: readString('TEMPLATE_SOURCES_CACHE_PATH', '../template-sources-cache'),
+    sourceCloneTimeoutMs: readNumber('TEMPLATE_SOURCES_CLONE_TIMEOUT_MS', 30000),
   },
   providers: {
     container: { runtime: readString('CONTAINER_RUNTIME', 'docker') },

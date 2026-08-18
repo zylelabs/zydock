@@ -75,6 +75,7 @@ const applicationSchema = new Schema(
       expose: {
         service: { type: String, trim: true },
         port: { type: Number },
+        kind: { type: String, enum: ['http', 'tcp', 'udp'], default: 'http' },
       },
     },
     origin: {

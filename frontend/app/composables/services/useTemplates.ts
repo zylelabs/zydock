@@ -20,9 +20,13 @@ export interface TemplateSecret {
   generate: 'password' | 'hex32' | 'uuid';
 }
 
+export type TemplateExposeKind = 'http' | 'tcp' | 'udp';
+
 export interface TemplateExpose {
   service: string;
   port: number;
+  kind: TemplateExposeKind;
+  host_port_key?: string;
   domain: boolean;
 }
 
@@ -91,6 +95,7 @@ export interface Template {
 export type TemplateFilter = {
   search?: string;
   category?: string;
+  origin?: TemplateOrigin;
   page?: number;
   size?: number;
 };
@@ -103,6 +108,7 @@ export interface DeployTemplateBody {
   inputs: Record<string, string>;
   version?: string;
   deployNow?: boolean;
+  resources?: { cpus?: number; memoryMb?: number };
 }
 
 export const mergeVersionOptions = (
@@ -145,6 +151,7 @@ export const useTemplates = () => {
   const list = (filter: TemplateFilter = {}) =>
     api.get<Paginated<Template>>(base(), { query: { size: 100, ...filter } });
   const get = (templateId: string) => api.get<{ template: Template }>(`${base()}/${templateId}`);
+  const icon = (templateId: string) => api.get<Blob>(`${base()}/${templateId}/icon`);
   const deploy = (templateId: string, body: DeployTemplateBody) =>
     api.post<{ application: Application; deployment?: { id: string } }>(
       `${base()}/${templateId}/deploy`,
@@ -153,5 +160,5 @@ export const useTemplates = () => {
   const listVersions = (templateId: string, search?: string) =>
     api.get<TemplateVersionsListing>(`${base()}/${templateId}/versions`, { query: { search } });
 
-  return { list, get, deploy, listVersions };
+  return { list, get, icon, deploy, listVersions };
 };

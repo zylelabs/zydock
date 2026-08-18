@@ -11,7 +11,7 @@
     'select-compose': [];
   }>();
 
-  const { list: listTemplates } = useTemplates();
+  const { list: listTemplates, icon: getTemplateIcon } = useTemplates();
 
   const { data, status, error } = useLazyAsyncData('templates-catalog', () => listTemplates(), {
     server: false,
@@ -22,18 +22,55 @@
     () => data.value?.items.filter(template => !template.deprecated) ?? [],
   );
 
+  const iconUrls = reactive<Record<string, string>>({});
+
+  watch(
+    templates,
+    list => {
+      for (const template of list) {
+        if (!template.icon || iconUrls[template.id]) {
+          continue;
+        }
+
+        getTemplateIcon(template.id)
+          .then(blob => {
+            iconUrls[template.id] = URL.createObjectURL(blob);
+          })
+          .catch(() => {});
+      }
+    },
+    { immediate: true },
+  );
+
+  onBeforeUnmount(() => {
+    for (const url of Object.values(iconUrls)) {
+      URL.revokeObjectURL(url);
+    }
+  });
+
   const categories = computed(() => {
     const unique = [...new Set(templates.value.map(template => template.category))];
 
     return [{ value: '', label: 'All' }, ...unique.map(value => ({ value, label: value }))];
   });
 
+  const origins = [
+    { value: '', label: 'All' },
+    { value: 'official', label: 'Official' },
+    { value: 'community', label: 'Community' },
+  ] as const;
+
   const search = ref('');
   const activeCategory = ref('');
+  const activeOrigin = ref('');
 
   const visibleTemplates = computed(() =>
     templates.value.filter(template => {
       if (activeCategory.value && template.category !== activeCategory.value) {
+        return false;
+      }
+
+      if (activeOrigin.value && template.origin !== activeOrigin.value) {
         return false;
       }
 
@@ -86,6 +123,23 @@
       </button>
     </div>
 
+    <div class="flex flex-wrap gap-1.5 border-t border-hairline px-4.25 py-2.75">
+      <button
+        v-for="origin in origins"
+        :key="origin.value"
+        type="button"
+        class="cursor-pointer rounded-full border px-2.75 py-1 text-caption transition-colors"
+        :class="
+          activeOrigin === origin.value
+            ? 'border-accent bg-accent-soft/15 text-accent'
+            : 'border-edge text-ink-2 hover:bg-inset'
+        "
+        @click="activeOrigin = origin.value"
+      >
+        {{ origin.label }}
+      </button>
+    </div>
+
     <div class="max-h-125 overflow-y-auto border-t border-hairline p-3">
       <div v-if="status === 'pending'" class="grid grid-cols-2 gap-3">
         <SkeletonCard v-for="index in 4" :key="index" :rows="2" />
@@ -112,14 +166,27 @@
         >
           <div class="flex items-center gap-2.5">
             <div
-              class="flex size-6 shrink-0 items-center justify-center rounded-control bg-inset text-ink-2"
+              class="flex size-6 shrink-0 items-center justify-center overflow-hidden rounded-control bg-inset text-ink-2"
             >
-              <Icon name="lucide:box" size="14" />
+              <img
+                v-if="iconUrls[template.id]"
+                :src="iconUrls[template.id]"
+                alt=""
+                class="size-full object-contain"
+              />
+              <Icon v-else name="lucide:box" size="14" />
             </div>
             <div class="min-w-0 flex-1 truncate text-body font-semibold text-ink">
               {{ template.name }}
             </div>
-            <Tag :color="template.origin === 'official' ? 'live' : 'default'">
+            <Tag
+              :color="template.origin === 'official' ? 'live' : 'default'"
+              :title="
+                template.origin === 'community'
+                  ? 'Community template: not audited by the Zydock team.'
+                  : undefined
+              "
+            >
               {{ template.origin }}
             </Tag>
           </div>

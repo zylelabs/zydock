@@ -78,9 +78,12 @@ export interface ApplicationResources {
 
 export type ApplicationSource = 'git' | 'compose';
 
+export type ApplicationExposeKind = 'http' | 'tcp' | 'udp';
+
 export interface ApplicationComposeExpose {
   service: string;
   port: number;
+  kind?: ApplicationExposeKind;
 }
 
 export interface ApplicationCompose {
@@ -174,6 +177,9 @@ export interface Application {
   createdAt: string;
   updatedAt: string;
 }
+
+export const applicationExposeKind = (application: Application): ApplicationExposeKind =>
+  application.compose?.expose.kind ?? 'http';
 
 export type CreateApplicationBody =
   | {

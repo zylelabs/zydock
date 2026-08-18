@@ -69,6 +69,12 @@ export default {
   allowSystemContainerRemoval: readBoolean('ALLOW_SYSTEM_CONTAINER_REMOVAL', false),
   installPath: readString('ZYDOCK_INSTALL_DIR', '/data/zydock'),
   updaterImage: readString('UPDATER_IMAGE', 'docker:cli'),
+  files: {
+    maxUploadBytes: readNumber('FILES_MAX_UPLOAD_BYTES', 500 * 1024 * 1024),
+    maxReadAsTextBytes: readNumber('FILES_MAX_READ_AS_TEXT_BYTES', 2 * 1024 * 1024),
+    maxListEntries: readNumber('FILES_MAX_LIST_ENTRIES', 1000),
+    maxPathDepth: readNumber('FILES_MAX_PATH_DEPTH', 16),
+  },
   proxy: {
     adminUrl: readString('CADDY_ADMIN_URL', 'http://127.0.0.1:2019'),
     httpsHost: readString('PROXY_HTTPS_HOST', '127.0.0.1'),

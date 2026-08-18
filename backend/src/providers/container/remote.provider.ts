@@ -14,6 +14,7 @@ import type {
   LogQuery,
   LogStreamQuery,
   NetworkInfo,
+  VolumeFileEntry,
   VolumeInfo,
 } from './container.contract';
 
@@ -23,6 +24,8 @@ export const createRemoteContainerProvider = (
   const { send, json, discard } = createAgentClient(connection);
 
   const containerPath = (id: string) => `/containers/${encodeURIComponent(id)}`;
+
+  const volumeFilesPath = (name: string) => `/volumes/${encodeURIComponent(name)}/files`;
 
   const archive = async (path: string, body?: unknown): Promise<ArchiveStream> => {
     const response = await send(path, { method: 'POST', body, streamed: true });
@@ -195,5 +198,35 @@ export const createRemoteContainerProvider = (
         streamed: true,
       });
     },
+
+    listVolumeFiles: (name, path) =>
+      json<VolumeFileEntry[]>(volumeFilesPath(name), { query: searchParams({ path }) }),
+
+    readVolumeFile: async (name, path) => {
+      const response = await send(`${volumeFilesPath(name)}/content`, {
+        query: searchParams({ path }),
+        streamed: true,
+      });
+
+      if (!response.body) {
+        throw new Error(`Agent of server ${connection.serverId} answered with no file content`);
+      }
+
+      return response.body;
+    },
+
+    writeVolumeFile: (name, path, stream) =>
+      discard(`${volumeFilesPath(name)}/content`, {
+        method: 'PUT',
+        query: searchParams({ path }),
+        raw: stream,
+        streamed: true,
+      }),
+
+    deleteVolumePath: (name, path) =>
+      discard(volumeFilesPath(name), { method: 'DELETE', query: searchParams({ path }) }),
+
+    createVolumeDirectory: (name, path) =>
+      discard(`${volumeFilesPath(name)}/directory`, { method: 'POST', body: { path } }),
   };
 };

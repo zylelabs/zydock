@@ -12,9 +12,15 @@ import {
   updateVariableValue,
 } from '../applications/application.service';
 import type { CreateApplicationDTO } from '../applications/application.schema';
-import { findHostPortConflict } from '../applications/port-guard.service';
+import { findHostPortConflict, type HostPortConflict } from '../applications/port-guard.service';
 import { registryReferenceOf, validateComposeSecurity } from '../compose/compose.schema';
-import { parseComposeDocument, publishedPortsOf } from '../compose/compose.service';
+import {
+  applicationPortMappingsOf,
+  applicationVolumesOf,
+  parseComposeDocument,
+  publishedPortsOf,
+  resolveComposeVariables,
+} from '../compose/compose.service';
 import { ensureAutoDomain } from '../domains/auto-domain.service';
 import {
   findDatabasesOfApplication,
@@ -22,6 +28,7 @@ import {
   unlinkComposeDatabasesOfServices,
 } from '../databases/database.service';
 import { enqueueDeployment } from '../deployments/pipeline.service';
+import { containerNameOf } from '../deployments/naming';
 import { findServerById } from '../servers/server.service';
 import { allTemplates, repositoryForVersions } from './catalog.service';
 import { parseEnvContent, renderTemplate, type RenderTemplateContext } from './render.service';
@@ -33,8 +40,43 @@ import {
 import type {
   DeployTemplateDTO,
   ListTemplatesQuery,
+  TemplateOrigin,
   TemplateSecretGenerator,
 } from './template.schema';
+
+const parseRenderedCompose = (composeYaml: string, env: string): ParsedCompose =>
+  parseComposeDocument(
+    resolveComposeVariables(
+      composeYaml,
+      Object.fromEntries(parseEnvContent(env).map(({ key, value }) => [key, value])),
+    ),
+  );
+
+const hostPortInputKeyOf = (
+  template: Template,
+  port: number,
+  values: Record<string, string>,
+): string | undefined => {
+  const { host_port_key: hostPortKey } = template.expose;
+
+  if (!hostPortKey) {
+    return undefined;
+  }
+
+  return Number(values[hostPortKey]) === port ? hostPortKey : undefined;
+};
+
+const throwHostPortConflict = (conflict: HostPortConflict, field?: string): never => {
+  const error = new Error(
+    `Host port ${conflict.port} is already in use by ${conflict.owner}`,
+  ) as Error & { field?: string };
+
+  if (field) {
+    error.field = field;
+  }
+
+  throw error;
+};
 
 export const findTemplateById = (templateId: string): Template | undefined =>
   allTemplates().find(template => template.id === templateId);
@@ -56,9 +98,13 @@ const matchesSearch = (template: Template, search?: string) => {
 const matchesCategory = (template: Template, category?: string) =>
   !category || template.category === category;
 
+const matchesOrigin = (template: Template, origin?: TemplateOrigin) =>
+  !origin || template.origin === origin;
+
 export const listTemplates = ({
   search,
   category,
+  origin,
   page,
   size,
 }: ListTemplatesQuery & { page: number; size: number }) => {
@@ -66,7 +112,8 @@ export const listTemplates = ({
     template =>
       !template.deprecated &&
       matchesSearch(template, search) &&
-      matchesCategory(template, category),
+      matchesCategory(template, category) &&
+      matchesOrigin(template, origin),
   );
 
   const skip = (page - 1) * size;
@@ -598,8 +645,9 @@ export const buildTemplateUpdatePreview = async (
   preview.expose = {
     changed:
       application.compose?.expose.service !== template.expose.service ||
-      application.compose?.expose.port !== template.expose.port,
-    current: application.compose?.expose ?? { service: '', port: 0 },
+      application.compose?.expose.port !== template.expose.port ||
+      application.compose?.expose.kind !== template.expose.kind,
+    current: application.compose?.expose ?? { service: '', port: 0, kind: 'http' },
     next: template.expose,
   };
 
@@ -728,14 +776,16 @@ export const applyTemplateUpdate = async (
 
   validateComposeSecurity(parsed);
 
+  const rendered = parseRenderedCompose(composeYaml, env);
+
   const conflict = await findHostPortConflict(
     String(application.serverId),
-    publishedPortsOf(parsed),
+    publishedPortsOf(rendered),
     String(application._id),
   );
 
   if (conflict) {
-    throw new Error(`Host port ${conflict.port} is already in use by ${conflict.owner}`);
+    throwHostPortConflict(conflict, hostPortInputKeyOf(template, conflict.port, answers));
   }
 
   const variables = parseEnvContent(env).map(({ key, value }) => ({
@@ -768,9 +818,15 @@ export const applyTemplateUpdate = async (
     await updateTemplateApplication(String(application._id), {
       compose: {
         content: composeYaml,
-        expose: { service: template.expose.service, port: template.expose.port },
+        expose: {
+          service: template.expose.service,
+          port: template.expose.port,
+          kind: template.expose.kind,
+        },
       },
       variables,
+      portMappings: applicationPortMappingsOf(rendered),
+      volumes: applicationVolumesOf(rendered, containerNameOf(application.slug)),
       origin: {
         templateId: template.id,
         templateVersion: template.version,
@@ -855,17 +911,15 @@ export const deployTemplateApplication = async (params: {
     serverHost: server.agent.host ?? server.ssh.host,
   };
 
-  const { composeYaml, env } = renderTemplate(
-    template,
-    { ...body.inputs, ...versionAnswer, ...secretValues },
-    context,
-  );
+  const inputValues = { ...body.inputs, ...versionAnswer, ...secretValues };
 
-  const parsed = parseComposeDocument(composeYaml);
-  const conflict = await findHostPortConflict(String(server._id), publishedPortsOf(parsed));
+  const { composeYaml, env } = renderTemplate(template, inputValues, context);
+
+  const rendered = parseRenderedCompose(composeYaml, env);
+  const conflict = await findHostPortConflict(String(server._id), publishedPortsOf(rendered));
 
   if (conflict) {
-    throw new Error(`Host port ${conflict.port} is already in use by ${conflict.owner}`);
+    throwHostPortConflict(conflict, hostPortInputKeyOf(template, conflict.port, inputValues));
   }
 
   const variables = parseEnvContent(env).map(({ key, value }) => ({
@@ -881,9 +935,14 @@ export const deployTemplateApplication = async (params: {
     serverId: String(server._id),
     compose: {
       content: composeYaml,
-      expose: { service: template.expose.service, port: template.expose.port },
+      expose: {
+        service: template.expose.service,
+        port: template.expose.port,
+        kind: template.expose.kind,
+      },
     },
     variables,
+    resources: body.resources,
     restartPolicy: 'unless-stopped',
   };
 
@@ -898,10 +957,15 @@ export const deployTemplateApplication = async (params: {
         inputs: body.inputs,
         composeHash: composeHashOf(composeYaml),
       },
+      portMappings: applicationPortMappingsOf(rendered),
+      volumes: applicationVolumesOf(rendered, containerNameOf(slug)),
     });
 
     await registerComposeDatabases(application, template.databases);
-    await ensureAutoDomain(application);
+
+    if (template.expose.kind === 'http' && template.expose.domain) {
+      await ensureAutoDomain(application);
+    }
 
     const deployment = body.deployNow
       ? await enqueueDeployment({ application, trigger: 'manual', triggeredBy })

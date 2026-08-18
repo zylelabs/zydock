@@ -53,7 +53,12 @@ export const createApplication = async (
   organizationId: string,
   projectId: string,
   body: CreateApplicationDTO,
-  options?: { slug?: string; origin?: ApplicationOrigin },
+  options?: {
+    slug?: string;
+    origin?: ApplicationOrigin;
+    portMappings?: ApplicationPortMapping[];
+    volumes?: ApplicationVolume[];
+  },
 ) => {
   const base = {
     organizationId,
@@ -70,7 +75,13 @@ export const createApplication = async (
   };
 
   if (body.source === 'compose') {
-    return applicationModel.create({ ...base, compose: body.compose, resources: body.resources });
+    return applicationModel.create({
+      ...base,
+      compose: body.compose,
+      resources: body.resources,
+      portMappings: options?.portMappings ?? [],
+      volumes: options?.volumes ?? [],
+    });
   }
 
   return applicationModel.create({
@@ -125,6 +136,8 @@ export const updateTemplateApplication = (
   changes: {
     compose: ApplicationCompose;
     variables: CreateApplicationDTO['variables'];
+    portMappings: ApplicationPortMapping[];
+    volumes: ApplicationVolume[];
     origin: ApplicationOrigin;
   },
 ) =>
@@ -135,6 +148,8 @@ export const updateTemplateApplication = (
         'compose.content': changes.compose.content,
         'compose.expose': changes.compose.expose,
         variables: encryptVariables(changes.variables),
+        portMappings: changes.portMappings,
+        volumes: changes.volumes,
         origin: changes.origin,
       },
     },
@@ -337,12 +352,12 @@ export const serializeApplication = (application: Application) => ({
       ? { content: application.compose.content, expose: application.compose.expose }
       : undefined,
   port: application.source === 'git' ? application.port : application.compose?.expose.port,
-  portMappings: application.source === 'git' ? application.portMappings : undefined,
+  portMappings: application.portMappings,
   variables: application.variables.map(variable => ({
     key: variable.key,
     secret: variable.secret,
   })),
-  volumes: application.source === 'git' ? application.volumes : undefined,
+  volumes: application.volumes,
   networks: application.source === 'git' ? application.networks : undefined,
   healthcheck:
     application.source === 'git' && application.healthcheck?.path

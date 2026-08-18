@@ -1,7 +1,12 @@
 <script setup lang="ts">
   import AccessTab from './.AccessTab.vue';
   import RuntimeTab from './.RuntimeTab.vue';
-  import { useApplications, type ApplicationService } from '~/composables/services/useApplications';
+  import {
+    applicationExposeKind,
+    useApplications,
+    type ApplicationExposeKind,
+    type ApplicationService,
+  } from '~/composables/services/useApplications';
 
   const route = useRoute();
   const session = useSessionStore();
@@ -10,7 +15,11 @@
 
   const applicationId = computed(() => String(route.params.applicationId));
 
-  type LogsShell = { applicationName: string; services: ApplicationService[] };
+  type LogsShell = {
+    applicationName: string;
+    services: ApplicationService[];
+    exposeKind: ApplicationExposeKind;
+  };
 
   const { getCachedData, markFetched } = useNavigationCache();
 
@@ -33,7 +42,11 @@
 
       markFetched(`application-${applicationId.value}-logs-shell`);
 
-      return { applicationName: application.name, services };
+      return {
+        applicationName: application.name,
+        services,
+        exposeKind: applicationExposeKind(application),
+      };
     },
     {
       server: false,
@@ -45,6 +58,7 @@
 
   const applicationName = computed(() => shell.value?.applicationName ?? '');
   const services = computed(() => shell.value?.services ?? []);
+  const exposeKind = computed(() => shell.value?.exposeKind ?? 'http');
 
   const shellFirstLoad = useFirstLoad(shellStatus);
 
@@ -105,7 +119,7 @@
         :application-id="applicationId"
         :services="services"
       />
-      <AccessTab v-else :application-id="applicationId" />
+      <AccessTab v-else :application-id="applicationId" :expose-kind="exposeKind" />
     </div>
   </Content>
 </template>

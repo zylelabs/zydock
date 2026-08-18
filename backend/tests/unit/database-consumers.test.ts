@@ -35,6 +35,7 @@ const containerInfo = (overrides: Partial<ContainerInfo>): ContainerInfo => ({
   restartCount: overrides.restartCount ?? 0,
   ports: overrides.ports ?? [],
   protected: overrides.protected ?? false,
+  stdinOpen: overrides.stdinOpen ?? false,
   labels: overrides.labels ?? {},
   addresses: overrides.addresses,
 });

@@ -15,7 +15,7 @@ const baseTemplate: Template = {
   author: 'zydock',
   origin: 'official',
   dockerCompose: 'docker-compose.yml',
-  expose: { service: 'app', port: 80, domain: true },
+  expose: { service: 'app', port: 80, kind: 'http', domain: true },
   databases: [],
   inputs: [],
   secrets: [],

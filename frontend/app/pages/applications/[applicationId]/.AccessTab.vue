@@ -3,10 +3,13 @@
   import AccessStatsCharts from '~/components/proxy/AccessStatsCharts.vue';
   import AccessSummary from '~/components/proxy/AccessSummary.vue';
   import { useAccessLogFeed } from '~/composables/useAccessLogFeed';
+  import type { ApplicationExposeKind } from '~/composables/services/useApplications';
   import { useDomains } from '~/composables/services/useDomains';
   import { useProxyAccess, type AccessStatsPoint } from '~/composables/services/useProxyAccess';
 
-  const props = defineProps<{ applicationId: string }>();
+  const props = defineProps<{ applicationId: string; exposeKind: ApplicationExposeKind }>();
+
+  const isHttp = computed(() => props.exposeKind === 'http');
 
   const session = useSessionStore();
 
@@ -22,12 +25,12 @@
   } = useLazyAsyncData(
     () => `application-${props.applicationId}-access-domains`,
     () =>
-      session.organizationId
+      session.organizationId && isHttp.value
         ? domainsApi.list({ applicationId: props.applicationId })
         : Promise.resolve(emptyDomains),
     {
       server: false,
-      watch: [() => session.organizationId, () => props.applicationId],
+      watch: [() => session.organizationId, () => props.applicationId, isHttp],
       default: () => emptyDomains,
     },
   );
@@ -84,6 +87,13 @@
     </template>
 
     <Alert v-else-if="domainsError" theme="error">{{ domainsError.message }}</Alert>
+
+    <EmptyState
+      v-else-if="!isHttp"
+      variant="prompt"
+      title="Access log doesn't apply here"
+      :description="`The access log tracks requests through the HTTP proxy. This application is reached over ${exposeKind.toUpperCase()}, which never goes through the proxy.`"
+    />
 
     <EmptyState
       v-else-if="!hasDomain"

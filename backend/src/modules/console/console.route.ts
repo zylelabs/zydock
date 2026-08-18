@@ -12,6 +12,8 @@ const { router, get } = createRouter();
 
 const ALLOWED_SHELLS = ['sh', 'bash'];
 
+const ALLOWED_MODES = ['shell', 'attach'];
+
 get(
   '/',
   consoleDocs.connect,
@@ -24,6 +26,8 @@ get(
     ) as ContainerIdParam;
     const requestedShell = c.req.query('shell');
     const shell = ALLOWED_SHELLS.includes(requestedShell ?? '') ? requestedShell : 'sh';
+    const requestedMode = c.req.query('mode');
+    const mode = ALLOWED_MODES.includes(requestedMode ?? '') ? requestedMode : 'shell';
 
     let agent: WebSocket | undefined;
     let closed = false;
@@ -42,7 +46,7 @@ get(
 
           const connection = buildAgentConnection(server);
           const endpoint = connection.endpoint.replace(/^http/, 'ws');
-          const url = `${endpoint}/api/containers/${encodeURIComponent(containerId)}/console?shell=${shell}`;
+          const url = `${endpoint}/api/containers/${encodeURIComponent(containerId)}/console?shell=${shell}&mode=${mode}`;
 
           agent = new WebSocket(url, { headers: { 'X-Agent-Token': connection.token } });
 

@@ -105,7 +105,7 @@
     const mappings = application.value?.portMappings ?? [];
     const mapping =
       mappings.find(item => item.containerPort === application.value?.port) ?? mappings[0];
-    const host = server.value?.ssh.host ?? server.value?.agent.host;
+    const host = server.value?.publicIp;
 
     if (!mapping || !host) {
       return null;
@@ -113,8 +113,25 @@
 
     const label = `${host}:${mapping.hostPort}`;
 
-    return { href: `http://${label}`, label, local: true };
+    return {
+      href: mapping.protocol === 'tcp' ? `http://${label}` : undefined,
+      label,
+      protocol: mapping.protocol,
+      local: true,
+    };
   });
+
+  const copiedApplicationUrl = ref(false);
+
+  const copyApplicationUrl = async () => {
+    if (!applicationUrl.value) {
+      return;
+    }
+
+    await navigator.clipboard.writeText(applicationUrl.value.label);
+    copiedApplicationUrl.value = true;
+    setTimeout(() => (copiedApplicationUrl.value = false), 2000);
+  };
 
   useHead(() => ({ title: application.value?.name ?? 'Application' }));
 
@@ -245,7 +262,7 @@
 
           <div class="flex min-w-0 items-center gap-1.5 font-mono text-caption text-ink-2">
             <a
-              v-if="applicationUrl"
+              v-if="applicationUrl?.href"
               :href="applicationUrl.href"
               target="_blank"
               rel="noopener noreferrer"
@@ -253,8 +270,22 @@
             >
               <span class="truncate">{{ applicationUrl.label }}</span>
               <span v-if="applicationUrl.local" class="shrink-0 font-sans">(local)</span>
+              <Tag v-if="applicationUrl.protocol">{{ applicationUrl.protocol }}</Tag>
               <Icon name="lucide:external-link" class="size-3.5 shrink-0" />
             </a>
+            <button
+              v-else-if="applicationUrl"
+              type="button"
+              class="flex min-w-0 cursor-pointer items-center gap-1.5 transition-colors hover:text-ink"
+              @click="copyApplicationUrl"
+            >
+              <span class="truncate">{{ applicationUrl.label }}</span>
+              <Tag v-if="applicationUrl.protocol">{{ applicationUrl.protocol }}</Tag>
+              <Icon
+                :name="copiedApplicationUrl ? 'lucide:check' : 'lucide:copy'"
+                class="size-3.5 shrink-0"
+              />
+            </button>
             <span v-else class="truncate">{{ application.slug }}</span>
             <span v-if="server" class="truncate">· {{ server.name }}</span>
           </div>
@@ -274,6 +305,14 @@
         </Button>
         <Button theme="secondary" size="sm" :to="`/applications/${application.id}/console`">
           Console
+        </Button>
+        <Button
+          v-if="application.volumes?.length"
+          theme="secondary"
+          size="sm"
+          :to="`/applications/${application.id}/files`"
+        >
+          Files
         </Button>
 
         <template v-if="canManage">

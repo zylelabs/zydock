@@ -61,6 +61,7 @@ export type ContainerInfo = {
   ports: PortBinding[];
   labels: Record<string, string>;
   addresses?: Record<string, string>;
+  stdinOpen: boolean;
 };
 
 export type ContainerFilter = {
@@ -129,8 +130,11 @@ export type VolumeInfo = {
   labels: Record<string, string>;
 };
 
+export type ConsoleMode = 'shell' | 'attach';
+
 export type ConsoleRequest = {
   shell: string;
+  mode?: ConsoleMode;
   columns?: number;
   rows?: number;
   onData: (chunk: string) => void;
@@ -144,6 +148,14 @@ export type ConsoleSession = {
 };
 
 export type ArchiveStream = ReadableStream<Uint8Array>;
+
+export type VolumeFileEntry = {
+  name: string;
+  path: string;
+  type: 'file' | 'directory';
+  sizeBytes?: number;
+  modifiedAt?: string;
+};
 
 export type ContainerProvider = {
   createContainer: (spec: ContainerSpec) => Promise<ContainerInfo>;
@@ -171,6 +183,15 @@ export type ContainerProvider = {
   restoreVolume: (name: string, archivePath: string) => Promise<void>;
   archiveFromContainer: (id: string, command: string[]) => Promise<ArchiveStream>;
   restoreIntoContainer: (id: string, command: string[], archivePath: string) => Promise<void>;
+  listVolumeFiles: (name: string, path: string) => Promise<VolumeFileEntry[]>;
+  readVolumeFile: (name: string, path: string) => Promise<ArchiveStream>;
+  writeVolumeFile: (
+    name: string,
+    path: string,
+    stream: ReadableStream<Uint8Array>,
+  ) => Promise<void>;
+  deleteVolumePath: (name: string, path: string) => Promise<void>;
+  createVolumeDirectory: (name: string, path: string) => Promise<void>;
 };
 
 export type ContainerProviderFactory = () => ContainerProvider;

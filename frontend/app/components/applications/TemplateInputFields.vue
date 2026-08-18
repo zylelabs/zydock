@@ -5,6 +5,7 @@
     inputs: TemplateInput[];
     values: Record<string, string>;
     errors?: (key: string) => string | undefined;
+    hostPortKey?: string;
   }>();
 
   const emit = defineEmits<{ 'update:value': [key: string, value: string] }>();
@@ -27,6 +28,19 @@
       :model-value="values[input.key]"
       :label="input.label"
       :options="(input.options ?? []).map(option => ({ value: option, label: option }))"
+      boxed
+      :call-error="errors?.(input.key)"
+      @update:model-value="value => setValue(input.key, value)"
+    />
+    <Input
+      v-else-if="input.key === hostPortKey"
+      :model-value="values[input.key]"
+      :label="input.label"
+      type="number"
+      :min="1"
+      :max="65535"
+      placeholder="1–65535"
+      mono
       boxed
       :call-error="errors?.(input.key)"
       @update:model-value="value => setValue(input.key, value)"

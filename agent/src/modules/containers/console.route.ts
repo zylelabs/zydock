@@ -7,7 +7,7 @@ import { logDebug, logWarn } from '../../utils/logger';
 import { upgradeWebSocket } from '../../utils/ws';
 import { agentAuthMiddleware } from '../agent/agent.middleware';
 import { consoleDocs } from './console.docs';
-import { consoleControlSchema } from './console.schema';
+import { consoleControlSchema, consoleModeSchema } from './console.schema';
 
 const { router, get } = createRouter();
 
@@ -17,6 +17,12 @@ const ALLOWED_SHELLS = ['sh', 'bash'] as const;
 
 const shellOf = (value: string | undefined) =>
   ALLOWED_SHELLS.includes(value as never) ? (value as string) : 'sh';
+
+export const modeOf = (value: string | undefined) => {
+  const parsed = consoleModeSchema.safeParse(value);
+
+  return parsed.success ? parsed.data : 'shell';
+};
 
 const toText = (data: ArrayBuffer | Uint8Array) =>
   new TextDecoder().decode(data instanceof Uint8Array ? data : new Uint8Array(data));
@@ -28,6 +34,7 @@ get(
   upgradeWebSocket((c: Context) => {
     const id = c.req.param('id') ?? '';
     const shell = shellOf(c.req.query('shell'));
+    const mode = modeOf(c.req.query('mode'));
 
     let session: ConsoleSession | undefined;
     const pending: (string | Uint8Array)[] = [];
@@ -60,6 +67,7 @@ get(
           try {
             session = await containers.openConsole(id, {
               shell,
+              mode,
               onData: chunk => ws.send(chunk),
               onClose: () => ws.close(),
             });
@@ -70,7 +78,7 @@ get(
 
             pending.length = 0;
 
-            logDebug('Console session opened', { container: id, shell });
+            logDebug('Console session opened', { container: id, shell, mode });
           } catch (error) {
             logWarn('Console session failed to open', {
               container: id,

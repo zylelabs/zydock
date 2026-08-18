@@ -15,6 +15,8 @@ interface TemplateSecret {
 interface TemplateExpose {
   service: string;
   port: number;
+  kind: import('./template.schema').TemplateExposeKind;
+  host_port_key?: string;
   domain: boolean;
 }
 
@@ -78,3 +80,14 @@ interface TemplateManifest {
 interface Template extends TemplateManifest {
   dockerComposeContent: string;
 }
+
+interface TemplateSourceData {
+  url: string;
+  ref: string;
+  enabled: boolean;
+  lastSyncedAt?: Date;
+  lastError?: string;
+  templateCount: number;
+}
+
+type TemplateSource = BaseDocument<TemplateSourceData>;

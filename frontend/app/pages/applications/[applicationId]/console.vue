@@ -1,5 +1,6 @@
 <script setup lang="ts">
   import { useApplications } from '~/composables/services/useApplications';
+  import { useContainers } from '~/composables/services/useContainers';
   import { useDeployments } from '~/composables/services/useDeployments';
   import { useServers } from '~/composables/services/useServers';
 
@@ -9,9 +10,11 @@
   const applications = useApplications();
   const deployments = useDeployments();
   const servers = useServers();
+  const containers = useContainers();
 
   const applicationId = computed(() => String(route.params.applicationId));
   const selectedService = ref('');
+  const mode = ref<'shell' | 'attach'>('shell');
 
   const { data } = useLazyAsyncData(
     () => `console-${applicationId.value}`,
@@ -64,6 +67,26 @@
     return data.value.containerId;
   });
 
+  const { data: container } = useLazyAsyncData(
+    () => `console-container-${containerId.value}`,
+    async () => {
+      if (!data.value || !containerId.value) {
+        return null;
+      }
+
+      return containers.get(data.value.serverId, containerId.value);
+    },
+    { server: false, watch: [containerId], default: () => null },
+  );
+
+  const canAttach = computed(() => container.value?.stdinOpen ?? false);
+
+  watch(canAttach, allowed => {
+    if (!allowed) {
+      mode.value = 'shell';
+    }
+  });
+
   useHead(() => ({ title: `Console · ${data.value?.name ?? 'Application'}` }));
 
   const { set: setNavbar } = useNavbar();
@@ -80,15 +103,50 @@
 <template>
   <Content>
     <div v-if="data && containerId" class="flex flex-col gap-2.5">
+      <div class="inline-flex w-fit rounded-[10px] bg-hairline p-0.75">
+        <button
+          type="button"
+          class="cursor-pointer rounded-[7px] px-3.5 py-1.5 text-center text-caption font-medium whitespace-nowrap transition-colors"
+          :class="mode === 'shell' ? 'bg-card text-ink shadow-lifted' : 'text-ink-2 hover:text-ink'"
+          @click="mode = 'shell'"
+        >
+          Shell
+        </button>
+        <button
+          type="button"
+          :disabled="!canAttach"
+          :title="
+            canAttach
+              ? 'Attach to the main process (PID 1)'
+              : 'Container was not started with stdin_open: true'
+          "
+          class="rounded-[7px] px-3.5 py-1.5 text-center text-caption font-medium whitespace-nowrap transition-colors disabled:cursor-not-allowed disabled:opacity-50"
+          :class="[
+            mode === 'attach' ? 'bg-card text-ink shadow-lifted' : 'text-ink-2 hover:text-ink',
+            canAttach ? 'cursor-pointer' : '',
+          ]"
+          @click="canAttach && (mode = 'attach')"
+        >
+          Attach
+        </button>
+      </div>
+
       <Terminal
-        :key="containerId"
+        :key="`${containerId}-${mode}`"
         :server-id="data.serverId"
         :container-id="containerId"
+        :mode="mode"
         host-class="min-h-85"
       />
       <p class="text-caption text-ink-2">
-        Session runs inside the container on {{ data.serverName }}. It closes when you leave the
-        page.
+        <template v-if="mode === 'attach'">
+          Attached to the container's main process on {{ data.serverName }}. Closing this page
+          detaches the session — it does not stop the process.
+        </template>
+        <template v-else>
+          Session runs inside the container on {{ data.serverName }}. It closes when you leave the
+          page.
+        </template>
       </p>
     </div>
 

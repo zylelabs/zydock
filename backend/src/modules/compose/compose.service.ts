@@ -9,30 +9,70 @@ import { listDomainsOfApplication } from '../domains/domain.service';
 import { fetchServerContainerMetrics } from '../metrics/metric.service';
 import { buildAgentConnection, findServerById } from '../servers/server.service';
 
+const toPortNumber = (value: unknown): number | undefined => {
+  const port = Number(value);
+
+  return Number.isInteger(port) && port >= 1 && port <= 65535 ? port : undefined;
+};
+
 const parsePortEntry = (entry: unknown): ParsedComposePort | null => {
   if (typeof entry === 'number') {
-    return { target: entry };
+    return { target: toPortNumber(entry), protocol: 'tcp' };
   }
 
   if (typeof entry === 'string') {
     const [left, right] = entry.split(':');
+    const [targetValue, protocolSuffix] = (right ?? left).split('/');
+    const protocol: 'tcp' | 'udp' = protocolSuffix === 'udp' ? 'udp' : 'tcp';
 
     return right
-      ? { published: Number(left), target: Number(right.split('/')[0]) }
-      : { target: Number(left.split('/')[0]) };
+      ? { published: toPortNumber(left), target: toPortNumber(targetValue), protocol }
+      : { target: toPortNumber(targetValue), protocol };
   }
 
   if (entry && typeof entry === 'object') {
-    const record = entry as { published?: number | string; target?: number | string };
+    const record = entry as {
+      published?: number | string;
+      target?: number | string;
+      protocol?: string;
+    };
 
     return {
-      published: record.published === undefined ? undefined : Number(record.published),
-      target: record.target === undefined ? undefined : Number(record.target),
+      published: toPortNumber(record.published),
+      target: toPortNumber(record.target),
+      protocol: record.protocol === 'udp' ? 'udp' : 'tcp',
     };
   }
 
   return null;
 };
+
+const COMPOSE_VARIABLE_PATTERN = /\$\$|\$\{([A-Za-z_][A-Za-z0-9_]*)(?:(:?-)([^}]*))?\}/g;
+
+export const resolveComposeVariables = (
+  content: string,
+  variables: Record<string, string>,
+): string =>
+  content.replace(
+    COMPOSE_VARIABLE_PATTERN,
+    (match, key: string | undefined, operator: string | undefined, fallback: string) => {
+      if (key === undefined) {
+        return match;
+      }
+
+      const value = variables[key];
+
+      if (operator === undefined) {
+        return value ?? match;
+      }
+
+      if (value === undefined || (operator === ':-' && value === '')) {
+        return fallback;
+      }
+
+      return value;
+    },
+  );
 
 const parsePorts = (definition: unknown): ParsedComposePort[] => {
   if (!definition || typeof definition !== 'object' || !('ports' in definition)) {
@@ -120,6 +160,82 @@ export const publishedPortsOf = (parsed: ParsedCompose): number[] => [
       .filter((port): port is number => typeof port === 'number'),
   ),
 ];
+
+export const publishedPortMappingsOf = (parsed: ParsedCompose): PublishedPortMapping[] =>
+  parsed.services.flatMap(service =>
+    service.ports.filter(
+      (port): port is PublishedPortMapping =>
+        typeof port.published === 'number' && typeof port.target === 'number',
+    ),
+  );
+
+export const applicationPortMappingsOf = (parsed: ParsedCompose): ApplicationPortMapping[] =>
+  publishedPortMappingsOf(parsed).map(mapping => ({
+    hostPort: mapping.published,
+    containerPort: mapping.target,
+    protocol: mapping.protocol,
+  }));
+
+const parseVolumeEntry = (
+  entry: unknown,
+): { name: string; target: string; readOnly: boolean } | null => {
+  if (typeof entry === 'string') {
+    const [source, target, mode] = entry.split(':');
+
+    return source && target ? { name: source, target, readOnly: mode === 'ro' } : null;
+  }
+
+  if (entry && typeof entry === 'object') {
+    const record = entry as {
+      type?: string;
+      source?: string;
+      target?: string;
+      read_only?: boolean;
+    };
+
+    if ((record.type && record.type !== 'volume') || !record.source || !record.target) {
+      return null;
+    }
+
+    return { name: record.source, target: record.target, readOnly: Boolean(record.read_only) };
+  }
+
+  return null;
+};
+
+export const namedVolumesOf = (
+  parsed: ParsedCompose,
+): { name: string; target: string; readOnly: boolean }[] => {
+  const byName = new Map<string, { name: string; target: string; readOnly: boolean }>();
+
+  for (const service of parsed.services) {
+    const volumes = service.raw.volumes;
+
+    if (!Array.isArray(volumes)) {
+      continue;
+    }
+
+    for (const entry of volumes) {
+      const volume = parseVolumeEntry(entry);
+
+      if (volume) {
+        byName.set(volume.name, volume);
+      }
+    }
+  }
+
+  return [...byName.values()];
+};
+
+export const applicationVolumesOf = (
+  parsed: ParsedCompose,
+  projectName: string,
+): ApplicationVolume[] =>
+  namedVolumesOf(parsed).map(volume => ({
+    source: `${projectName}_${volume.name}`,
+    target: volume.target,
+    readOnly: volume.readOnly,
+  }));
 
 export const renderEnvFile = (application: Application): string =>
   decryptVariables(application.variables)

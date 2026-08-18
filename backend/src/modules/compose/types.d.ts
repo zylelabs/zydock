@@ -1,6 +1,13 @@
 interface ParsedComposePort {
   published?: number;
   target?: number;
+  protocol: 'tcp' | 'udp';
+}
+
+interface PublishedPortMapping {
+  published: number;
+  target: number;
+  protocol: 'tcp' | 'udp';
 }
 
 interface ParsedComposeService {
