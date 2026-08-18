@@ -442,15 +442,42 @@ export const runDeployment = async (deploymentId: string) => {
         await finishStep(domains.map(domain => domain.hostname).join(', '));
       }
 
-      startStep('healthcheck');
+      const containerLog = makeLogPublisher(deploymentId, 'healthcheck');
+      const bootLogsAbort = new AbortController();
+      const containers = resolveContainerProvider(connection);
 
-      const state = await healthcheckStep(
-        connection,
-        containerId,
-        Boolean(exposedRow?.health && exposedRow.health !== 'none'),
-      );
+      const consumeBootLogs = async () => {
+        try {
+          for await (const entry of containers.streamLogs(containerId, {
+            signal: bootLogsAbort.signal,
+          })) {
+            containerLog.push(maskSecrets(entry.message, secretValues));
+          }
+        } catch (error) {
+          if (!isAbortError(error)) {
+            logError('Failed to stream container boot logs', error, { deployment: deploymentId });
+          }
+        } finally {
+          containerLog.drain();
+        }
+      };
 
-      await finishStep(state);
+      const bootLogsPromise = consumeBootLogs();
+
+      try {
+        startStep('healthcheck');
+
+        const state = await healthcheckStep(
+          connection,
+          containerId,
+          Boolean(exposedRow?.health && exposedRow.health !== 'none'),
+        );
+
+        await finishStep(state);
+      } finally {
+        bootLogsAbort.abort();
+        await bootLogsPromise;
+      }
     } else {
       const containers = resolveContainerProvider(connection);
 
