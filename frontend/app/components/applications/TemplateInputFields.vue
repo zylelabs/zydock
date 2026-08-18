@@ -20,6 +20,7 @@
     <Switch
       v-if="input.type === 'boolean'"
       :model-value="values[input.key] === 'true'"
+      :label="input.label"
       class="px-4.25 py-3"
       @update:model-value="value => setValue(input.key, value)"
     />
