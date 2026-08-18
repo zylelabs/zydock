@@ -56,6 +56,7 @@ import {
 export const DEPLOY_JOB = 'deployment.run';
 
 const HEALTHCHECK_POLL_MS = 2000;
+const RUNNING_SETTLE_MS = 10_000;
 const LOG_FLUSH_DELAY_MS = 75;
 
 const makeLogPublisher = (deploymentId: string, step: DeploymentStep) => {
@@ -229,15 +230,19 @@ const replaceContainer = async (
   return created;
 };
 
+type HealthcheckExpectation = { expectsHealth: boolean; settleMs: number };
+
 const healthcheckStep = async (
   connection: AgentConnection,
   containerId: string,
-  expectsHealth: boolean,
+  { expectsHealth, settleMs }: HealthcheckExpectation,
 ) => {
   const containers = resolveContainerProvider(connection);
   const deadline = Date.now() + config.deploy.healthcheckTimeoutSeconds * 1000;
 
   let last = 'unknown';
+  let baselineRestarts: number | undefined;
+  let runningSince: number | undefined;
 
   while (Date.now() < deadline) {
     const container = await containers.inspectContainer(containerId);
@@ -252,8 +257,27 @@ const healthcheckStep = async (
       throw new Error(`The container stopped right after starting (state: ${container.state})`);
     }
 
-    if (container.state === 'running' && (!expectsHealth || container.health === 'healthy')) {
-      return last;
+    baselineRestarts ??= container.restartCount;
+
+    if (settleMs > 0 && container.restartCount > baselineRestarts) {
+      throw new Error(
+        `The container keeps restarting after starting (${container.restartCount - baselineRestarts} ` +
+          'restart(s) so far) — the container log above says why',
+      );
+    }
+
+    if (container.state !== 'running') {
+      runningSince = undefined;
+    } else if (expectsHealth) {
+      if (container.health === 'healthy') {
+        return last;
+      }
+    } else {
+      runningSince ??= Date.now();
+
+      if (Date.now() - runningSince >= settleMs) {
+        return last;
+      }
     }
 
     await Bun.sleep(HEALTHCHECK_POLL_MS);
@@ -467,11 +491,12 @@ export const runDeployment = async (deploymentId: string) => {
       try {
         startStep('healthcheck');
 
-        const state = await healthcheckStep(
-          connection,
-          containerId,
-          Boolean(exposedRow?.health && exposedRow.health !== 'none'),
-        );
+        const isHttp = application.compose!.expose.kind === 'http';
+
+        const state = await healthcheckStep(connection, containerId, {
+          expectsHealth: isHttp && Boolean(exposedRow?.health && exposedRow.health !== 'none'),
+          settleMs: isHttp ? 0 : RUNNING_SETTLE_MS,
+        });
 
         await finishStep(state);
       } finally {
@@ -597,11 +622,10 @@ export const runDeployment = async (deploymentId: string) => {
 
         startStep('healthcheck');
 
-        const state = await healthcheckStep(
-          connection,
-          container.id,
-          Boolean(application.healthcheck?.path),
-        );
+        const state = await healthcheckStep(connection, container.id, {
+          expectsHealth: Boolean(application.healthcheck?.path),
+          settleMs: 0,
+        });
 
         await finishStep(state);
       } finally {
