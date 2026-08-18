@@ -642,7 +642,9 @@ export const createDockerProvider = (): ContainerProvider => ({
 
   openConsole: async (id, request: ConsoleRequest): Promise<ConsoleSession> => {
     if (request.mode === 'attach') {
-      const stdinOpen = (await run(['inspect', '--format', '{{.Config.OpenStdin}}', id])).stdout.trim();
+      const stdinOpen = (
+        await run(['inspect', '--format', '{{.Config.OpenStdin}}', id])
+      ).stdout.trim();
 
       if (stdinOpen !== 'true') {
         throw new Error(

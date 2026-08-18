@@ -27,10 +27,7 @@ const runGit = async (
   const timer = setTimeout(() => process.kill(), timeoutMs);
 
   try {
-    const [stderr, code] = await Promise.all([
-      new Response(process.stderr).text(),
-      process.exited,
-    ]);
+    const [stderr, code] = await Promise.all([new Response(process.stderr).text(), process.exited]);
 
     return { code, stderr: stderr.trim() };
   } finally {
@@ -52,12 +49,11 @@ const cloneShallow = async (url: string, ref: string, targetDir: string): Promis
 const removeIfExists = (path: string) => rmSync(path, { recursive: true, force: true });
 
 export const refreshCatalogFromSources = async (): Promise<void> => {
-  const sources = await templateSourceModel
-    .find({}, { enabled: 1 })
-    .sort({ createdAt: 1 })
-    .lean();
+  const sources = await templateSourceModel.find({}, { enabled: 1 }).sort({ createdAt: 1 }).lean();
 
-  refreshComposedCatalog(sources.map(source => ({ id: String(source._id), enabled: source.enabled })));
+  refreshComposedCatalog(
+    sources.map(source => ({ id: String(source._id), enabled: source.enabled })),
+  );
 };
 
 export const bootstrapTemplateSources = async (): Promise<void> => {
@@ -130,7 +126,10 @@ export const syncTemplateSource = async (templateSourceId: string): Promise<Temp
 
     await templateSourceModel.updateOne(
       { _id: templateSourceId },
-      { $set: { templateCount: templates.length, lastSyncedAt: new Date() }, $unset: { lastError: '' } },
+      {
+        $set: { templateCount: templates.length, lastSyncedAt: new Date() },
+        $unset: { lastError: '' },
+      },
     );
 
     logInfo('Template source synced', {
@@ -151,7 +150,10 @@ export const syncTemplateSource = async (templateSourceId: string): Promise<Temp
 
     logWarn('Template source sync failed', { templateSourceId, url: source.url, error: message });
 
-    await templateSourceModel.updateOne({ _id: templateSourceId }, { $set: { lastError: message } });
+    await templateSourceModel.updateOne(
+      { _id: templateSourceId },
+      { $set: { lastError: message } },
+    );
   }
 
   await refreshCatalogFromSources();
@@ -167,8 +169,6 @@ export const serializeTemplateSource = (source: TemplateSource) => ({
   lastSyncedAt: source.lastSyncedAt,
   lastError: source.lastError,
   templateCount: source.templateCount,
-  collisions: catalogCollisions().filter(
-    collision => collision.sourceId === String(source._id),
-  ),
+  collisions: catalogCollisions().filter(collision => collision.sourceId === String(source._id)),
   createdAt: source.createdAt,
 });

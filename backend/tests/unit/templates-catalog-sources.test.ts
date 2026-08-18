@@ -41,7 +41,9 @@ const sourceIds: string[] = [];
 afterEach(async () => {
   refreshComposedCatalog([]);
 
-  await Promise.all(sourceIds.splice(0).map(id => rm(sourceCacheDirOf(id), { recursive: true, force: true })));
+  await Promise.all(
+    sourceIds.splice(0).map(id => rm(sourceCacheDirOf(id), { recursive: true, force: true })),
+  );
 });
 
 describe('catalog.service: external sources', () => {
