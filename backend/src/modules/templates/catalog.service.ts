@@ -294,12 +294,11 @@ const composeCatalog = (sources: CatalogSource[]): ComposedCatalog => {
 
 let composed: ComposedCatalog | undefined;
 
-export const readTemplateIcon = (
-  template: Template,
-): { content: Buffer; contentType: string } => {
+export const readTemplateIcon = (template: Template): { content: Buffer; contentType: string } => {
   const root = composed?.rootById.get(template.id) ?? CATALOG_ROOT;
   const iconPath = join(root, template.id, template.icon!);
-  const contentType = ICON_CONTENT_TYPES[extname(iconPath).toLowerCase()] ?? 'application/octet-stream';
+  const contentType =
+    ICON_CONTENT_TYPES[extname(iconPath).toLowerCase()] ?? 'application/octet-stream';
 
   return { content: readFileSync(iconPath), contentType };
 };

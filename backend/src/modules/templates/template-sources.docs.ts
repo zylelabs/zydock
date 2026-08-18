@@ -21,7 +21,10 @@ const templateSourceSchema = {
         properties: {
           templateId: { type: 'string' },
           sourceId: { type: 'string' },
-          keptBy: { type: 'string', description: '"embedded" or the id of the source that kept it' },
+          keptBy: {
+            type: 'string',
+            description: '"embedded" or the id of the source that kept it',
+          },
         },
       },
     },
@@ -48,7 +51,7 @@ export const templateSourcesDocs = {
     description:
       'Superuser only. Only records the source — it starts unsynced (`templateCount: 0`, no ' +
       '`lastSyncedAt`) until `POST /template-sources/:templateSourceId/sync` is called. Templates ' +
-      'from this source run on the operator\'s own servers: the compose denylist limits the blast ' +
+      "from this source run on the operator's own servers: the compose denylist limits the blast " +
       'radius, it does not substitute for trusting the source.',
     security: bearerOrApiKeyAuth,
     responses: {
@@ -65,7 +68,10 @@ export const templateSourcesDocs = {
       'disappears from the catalog on the next request.',
     security: bearerOrApiKeyAuth,
     responses: {
-      200: jsonRes('Confirmation.', { type: 'object', properties: { message: { type: 'string' } } }),
+      200: jsonRes('Confirmation.', {
+        type: 'object',
+        properties: { message: { type: 'string' } },
+      }),
       403: errorRes('Permission denied.'),
       404: errorRes('Template source not found.'),
     },

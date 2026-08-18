@@ -11,7 +11,7 @@ export const consoleDocs = {
       'frames. Authentication uses the `token` query parameter, because browsers cannot set ' +
       'headers on a WebSocket handshake. No TTY is allocated, so full-screen programs do not ' +
       'render. `shell` may be `sh` (default) or `bash`. `mode` selects `shell` (default) or ' +
-      '`attach` — `attach` connects to the container\'s main process (PID 1) instead of a new ' +
+      "`attach` — `attach` connects to the container's main process (PID 1) instead of a new " +
       'shell, and fails with an explanatory message if the container was not started with ' +
       '`stdin_open: true`. Closing the connection does not stop the attached process; it only ' +
       'detaches. Requires the `admin` role.',

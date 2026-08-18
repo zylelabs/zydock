@@ -42,7 +42,9 @@ const installAgentMock = () => {
     const path = url.pathname;
 
     if (method === 'GET' && /\/api\/volumes\/[^/]+\/files$/.test(path)) {
-      return jsonResponse([{ name: 'server.properties', path: 'server.properties', isDirectory: false, sizeBytes: 12 }]);
+      return jsonResponse([
+        { name: 'server.properties', path: 'server.properties', isDirectory: false, sizeBytes: 12 },
+      ]);
     }
 
     if (method === 'PUT' && /\/api\/volumes\/[^/]+\/files\/content$/.test(path)) {
@@ -84,7 +86,10 @@ beforeAll(async () => {
 
   await createMembership(organizationId, String(member._id), 'member');
 
-  const signin = await json('/auth/signin', 'POST', { email: memberEmail, password: memberPassword });
+  const signin = await json('/auth/signin', 'POST', {
+    email: memberEmail,
+    password: memberPassword,
+  });
   memberToken = ((await signin.json()) as { accessToken: string }).accessToken;
 });
 
