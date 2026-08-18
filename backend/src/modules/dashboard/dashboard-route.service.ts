@@ -8,8 +8,10 @@ import dashboardModel from './dashboard.model';
 import { getDashboardDocument, invalidatePublicUrlCache } from './dashboard.service';
 
 const WEBSOCKET_ROUTE_ID = 'system-dashboard-websocket';
+const CONSOLE_ROUTE_ID = 'system-dashboard-console';
 const DASHBOARD_ROUTE_ID = 'system-dashboard';
 const DOMAIN_WEBSOCKET_ROUTE_ID = 'system-dashboard-domain-websocket';
+const DOMAIN_CONSOLE_ROUTE_ID = 'system-dashboard-domain-console';
 const DOMAIN_ROUTE_ID = 'system-dashboard-domain';
 const RETRY_DELAY_MS = 10_000;
 const MAX_ATTEMPTS = 30;
@@ -48,6 +50,14 @@ export const applyDashboardRoutes = async (domain: string) => {
   });
 
   await proxy.upsertRoute({
+    id: CONSOLE_ROUTE_ID,
+    isDefault: true,
+    tls: false,
+    pathPrefix: '/api/organizations',
+    upstreams: [upstreamOf(config.backendUrl)],
+  });
+
+  await proxy.upsertRoute({
     id: DASHBOARD_ROUTE_ID,
     isDefault: true,
     tls: false,
@@ -56,6 +66,7 @@ export const applyDashboardRoutes = async (domain: string) => {
 
   if (!domain) {
     await proxy.removeRoute(DOMAIN_WEBSOCKET_ROUTE_ID);
+    await proxy.removeRoute(DOMAIN_CONSOLE_ROUTE_ID);
     await proxy.removeRoute(DOMAIN_ROUTE_ID);
 
     return;
@@ -66,6 +77,14 @@ export const applyDashboardRoutes = async (domain: string) => {
     domain,
     tls: true,
     pathPrefix: '/api/ws',
+    upstreams: [upstreamOf(config.backendUrl)],
+  });
+
+  await proxy.upsertRoute({
+    id: DOMAIN_CONSOLE_ROUTE_ID,
+    domain,
+    tls: true,
+    pathPrefix: '/api/organizations',
     upstreams: [upstreamOf(config.backendUrl)],
   });
 

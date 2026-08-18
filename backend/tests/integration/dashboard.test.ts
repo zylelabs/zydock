@@ -169,12 +169,14 @@ describe('dashboard — applyDashboardRoutes', () => {
     const methodsOf = (path: string) => calls.find(call => call.path.endsWith(path))?.method;
 
     expect(methodsOf('/proxy/routes/system-dashboard-websocket')).toBe('PUT');
+    expect(methodsOf('/proxy/routes/system-dashboard-console')).toBe('PUT');
     expect(methodsOf('/proxy/routes/system-dashboard')).toBe('PUT');
     expect(methodsOf('/proxy/routes/system-dashboard-domain-websocket')).toBe('DELETE');
+    expect(methodsOf('/proxy/routes/system-dashboard-domain-console')).toBe('DELETE');
     expect(methodsOf('/proxy/routes/system-dashboard-domain')).toBe('DELETE');
   });
 
-  test('with a domain, publishes all four routes with the websocket route of each group first', async () => {
+  test('with a domain, publishes all six routes with the websocket and console routes of each group before the catch-all', async () => {
     const calls: { path: string; method: string }[] = [];
 
     await withFetch(upsertOkTrackingOrder(calls), () => applyDashboardRoutes('panel.example.com'));
@@ -182,14 +184,22 @@ describe('dashboard — applyDashboardRoutes', () => {
     const indexOf = (path: string) => calls.findIndex(call => call.path.endsWith(path));
 
     expect(indexOf('/proxy/routes/system-dashboard-websocket')).toBeGreaterThanOrEqual(0);
+    expect(indexOf('/proxy/routes/system-dashboard-console')).toBeGreaterThanOrEqual(0);
     expect(indexOf('/proxy/routes/system-dashboard')).toBeGreaterThanOrEqual(0);
     expect(indexOf('/proxy/routes/system-dashboard-domain-websocket')).toBeGreaterThanOrEqual(0);
+    expect(indexOf('/proxy/routes/system-dashboard-domain-console')).toBeGreaterThanOrEqual(0);
     expect(indexOf('/proxy/routes/system-dashboard-domain')).toBeGreaterThanOrEqual(0);
 
     expect(indexOf('/proxy/routes/system-dashboard-websocket')).toBeLessThan(
       indexOf('/proxy/routes/system-dashboard'),
     );
+    expect(indexOf('/proxy/routes/system-dashboard-console')).toBeLessThan(
+      indexOf('/proxy/routes/system-dashboard'),
+    );
     expect(indexOf('/proxy/routes/system-dashboard-domain-websocket')).toBeLessThan(
+      indexOf('/proxy/routes/system-dashboard-domain'),
+    );
+    expect(indexOf('/proxy/routes/system-dashboard-domain-console')).toBeLessThan(
       indexOf('/proxy/routes/system-dashboard-domain'),
     );
   });
