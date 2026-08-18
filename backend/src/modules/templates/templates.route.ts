@@ -8,6 +8,7 @@ import { hasRole } from '../organizations/membership.service';
 import { resolveOrganizationRole } from '../organizations/organizations.middleware';
 import { findEnvironmentOfOrganization } from '../projects/environment.service';
 import { findServer } from '../servers/server.service';
+import { readTemplateIcon } from './catalog.service';
 import {
   DeployTemplateDTO,
   deployTemplateSchema,
@@ -35,10 +36,29 @@ get(
   authMiddleware,
   validator('query', listTemplatesQuerySchema),
   (c: Context) => {
-    const { search, category } = c.req.valid('query' as never) as ListTemplatesQuery;
+    const { search, category, origin } = c.req.valid('query' as never) as ListTemplatesQuery;
     const { page, size } = paginationQuery(c);
 
-    return c.json(listTemplates({ search, category, page, size }));
+    return c.json(listTemplates({ search, category, origin, page, size }));
+  },
+);
+
+get(
+  '/:templateId/icon',
+  templatesDocs.icon,
+  authMiddleware,
+  validator('param', templateIdParamSchema),
+  (c: Context) => {
+    const { templateId } = c.req.valid('param' as never) as TemplateIdParam;
+    const template = findTemplateById(templateId);
+
+    if (!template || !template.icon) {
+      return c.json({ error: 'Template not found or has no icon' }, 404);
+    }
+
+    const { content, contentType } = readTemplateIcon(template);
+
+    return new Response(content, { headers: { 'Content-Type': contentType } });
   },
 );
 
@@ -153,7 +173,16 @@ post(
         201,
       );
     } catch (error) {
-      return c.json({ error: error instanceof Error ? error.message : String(error) }, 400);
+      const field =
+        error instanceof Error ? (error as Error & { field?: string }).field : undefined;
+
+      return c.json(
+        {
+          error: error instanceof Error ? error.message : String(error),
+          ...(field ? { field } : {}),
+        },
+        400,
+      );
     }
   },
 );

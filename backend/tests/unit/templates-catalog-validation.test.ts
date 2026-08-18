@@ -21,7 +21,7 @@ const manifest = (overrides: Partial<TemplateManifest> = {}): TemplateManifest =
   author: 'zydock',
   origin: 'official',
   dockerCompose: 'docker-compose.yml',
-  expose: { service: 'app', port: 8080, domain: true },
+  expose: { service: 'app', port: 8080, kind: 'http', domain: true },
   databases: [],
   inputs: [],
   secrets: [],

@@ -31,6 +31,7 @@ export interface ContainerInfo {
   ports: PortBinding[];
   labels: Record<string, string>;
   protected: boolean;
+  stdinOpen: boolean;
 }
 
 export interface ContainerFilter {
@@ -57,6 +58,9 @@ export const useContainers = () => {
   const list = (serverId: string, filter: ContainerFilter = {}) =>
     api.get<ContainerInfo[]>(base(serverId), { query: { ...filter } });
 
+  const get = (serverId: string, containerId: string) =>
+    api.get<ContainerInfo>(`${base(serverId)}/${containerId}`);
+
   const start = (serverId: string, containerId: string) =>
     api.post<{ message: string }>(`${base(serverId)}/${containerId}/start`);
 
@@ -74,5 +78,5 @@ export const useContainers = () => {
       query: { volumes: removeVolumes },
     });
 
-  return { list, start, stop, restart, logs, remove };
+  return { list, get, start, stop, restart, logs, remove };
 };

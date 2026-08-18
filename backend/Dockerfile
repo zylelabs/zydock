@@ -12,6 +12,8 @@ RUN bun run build
 
 FROM oven/bun:alpine
 
+RUN apk add --no-cache git
+
 WORKDIR /app
 
 COPY backend/package.json backend/bun.lock ./

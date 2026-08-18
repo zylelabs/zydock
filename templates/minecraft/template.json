@@ -1,0 +1,77 @@
+{
+  "id": "minecraft",
+  "version": 1,
+  "name": "Minecraft Server",
+  "tagline": "Java Edition server reachable over TCP, with an attachable console",
+  "category": "games",
+  "tags": ["game-server", "minecraft", "java"],
+  "website": "https://github.com/itzg/docker-minecraft-server",
+  "documentation": "https://docker-minecraft-server.readthedocs.io",
+  "license": "Apache-2.0 (image) — the Minecraft EULA applies to the server itself",
+  "author": "zydock",
+  "origin": "official",
+  "docker_compose": "docker-compose.yml",
+  "expose": {
+    "service": "app",
+    "port": 25565,
+    "kind": "tcp",
+    "host_port_key": "HOST_PORT",
+    "domain": false
+  },
+  "versions": {
+    "key": "IMAGE_TAG",
+    "default": "2026.8.0-java21",
+    "available": [
+      { "value": "2026.8.0-java21", "label": "Java 21 — Minecraft 1.20.5 and newer" },
+      { "value": "2026.8.0-java17", "label": "Java 17 — Minecraft 1.17 to 1.20.4" },
+      { "value": "2026.8.0-java8", "label": "Java 8 — Minecraft 1.16.5 and older" }
+    ]
+  },
+  "inputs": [
+    {
+      "key": "HOST_PORT",
+      "label": "Server port",
+      "type": "number",
+      "default": 25565,
+      "required": true
+    },
+    {
+      "key": "EULA",
+      "label": "I accept the Minecraft EULA (https://aka.ms/MinecraftEULA)",
+      "type": "boolean",
+      "default": false,
+      "required": true
+    },
+    {
+      "key": "MINECRAFT_VERSION",
+      "label": "Minecraft version (LATEST, or a version such as 1.21.4)",
+      "type": "text",
+      "default": "LATEST",
+      "required": true
+    },
+    {
+      "key": "SERVER_TYPE",
+      "label": "Server software",
+      "type": "select",
+      "options": ["VANILLA", "PAPER", "FABRIC", "FORGE", "SPIGOT"],
+      "default": "VANILLA",
+      "required": true
+    },
+    {
+      "key": "MEMORY",
+      "label": "Java heap size (keep it below the application memory limit)",
+      "type": "text",
+      "default": "2G",
+      "required": true
+    },
+    {
+      "key": "OPS",
+      "label": "Server operators, comma separated (optional)",
+      "type": "text",
+      "default": "",
+      "required": false
+    }
+  ],
+  "secrets": [],
+  "databases": []
+}

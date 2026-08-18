@@ -2,6 +2,7 @@
   import GeneralTab from './.GeneralTab.vue';
   import TeamTab from './.TeamTab.vue';
   import GitSourcesTab from './.GitSourcesTab.vue';
+  import TemplateSourcesTab from './.TemplateSourcesTab.vue';
   import UpdatesTab from './.UpdatesTab.vue';
   import DangerZoneTab from './.DangerZoneTab.vue';
   import { useOrganizations } from '~/composables/services/useOrganizations';
@@ -18,12 +19,13 @@
   const isOwner = computed(() => current.value?.role === 'owner');
   const isSuperuser = computed(() => Boolean(session.user?.superuser));
 
-  type TabId = 'general' | 'team' | 'git' | 'updates' | 'danger';
+  type TabId = 'general' | 'team' | 'git' | 'templates' | 'updates' | 'danger';
 
   const TABS = computed<{ id: TabId; label: string }[]>(() => [
     { id: 'general', label: 'General' },
     { id: 'team', label: 'Team' },
     { id: 'git', label: 'Git sources' },
+    ...(isSuperuser.value ? [{ id: 'templates' as const, label: 'Catalog sources' }] : []),
     ...(isSuperuser.value ? [{ id: 'updates' as const, label: 'Updates' }] : []),
     { id: 'danger', label: 'Danger zone' },
   ]);
@@ -80,6 +82,7 @@
         :organization="current"
         :can-manage="canManage"
       />
+      <TemplateSourcesTab v-else-if="activeTab === 'templates' && isSuperuser" />
       <UpdatesTab v-else-if="activeTab === 'updates' && isSuperuser" />
       <DangerZoneTab v-else :organization="current" :is-owner="isOwner" />
     </div>

@@ -17,6 +17,7 @@ interface ApplicationGit {
 interface ApplicationComposeExpose {
   service: string;
   port: number;
+  kind: 'http' | 'tcp' | 'udp';
 }
 
 interface ApplicationCompose {

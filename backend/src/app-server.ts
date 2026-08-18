@@ -20,6 +20,7 @@ import { bootstrapDatabaseMetrics } from './modules/databases/database-sample.se
 import { ensureLocalServer } from './modules/servers/local-server.service';
 import { syncAgentBundles } from './modules/servers/provisioning.service';
 import { allTemplates } from './modules/templates/catalog.service';
+import { bootstrapTemplateSources } from './modules/templates/template-source.service';
 import { bootstrapUpdates } from './modules/updates/update.service';
 import { logError, logInfo } from './utils/logger';
 
@@ -32,6 +33,7 @@ const connect = () => {
     .then(ensureLocalServer)
     .then(startWorker)
     .then(() => void bootstrapUpdates())
+    .then(() => void bootstrapTemplateSources())
     .then(() => void bootstrapDatabaseMetrics())
     .then(bootstrapDashboard)
     .then(() => void ensureDashboardRoutes())

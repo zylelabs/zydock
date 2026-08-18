@@ -19,6 +19,7 @@ import type {
   LogStreamQuery,
   NetworkInfo,
   PortBinding,
+  VolumeFileEntry,
   VolumeInfo,
 } from './container.contract';
 
@@ -63,6 +64,101 @@ const runChecked = async (args: string[], description: string) => {
 };
 
 const ARCHIVE_IMAGE = 'alpine:3';
+
+const GUARD_EXISTING = `
+set -e
+target="/data/$1"
+[ -e "$target" ] || { echo "Path not found" >&2; exit 44; }
+resolved=$(realpath "$target")
+case "$resolved" in
+  /data|/data/*) ;;
+  *) echo "Path escapes the volume" >&2; exit 42 ;;
+esac
+`;
+
+const GUARD_PARENT = `
+set -e
+target="/data/$1"
+base="$target"
+while [ ! -e "$base" ]; do base=$(dirname "$base"); done
+resolved=$(realpath "$base")
+case "$resolved" in
+  /data|/data/*) ;;
+  *) echo "Path escapes the volume" >&2; exit 42 ;;
+esac
+final="$resolved\${target#$base}"
+`;
+
+const LIST_VOLUME_FILES_SCRIPT = `${GUARD_EXISTING}
+[ -d "$resolved" ] || { echo "Not a directory" >&2; exit 45; }
+find "$resolved" -mindepth 1 -maxdepth 1 | sort | head -n "$2" | while IFS= read -r entry; do
+  stat -c '%n\t%F\t%s\t%Y' "$entry"
+done
+`;
+
+const READ_VOLUME_FILE_SCRIPT = `${GUARD_EXISTING}
+[ -f "$resolved" ] || { echo "Not a file" >&2; exit 45; }
+cat "$resolved"
+`;
+
+const DELETE_VOLUME_PATH_SCRIPT = `${GUARD_EXISTING}
+[ "$resolved" = "/data" ] && { echo "Cannot remove the volume root" >&2; exit 46; }
+rm -rf "$resolved"
+`;
+
+const WRITE_VOLUME_FILE_SCRIPT = `${GUARD_PARENT}
+[ "$final" = "/data" ] && { echo "Cannot write to the volume root" >&2; exit 46; }
+mkdir -p "$(dirname "$final")"
+cat > "$final"
+`;
+
+const CREATE_VOLUME_DIRECTORY_SCRIPT = `${GUARD_PARENT}
+mkdir -p "$final"
+`;
+
+const toVolumeFileEntry = (line: string): VolumeFileEntry | null => {
+  const [absolutePath, fileType, size, mtime] = line.split('\t');
+
+  if (!absolutePath) {
+    return null;
+  }
+
+  const path = absolutePath.replace(/^\/data\/?/, '');
+
+  return {
+    name: path.split('/').pop() ?? path,
+    path,
+    type: fileType?.startsWith('directory') ? 'directory' : 'file',
+    sizeBytes: Number(size) || 0,
+    modifiedAt: new Date((Number(mtime) || 0) * 1000).toISOString(),
+  };
+};
+
+const runVolumeScript = async (
+  volume: string,
+  script: string,
+  args: string[],
+  description: string,
+  readOnly: boolean,
+) => {
+  await runChecked(['volume', 'inspect', volume], `Volume ${volume} not found`);
+
+  return runChecked(
+    [
+      'run',
+      '--rm',
+      '-v',
+      `${volume}:/data${readOnly ? ':ro' : ''}`,
+      ARCHIVE_IMAGE,
+      'sh',
+      '-c',
+      script,
+      'sh',
+      ...args,
+    ],
+    description,
+  );
+};
 
 const streamOf = async (args: string[], description: string): Promise<ArchiveStream> => {
   const process = Bun.spawn(['docker', ...args], { stdout: 'pipe', stderr: 'pipe' });
@@ -109,6 +205,20 @@ const runPiped = async (args: string[], archivePath: string, description: string
   }
 };
 
+const runPipedStream = async (
+  args: string[],
+  stdin: ReadableStream<Uint8Array>,
+  description: string,
+) => {
+  const process = Bun.spawn(['docker', ...args], { stdin, stdout: 'pipe', stderr: 'pipe' });
+
+  const [stderr, code] = await Promise.all([new Response(process.stderr).text(), process.exited]);
+
+  if (code !== 0) {
+    throw new Error(`${description}: ${stderr.trim() || `docker exited with ${code}`}`);
+  }
+};
+
 const DOCKER_API_ORIGIN = 'http://docker';
 
 const HEADER_SEPARATOR = '\r\n\r\n';
@@ -130,8 +240,7 @@ const dockerApi = async <T>(path: string, body?: unknown): Promise<T> => {
   return (response.status === 204 ? undefined : await response.json()) as T;
 };
 
-const attachExec = async (execId: string, request: ConsoleRequest) => {
-  const payload = JSON.stringify({ Detach: false, Tty: true });
+const hijackConnect = async (path: string, payload: string, request: ConsoleRequest) => {
   const decoder = new TextDecoder();
 
   let attached = false;
@@ -142,7 +251,7 @@ const attachExec = async (execId: string, request: ConsoleRequest) => {
     socket: {
       open: connection => {
         connection.write(
-          `POST /exec/${execId}/start HTTP/1.1\r\n` +
+          `POST ${path} HTTP/1.1\r\n` +
             'Host: docker\r\n' +
             'Content-Type: application/json\r\n' +
             'Connection: Upgrade\r\n' +
@@ -180,6 +289,12 @@ const attachExec = async (execId: string, request: ConsoleRequest) => {
     },
   });
 };
+
+const attachExec = (execId: string, request: ConsoleRequest) =>
+  hijackConnect(`/exec/${execId}/start`, JSON.stringify({ Detach: false, Tty: true }), request);
+
+const attachContainer = (id: string, request: ConsoleRequest) =>
+  hijackConnect(`/containers/${id}/attach?stream=1&stdin=1&stdout=1&stderr=1`, '', request);
 
 const parseLabelsJson = (raw: string | undefined): Record<string, string> => {
   if (!raw) {
@@ -231,7 +346,7 @@ type DockerInspect = {
   Id: string;
   Name: string;
   RestartCount?: number;
-  Config?: { Image?: string; Labels?: Record<string, string> };
+  Config?: { Image?: string; Labels?: Record<string, string>; OpenStdin?: boolean };
   State?: {
     Status?: string;
     StartedAt?: string;
@@ -274,6 +389,7 @@ const toContainerInfo = (inspect: DockerInspect): ContainerInfo => ({
   ports: parsePorts(inspect.NetworkSettings?.Ports),
   labels: inspect.Config?.Labels ?? {},
   addresses: parseAddresses(inspect.NetworkSettings?.Networks),
+  stdinOpen: inspect.Config?.OpenStdin ?? false,
 });
 
 const inspectMany = async (ids: string[]): Promise<ContainerInfo[]> => {
@@ -525,6 +641,38 @@ export const createDockerProvider = (): ContainerProvider => ({
   },
 
   openConsole: async (id, request: ConsoleRequest): Promise<ConsoleSession> => {
+    if (request.mode === 'attach') {
+      const stdinOpen = (await run(['inspect', '--format', '{{.Config.OpenStdin}}', id])).stdout.trim();
+
+      if (stdinOpen !== 'true') {
+        throw new Error(
+          'Container does not accept stdin: the template must declare stdin_open: true for Attach.',
+        );
+      }
+
+      const socket = await attachContainer(id, request);
+
+      const resize = async (columns: number, rows: number) => {
+        await dockerApi(`/containers/${id}/resize?h=${rows}&w=${columns}`);
+      };
+
+      if (request.columns && request.rows) {
+        await resize(request.columns, request.rows);
+      }
+
+      logDebug('docker console attached', { container: id, mode: 'attach' });
+
+      return {
+        write: data => {
+          socket.write(data);
+        },
+        resize,
+        close: () => {
+          socket.end();
+        },
+      };
+    }
+
     const { Id: execId } = await dockerApi<{ Id: string }>(`/containers/${id}/exec`, {
       AttachStdin: true,
       AttachStdout: true,
@@ -543,7 +691,7 @@ export const createDockerProvider = (): ContainerProvider => ({
       await resize(request.columns, request.rows);
     }
 
-    logDebug('docker console attached', { container: id, exec: execId });
+    logDebug('docker console attached', { container: id, exec: execId, mode: 'shell' });
 
     return {
       write: data => {
@@ -829,5 +977,83 @@ export const createDockerProvider = (): ContainerProvider => ({
 
   restoreIntoContainer: async (id, command, archivePath) => {
     await runPiped(['exec', '-i', id, ...command], archivePath, `Failed to restore into ${id}`);
+  },
+
+  listVolumeFiles: async (name, path): Promise<VolumeFileEntry[]> => {
+    const output = await runVolumeScript(
+      name,
+      LIST_VOLUME_FILES_SCRIPT,
+      [path, String(config.files.maxListEntries)],
+      `Failed to list files of volume ${name}`,
+      true,
+    );
+
+    return output
+      .split('\n')
+      .filter(Boolean)
+      .map(toVolumeFileEntry)
+      .filter((entry): entry is VolumeFileEntry => entry !== null);
+  },
+
+  readVolumeFile: async (name, path) => {
+    await runChecked(['volume', 'inspect', name], `Volume ${name} not found`);
+
+    return streamOf(
+      [
+        'run',
+        '--rm',
+        '-v',
+        `${name}:/data:ro`,
+        ARCHIVE_IMAGE,
+        'sh',
+        '-c',
+        READ_VOLUME_FILE_SCRIPT,
+        'sh',
+        path,
+      ],
+      `Failed to read file from volume ${name}`,
+    );
+  },
+
+  writeVolumeFile: async (name, path, stream) => {
+    await runChecked(['volume', 'inspect', name], `Volume ${name} not found`);
+
+    await runPipedStream(
+      [
+        'run',
+        '--rm',
+        '-i',
+        '-v',
+        `${name}:/data`,
+        ARCHIVE_IMAGE,
+        'sh',
+        '-c',
+        WRITE_VOLUME_FILE_SCRIPT,
+        'sh',
+        path,
+      ],
+      stream,
+      `Failed to write file to volume ${name}`,
+    );
+  },
+
+  deleteVolumePath: async (name, path) => {
+    await runVolumeScript(
+      name,
+      DELETE_VOLUME_PATH_SCRIPT,
+      [path],
+      `Failed to remove path from volume ${name}`,
+      false,
+    );
+  },
+
+  createVolumeDirectory: async (name, path) => {
+    await runVolumeScript(
+      name,
+      CREATE_VOLUME_DIRECTORY_SCRIPT,
+      [path],
+      `Failed to create directory in volume ${name}`,
+      false,
+    );
   },
 });

@@ -1,4 +1,5 @@
 import { z } from 'zod';
+import { resourcesSchema } from '../applications/application.schema';
 
 const RESERVED_PREFIX = 'ZYDOCK_';
 
@@ -56,11 +57,43 @@ const templateSecretSchema = z.object({
   generate: z.enum(TEMPLATE_SECRET_GENERATORS),
 });
 
-const templateExposeSchema = z.object({
-  service: serviceNameSchema,
-  port: z.coerce.number().int().min(1).max(65535),
-  domain: z.boolean().default(true),
-});
+export const TEMPLATE_EXPOSE_KINDS = ['http', 'tcp', 'udp'] as const;
+
+export type TemplateExposeKind = (typeof TEMPLATE_EXPOSE_KINDS)[number];
+
+const templateExposeSchema = z
+  .object({
+    service: serviceNameSchema,
+    port: z.coerce.number().int().min(1).max(65535),
+    kind: z.enum(TEMPLATE_EXPOSE_KINDS).default('http'),
+    host_port_key: templateKeySchema.optional(),
+    domain: z.boolean().default(true),
+  })
+  .superRefine((expose, ctx) => {
+    if (expose.kind === 'http' && expose.host_port_key !== undefined) {
+      ctx.addIssue({
+        code: z.ZodIssueCode.custom,
+        message: '"expose.host_port_key" is not allowed when "expose.kind" is "http"',
+        path: ['host_port_key'],
+      });
+    }
+
+    if (expose.kind !== 'http' && expose.host_port_key === undefined) {
+      ctx.addIssue({
+        code: z.ZodIssueCode.custom,
+        message: '"expose.host_port_key" is required when "expose.kind" is "tcp" or "udp"',
+        path: ['host_port_key'],
+      });
+    }
+
+    if (expose.kind !== 'http' && expose.domain) {
+      ctx.addIssue({
+        code: z.ZodIssueCode.custom,
+        message: '"expose.domain" cannot be true when "expose.kind" is not "http"',
+        path: ['domain'],
+      });
+    }
+  });
 
 const templateCredentialRefSchema = z.union([
   z.object({ key: templateKeySchema }),
@@ -219,21 +252,39 @@ const rawTemplateSchema = z
     deprecated: z.boolean().default(false),
   })
   .superRefine((template, ctx) => {
-    if (!template.versions) {
-      return;
+    if (template.versions) {
+      const declaredKeys = new Set([
+        ...template.inputs.map(input => input.key),
+        ...template.secrets.map(secret => secret.key),
+      ]);
+
+      if (declaredKeys.has(template.versions.key)) {
+        ctx.addIssue({
+          code: z.ZodIssueCode.custom,
+          message: `"versions.key" ("${template.versions.key}") collides with an "inputs" or "secrets" key`,
+          path: ['versions', 'key'],
+        });
+      }
     }
 
-    const declaredKeys = new Set([
-      ...template.inputs.map(input => input.key),
-      ...template.secrets.map(secret => secret.key),
-    ]);
+    if (template.expose.kind !== 'http' && template.expose.host_port_key !== undefined) {
+      const matchingInput = template.inputs.find(
+        input => input.key === template.expose.host_port_key,
+      );
 
-    if (declaredKeys.has(template.versions.key)) {
-      ctx.addIssue({
-        code: z.ZodIssueCode.custom,
-        message: `"versions.key" ("${template.versions.key}") collides with an "inputs" or "secrets" key`,
-        path: ['versions', 'key'],
-      });
+      if (!matchingInput) {
+        ctx.addIssue({
+          code: z.ZodIssueCode.custom,
+          message: `"expose.host_port_key" ("${template.expose.host_port_key}") must match a declared "inputs[].key"`,
+          path: ['expose', 'host_port_key'],
+        });
+      } else if (matchingInput.type !== 'number') {
+        ctx.addIssue({
+          code: z.ZodIssueCode.custom,
+          message: `"expose.host_port_key" ("${template.expose.host_port_key}") must reference an "inputs[].key" of type "number"`,
+          path: ['expose', 'host_port_key'],
+        });
+      }
     }
   });
 
@@ -275,6 +326,7 @@ export const parseTemplateManifest = (raw: unknown): TemplateManifest => {
 export const listTemplatesQuerySchema = z.object({
   search: z.string().trim().max(200).optional(),
   category: z.string().trim().max(64).optional(),
+  origin: z.enum(TEMPLATE_ORIGINS).optional(),
 });
 
 export type ListTemplatesQuery = z.infer<typeof listTemplatesQuerySchema>;
@@ -299,6 +351,7 @@ export const deployTemplateSchema = z.object({
   inputs: z.record(z.string(), z.string().max(8192)).default({}),
   version: z.string().trim().min(1).max(120).optional(),
   deployNow: z.boolean().default(true),
+  resources: resourcesSchema.optional(),
 });
 
 export type DeployTemplateDTO = z.infer<typeof deployTemplateSchema>;

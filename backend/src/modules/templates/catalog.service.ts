@@ -1,5 +1,5 @@
 import { existsSync, readdirSync, readFileSync, statSync } from 'node:fs';
-import { join, resolve, sep } from 'node:path';
+import { extname, join, resolve, sep } from 'node:path';
 import config from '../../config';
 import { MAX_COMPOSE_FILE_BYTES, validateComposeSecurity } from '../compose/compose.schema';
 import { parseComposeDocument } from '../compose/compose.service';
@@ -10,6 +10,15 @@ import {
 } from './template.schema';
 
 const CATALOG_ROOT = resolve(config.templates.catalogPath);
+const SOURCES_CACHE_ROOT = resolve(config.templates.sourcesCachePath);
+
+const ICON_CONTENT_TYPES: Record<string, string> = {
+  '.svg': 'image/svg+xml',
+  '.png': 'image/png',
+  '.jpg': 'image/jpeg',
+  '.jpeg': 'image/jpeg',
+  '.webp': 'image/webp',
+};
 
 const VARIABLE_PATTERN = /\$\{([A-Za-z_][A-Za-z0-9_]*)(:?[-?][^}]*)?\}/g;
 
@@ -159,8 +168,8 @@ export const withImplicitVersions = (
   return referenced ? { ...manifest, versions: implicitTemplateVersions() } : manifest;
 };
 
-const loadTemplate = (id: string): Template => {
-  const dir = join(CATALOG_ROOT, id);
+const loadTemplate = (catalogRoot: string, id: string): Template => {
+  const dir = join(catalogRoot, id);
   const parsedManifest = parseTemplateManifest(
     JSON.parse(readFileSync(join(dir, 'template.json'), 'utf-8')),
   );
@@ -200,18 +209,18 @@ const loadTemplate = (id: string): Template => {
   return { ...manifest, dockerComposeContent: composeContent };
 };
 
-const loadCatalog = (): Template[] => {
-  if (!existsSync(CATALOG_ROOT)) {
-    throw new Error(`Template catalog not found at "${CATALOG_ROOT}".`);
+const loadCatalogFrom = (catalogRoot: string): Template[] => {
+  if (!existsSync(catalogRoot)) {
+    throw new Error(`Template catalog not found at "${catalogRoot}".`);
   }
 
-  return readdirSync(CATALOG_ROOT, { withFileTypes: true })
-    .filter(entry => entry.isDirectory())
+  return readdirSync(catalogRoot, { withFileTypes: true })
+    .filter(entry => entry.isDirectory() && !entry.name.startsWith('.'))
     .map(entry => entry.name)
     .sort()
     .map(id => {
       try {
-        return loadTemplate(id);
+        return loadTemplate(catalogRoot, id);
       } catch (error) {
         throw new Error(
           `Invalid template "${id}": ${error instanceof Error ? error.message : String(error)}`,
@@ -220,12 +229,97 @@ const loadCatalog = (): Template[] => {
     });
 };
 
-let cachedCatalog: Template[] | undefined;
+/**
+ * Validates every template of an external catalog directory before it is trusted, using the same
+ * checks as the embedded catalog. Throws on the first invalid template — a source is accepted as a
+ * whole or not at all.
+ */
+export const validateCatalogDirectory = (catalogRoot: string): Template[] =>
+  loadCatalogFrom(catalogRoot);
 
-export const allTemplates = (): Template[] => {
-  if (!cachedCatalog) {
-    cachedCatalog = loadCatalog();
+export const sourceCacheDirOf = (sourceId: string) => join(SOURCES_CACHE_ROOT, sourceId);
+
+const loadEmbeddedCatalog = (): Template[] => loadCatalogFrom(CATALOG_ROOT);
+
+const loadSourceCatalog = (sourceId: string): Template[] => {
+  const dir = sourceCacheDirOf(sourceId);
+
+  if (!existsSync(dir)) {
+    return [];
   }
 
-  return cachedCatalog;
+  // The source is validated in full before it ever reaches the cache directory (see
+  // `template-source.service.ts`), so `origin` is the only thing rewritten here: a template from an
+  // external source is always "community", no matter what the manifest declares.
+  return loadCatalogFrom(dir).map(template => ({ ...template, origin: 'community' as const }));
+};
+
+export type CatalogSource = { id: string; enabled: boolean };
+
+export type CatalogCollision = { templateId: string; sourceId: string; keptBy: string };
+
+type ComposedCatalog = {
+  templates: Template[];
+  collisions: CatalogCollision[];
+  rootById: Map<string, string>;
+};
+
+const composeCatalog = (sources: CatalogSource[]): ComposedCatalog => {
+  const embedded = loadEmbeddedCatalog();
+  const templates = new Map<string, Template>(embedded.map(template => [template.id, template]));
+  const ownerById = new Map<string, string>(embedded.map(template => [template.id, 'embedded']));
+  const rootById = new Map<string, string>(embedded.map(template => [template.id, CATALOG_ROOT]));
+  const collisions: CatalogCollision[] = [];
+
+  for (const source of sources.filter(candidate => candidate.enabled)) {
+    for (const template of loadSourceCatalog(source.id)) {
+      if (templates.has(template.id)) {
+        collisions.push({
+          templateId: template.id,
+          sourceId: source.id,
+          keptBy: ownerById.get(template.id)!,
+        });
+
+        continue;
+      }
+
+      templates.set(template.id, template);
+      ownerById.set(template.id, source.id);
+      rootById.set(template.id, sourceCacheDirOf(source.id));
+    }
+  }
+
+  return { templates: [...templates.values()], collisions, rootById };
+};
+
+let composed: ComposedCatalog | undefined;
+
+export const readTemplateIcon = (
+  template: Template,
+): { content: Buffer; contentType: string } => {
+  const root = composed?.rootById.get(template.id) ?? CATALOG_ROOT;
+  const iconPath = join(root, template.id, template.icon!);
+  const contentType = ICON_CONTENT_TYPES[extname(iconPath).toLowerCase()] ?? 'application/octet-stream';
+
+  return { content: readFileSync(iconPath), contentType };
+};
+
+export const allTemplates = (): Template[] => {
+  if (!composed) {
+    composed = composeCatalog([]);
+  }
+
+  return composed.templates;
+};
+
+export const catalogCollisions = (): CatalogCollision[] => composed?.collisions ?? [];
+
+/**
+ * Rebuilds the composed catalog from whatever is currently cached on disk for the given sources.
+ * Called once the database is reachable (the embedded catalog alone is validated at boot, before
+ * MongoDB is even connected) and again after any source is created, removed or (re)synced — never
+ * during the request itself, so a broken network never empties the marketplace.
+ */
+export const refreshComposedCatalog = (sources: CatalogSource[]): void => {
+  composed = composeCatalog(sources);
 };

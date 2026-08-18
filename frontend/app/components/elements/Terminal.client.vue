@@ -10,6 +10,7 @@
     serverId: string;
     containerId: string;
     shell?: string;
+    mode?: 'shell' | 'attach';
     hostClass?: string;
   }>();
 
@@ -46,6 +47,7 @@
     const path = `/api/organizations/${session.organizationId}/servers/${props.serverId}/containers/${props.containerId}/console`;
     const query = new URLSearchParams({
       shell: props.shell ?? 'sh',
+      mode: props.mode ?? 'shell',
       token: session.accessToken ?? '',
     });
 

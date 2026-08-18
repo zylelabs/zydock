@@ -14,6 +14,8 @@ import {
 import { enqueueDeployment, enqueueRollback } from '../deployments/pipeline.service';
 import { validateComposeSecurity } from '../compose/compose.schema';
 import {
+  applicationPortMappingsOf,
+  applicationVolumesOf,
   describeApplicationServices,
   destroyComposeProject,
   fetchApplicationServiceStatus,
@@ -22,6 +24,7 @@ import {
   publishedPortsOf,
   restartApplicationService,
 } from '../compose/compose.service';
+import { containerNameOf } from '../deployments/naming';
 import { ensureAutoDomain, refreshAutoDomainAfterUpdate } from '../domains/auto-domain.service';
 import { findGitSource } from '../git-sources/git-source.service';
 import { OrganizationIdParam, organizationIdParamSchema } from '../organizations/membership.schema';
@@ -66,6 +69,7 @@ import {
   removeApplication,
   replaceVariables,
   serializeApplication,
+  uniqueSlug,
   updateApplication,
   VERSION_VARIABLE_PROJECTION,
 } from './application.service';
@@ -153,6 +157,10 @@ post(
       return c.json({ error: 'Server not found in this organization' }, 400);
     }
 
+    let composePortMappings: ApplicationPortMapping[] | undefined;
+    let composeVolumes: ApplicationVolume[] | undefined;
+    let composeSlug: string | undefined;
+
     if (body.source === 'compose') {
       let hostPorts: number[];
 
@@ -169,6 +177,9 @@ post(
         validateComposeSecurity(parsed);
 
         hostPorts = publishedPortsOf(parsed);
+        composePortMappings = applicationPortMappingsOf(parsed);
+        composeSlug = await uniqueSlug(body.environmentId, body.name);
+        composeVolumes = applicationVolumesOf(parsed, containerNameOf(composeSlug));
       } catch (error) {
         return c.json({ error: error instanceof Error ? error.message : String(error) }, 400);
       }
@@ -206,6 +217,9 @@ post(
       organizationId,
       String(environment.projectId),
       body,
+      composePortMappings
+        ? { slug: composeSlug, portMappings: composePortMappings, volumes: composeVolumes }
+        : undefined,
     );
 
     await ensureAutoDomain(application);
@@ -254,6 +268,9 @@ patch(
       return c.json({ error: 'Server not found in this organization' }, 400);
     }
 
+    let composePortMappings: ApplicationPortMapping[] | undefined;
+    let composeVolumes: ApplicationVolume[] | undefined;
+
     if (application.source === 'compose') {
       if (body.compose?.content !== undefined) {
         const service = body.compose.expose?.service ?? application.compose?.expose.service;
@@ -279,6 +296,9 @@ patch(
               400,
             );
           }
+
+          composePortMappings = applicationPortMappingsOf(parsed);
+          composeVolumes = applicationVolumesOf(parsed, containerNameOf(application.slug));
         } catch (error) {
           return c.json({ error: error instanceof Error ? error.message : String(error) }, 400);
         }
@@ -305,7 +325,12 @@ patch(
       }
     }
 
-    const updated = await updateApplication(application, body);
+    const updated = await updateApplication(
+      application,
+      composePortMappings
+        ? { ...body, portMappings: composePortMappings, volumes: composeVolumes }
+        : body,
+    );
 
     await refreshAutoDomainAfterUpdate(
       { slug: application.slug, serverId: String(application.serverId) },
@@ -560,7 +585,16 @@ post(
     try {
       ({ versionFellBackToDefault } = await applyTemplateUpdate(application, body.inputs));
     } catch (error) {
-      return c.json({ error: error instanceof Error ? error.message : String(error) }, 400);
+      const field =
+        error instanceof Error ? (error as Error & { field?: string }).field : undefined;
+
+      return c.json(
+        {
+          error: error instanceof Error ? error.message : String(error),
+          ...(field ? { field } : {}),
+        },
+        400,
+      );
     }
 
     const updated = await findApplicationWithSecrets(organizationId, applicationId);

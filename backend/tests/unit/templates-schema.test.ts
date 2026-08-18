@@ -26,7 +26,88 @@ describe('parseTemplateManifest', () => {
     const manifest = parseTemplateManifest(validManifest());
 
     expect(manifest.dockerCompose).toBe('docker-compose.yml');
-    expect(manifest.expose).toEqual({ service: 'app', port: 8080, domain: true });
+    expect(manifest.expose).toEqual({ service: 'app', port: 8080, kind: 'http', domain: true });
+  });
+
+  test('"expose.kind" defaults to "http" for a manifest that predates it', () => {
+    const manifest = parseTemplateManifest(validManifest());
+
+    expect(manifest.expose.kind).toBe('http');
+  });
+
+  test('accepts a "tcp" expose with a matching "host_port_key" number input', () => {
+    const raw = {
+      ...validManifest(),
+      expose: {
+        service: 'app',
+        port: 25565,
+        kind: 'tcp',
+        host_port_key: 'HOST_PORT',
+        domain: false,
+      },
+      inputs: [{ key: 'HOST_PORT', label: 'Host port', type: 'number', required: true }],
+    };
+
+    const manifest = parseTemplateManifest(raw);
+
+    expect(manifest.expose).toEqual({
+      service: 'app',
+      port: 25565,
+      kind: 'tcp',
+      host_port_key: 'HOST_PORT',
+      domain: false,
+    });
+  });
+
+  test('rejects "kind: tcp" without "host_port_key"', () => {
+    const raw = { ...validManifest(), expose: { service: 'app', port: 25565, kind: 'tcp' } };
+
+    expect(() => parseTemplateManifest(raw)).toThrow(/host_port_key.*required/);
+  });
+
+  test('rejects "host_port_key" when "kind" is "http"', () => {
+    const raw = {
+      ...validManifest(),
+      expose: { service: 'app', port: 80, host_port_key: 'HOST_PORT' },
+      inputs: [{ key: 'HOST_PORT', label: 'Host port', type: 'number', required: true }],
+    };
+
+    expect(() => parseTemplateManifest(raw)).toThrow(/host_port_key.*not allowed/);
+  });
+
+  test('rejects "host_port_key" that does not match a declared input', () => {
+    const raw = {
+      ...validManifest(),
+      expose: { service: 'app', port: 25565, kind: 'tcp', host_port_key: 'MISSING', domain: false },
+    };
+
+    expect(() => parseTemplateManifest(raw)).toThrow(/host_port_key.*must match/);
+  });
+
+  test('rejects "host_port_key" pointing at a non-"number" input', () => {
+    const raw = {
+      ...validManifest(),
+      expose: {
+        service: 'app',
+        port: 25565,
+        kind: 'tcp',
+        host_port_key: 'HOST_PORT',
+        domain: false,
+      },
+      inputs: [{ key: 'HOST_PORT', label: 'Host port', type: 'text', required: true }],
+    };
+
+    expect(() => parseTemplateManifest(raw)).toThrow(/host_port_key.*type "number"/);
+  });
+
+  test('rejects "domain: true" when "kind" is not "http"', () => {
+    const raw = {
+      ...validManifest(),
+      expose: { service: 'app', port: 25565, kind: 'udp', host_port_key: 'HOST_PORT' },
+      inputs: [{ key: 'HOST_PORT', label: 'Host port', type: 'number', required: true }],
+    };
+
+    expect(() => parseTemplateManifest(raw)).toThrow(/expose\.domain.*cannot be true/);
   });
 
   test('rejects an input key with the reserved ZYDOCK_ prefix', () => {

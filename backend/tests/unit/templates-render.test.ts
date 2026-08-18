@@ -12,7 +12,7 @@ const template: Template = {
   author: 'zydock',
   origin: 'official',
   dockerCompose: 'docker-compose.yml',
-  expose: { service: 'app', port: 8080, domain: true },
+  expose: { service: 'app', port: 8080, kind: 'http', domain: true },
   databases: [],
   inputs: [{ key: 'TIMEZONE', label: 'Timezone', type: 'text', default: 'UTC', required: false }],
   secrets: [{ key: 'APP_SECRET', generate: 'hex32' }],

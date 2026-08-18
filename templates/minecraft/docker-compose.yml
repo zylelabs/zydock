@@ -1,0 +1,23 @@
+services:
+  app:
+    image: itzg/minecraft-server:${IMAGE_TAG}
+    stdin_open: true
+    tty: true
+    ports:
+      - '${HOST_PORT}:25565'
+    environment:
+      EULA: ${EULA}
+      VERSION: ${MINECRAFT_VERSION}
+      TYPE: ${SERVER_TYPE}
+      MEMORY: ${MEMORY}
+      OPS: ${OPS}
+      ENABLE_RCON: 'false'
+    volumes:
+      - minecraft-data:/data
+    deploy:
+      resources:
+        limits:
+          memory: 4G
+
+volumes:
+  minecraft-data:

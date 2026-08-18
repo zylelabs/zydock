@@ -9,6 +9,7 @@ import {
 import applicationModel from '../../src/modules/applications/application.model';
 import databaseModel from '../../src/modules/databases/database.model';
 import { composeContainerNameOf } from '../../src/modules/deployments/naming';
+import domainModel from '../../src/modules/domains/domain.model';
 import { findEnvironmentOfOrganization } from '../../src/modules/projects/environment.service';
 import { createMembership } from '../../src/modules/organizations/membership.service';
 import { runDeployment } from '../../src/modules/deployments/pipeline.service';
@@ -137,7 +138,7 @@ describe('GET /templates/:templateId/versions', () => {
     author: 'zydock',
     origin: 'official',
     dockerCompose: 'docker-compose.yml',
-    expose: { service: 'app', port: 80, domain: true },
+    expose: { service: 'app', port: 80, kind: 'http', domain: true },
     databases: [],
     inputs: [],
     secrets: [],
@@ -461,7 +462,7 @@ const versionedTemplate: Template = {
   author: 'zydock',
   origin: 'official',
   dockerCompose: 'docker-compose.yml',
-  expose: { service: 'app', port: 80, domain: true },
+  expose: { service: 'app', port: 80, kind: 'http', domain: true },
   databases: [],
   inputs: [],
   secrets: [],
@@ -580,7 +581,7 @@ describe('POST /templates/:templateId/deploy', () => {
       author: 'zydock',
       origin: 'official',
       dockerCompose: 'docker-compose.yml',
-      expose: { service: 'app', port: 80, domain: true },
+      expose: { service: 'app', port: 80, kind: 'http', domain: true },
       databases: [
         {
           service: 'db',
@@ -742,7 +743,7 @@ describe('POST /templates/:templateId/deploy', () => {
       author: 'zydock',
       origin: 'official',
       dockerCompose: 'docker-compose.yml',
-      expose: { service: 'app', port: 80, domain: true },
+      expose: { service: 'app', port: 80, kind: 'http', domain: true },
       databases: [],
       inputs: [{ key: 'API_KEY', label: 'API key', type: 'text', required: true }],
       secrets: [],
@@ -1020,7 +1021,7 @@ describe('template secrets never leak', () => {
       author: 'zydock',
       origin: 'official',
       dockerCompose: 'docker-compose.yml',
-      expose: { service: 'app', port: 80, domain: true },
+      expose: { service: 'app', port: 80, kind: 'http', domain: true },
       databases: [
         {
           service: 'db',
@@ -1236,7 +1237,7 @@ describe('POST /applications/:applicationId/variables/:key/regenerate', () => {
       author: 'zydock',
       origin: 'official',
       dockerCompose: 'docker-compose.yml',
-      expose: { service: 'app', port: 80, domain: true },
+      expose: { service: 'app', port: 80, kind: 'http', domain: true },
       databases: [],
       inputs: [],
       secrets: [{ key: 'API_KEY', generate: 'password' }],
@@ -1649,7 +1650,7 @@ const registryPolicyTemplate: Template = {
   author: 'zydock',
   origin: 'official',
   dockerCompose: 'docker-compose.yml',
-  expose: { service: 'app', port: 80, domain: true },
+  expose: { service: 'app', port: 80, kind: 'http', domain: true },
   databases: [],
   inputs: [],
   secrets: [],
@@ -1927,7 +1928,7 @@ describe('GET /applications/:applicationId/template-update', () => {
     author: 'zydock',
     origin: 'official',
     dockerCompose: 'docker-compose.yml',
-    expose: { service: 'app', port: 80, domain: true },
+    expose: { service: 'app', port: 80, kind: 'http', domain: true },
     databases: [],
     inputs: [],
     secrets: [],
@@ -2207,7 +2208,7 @@ describe('POST /applications/:applicationId/template-update', () => {
     author: 'zydock',
     origin: 'official',
     dockerCompose: 'docker-compose.yml',
-    expose: { service: 'app', port: 80, domain: true },
+    expose: { service: 'app', port: 80, kind: 'http', domain: true },
     databases: [],
     inputs: [{ key: 'TIMEZONE', label: 'Timezone', type: 'text', required: false }],
     secrets: [],
@@ -2526,5 +2527,238 @@ describe('POST /applications/:applicationId/template-update', () => {
     const raw = await applicationModel.findById(applicationId);
 
     expect(raw!.compose!.content).toBe(catalogTemplate.dockerComposeContent);
+  });
+});
+
+const httpDomainTemplate: Template = {
+  id: 'synthetic-http-domain-app',
+  version: 1,
+  name: 'Synthetic HTTP with domain',
+  tagline: 'Synthetic template for the auto-domain regression test',
+  category: 'test',
+  tags: [],
+  icon: 'icon.svg',
+  author: 'zydock',
+  origin: 'official',
+  dockerCompose: 'docker-compose.yml',
+  expose: { service: 'app', port: 80, kind: 'http', domain: true },
+  databases: [],
+  inputs: [],
+  secrets: [],
+  deprecated: false,
+  dockerComposeContent: 'services:\n  app:\n    image: nginx:1.27\n    ports:\n      - "8090:80"\n',
+};
+
+const tcpTemplate: Template = {
+  id: 'synthetic-tcp-app',
+  version: 1,
+  name: 'Synthetic TCP server',
+  tagline: 'Synthetic template for the auto-domain regression test',
+  category: 'test',
+  tags: [],
+  icon: 'icon.svg',
+  author: 'zydock',
+  origin: 'official',
+  dockerCompose: 'docker-compose.yml',
+  expose: { service: 'app', port: 25565, kind: 'tcp', host_port_key: 'HOST_PORT', domain: false },
+  databases: [],
+  inputs: [{ key: 'HOST_PORT', label: 'Host port', type: 'number', required: true }],
+  secrets: [],
+  deprecated: false,
+  dockerComposeContent:
+    'services:\n  app:\n    image: nginx:1.27\n    ports:\n      - "${HOST_PORT}:25565"\n',
+};
+
+const portMappingsOf = (application: Application) =>
+  application.portMappings.map(({ hostPort, containerPort, protocol }) => ({
+    hostPort,
+    containerPort,
+    protocol,
+  }));
+
+describe('auto-domain on template deploy (Fase 10)', () => {
+  let organizationId = '';
+  let projectId = '';
+  let environmentId = '';
+  let publicIp = '';
+
+  beforeAll(async () => {
+    allTemplates().push(httpDomainTemplate, tcpTemplate);
+
+    publicIp = `203.0.113.${50 + Math.floor(Math.random() * 100)}`;
+    await serverModel.updateOne({ _id: getLocalServerId() }, { $set: { publicIp } });
+
+    const org = await json('/organizations', 'POST', { name: 'Auto Domain Deploy Co' }, token);
+    organizationId = ((await org.json()) as { organization: { id: string } }).organization.id;
+
+    const project = await json(
+      `/organizations/${organizationId}/projects`,
+      'POST',
+      { name: 'Auto Domain Deploy Project' },
+      token,
+    );
+    projectId = ((await project.json()) as { project: { id: string } }).project.id;
+
+    const envs = await json(
+      `/organizations/${organizationId}/projects/${projectId}/environments`,
+      'GET',
+      undefined,
+      token,
+    );
+    environmentId = ((await envs.json()) as { items: { id: string }[] }).items[0]!.id;
+  });
+
+  afterAll(async () => {
+    for (const id of [httpDomainTemplate.id, tcpTemplate.id]) {
+      const index = allTemplates().findIndex(candidate => candidate.id === id);
+
+      if (index >= 0) {
+        allTemplates().splice(index, 1);
+      }
+    }
+
+    await serverModel.updateOne({ _id: getLocalServerId() }, { $unset: { publicIp: '' } });
+  });
+
+  test('kind "http" with expose.domain creates the automatic domain', async () => {
+    const server = await serverModel.findById(getLocalServerId());
+
+    const { application } = await deployTemplateApplication({
+      template: httpDomainTemplate,
+      organizationId,
+      projectId,
+      server: server!,
+      body: {
+        organizationId,
+        name: 'auto-domain-http',
+        environmentId,
+        serverId: getLocalServerId()!,
+        inputs: {},
+        deployNow: false,
+      },
+      triggeredBy: userId,
+    });
+
+    const domains = await domainModel.find({ applicationId: String(application._id) });
+
+    expect(domains).toHaveLength(1);
+    expect(domains[0]!.auto).toBe(true);
+
+    expect(portMappingsOf(application)).toEqual([
+      { hostPort: 8090, containerPort: 80, protocol: 'tcp' },
+    ]);
+
+    const response = await json(
+      `/organizations/${organizationId}/applications/${application._id}`,
+      'GET',
+      undefined,
+      token,
+    );
+    const body = (await response.json()) as {
+      application: {
+        source: string;
+        portMappings?: { hostPort: number; containerPort: number; protocol: string }[];
+      };
+    };
+
+    expect(body.application.source).toBe('compose');
+    expect(body.application.portMappings).toEqual([
+      { hostPort: 8090, containerPort: 80, protocol: 'tcp' },
+    ]);
+  });
+
+  test('kind "tcp" does not create an automatic domain, even on a server with a public IP', async () => {
+    const server = await serverModel.findById(getLocalServerId());
+
+    const { application } = await deployTemplateApplication({
+      template: tcpTemplate,
+      organizationId,
+      projectId,
+      server: server!,
+      body: {
+        organizationId,
+        name: 'auto-domain-tcp',
+        environmentId,
+        serverId: getLocalServerId()!,
+        inputs: { HOST_PORT: '25711' },
+        deployNow: false,
+      },
+      triggeredBy: userId,
+    });
+
+    const domains = await domainModel.find({ applicationId: String(application._id) });
+
+    expect(domains).toHaveLength(0);
+    expect(portMappingsOf(application)).toEqual([
+      { hostPort: 25711, containerPort: 25565, protocol: 'tcp' },
+    ]);
+  });
+
+  test('two applications of the same template coexist on different host ports', async () => {
+    const server = await serverModel.findById(getLocalServerId());
+
+    const deployOn = (name: string, hostPort: string) =>
+      deployTemplateApplication({
+        template: tcpTemplate,
+        organizationId,
+        projectId,
+        server: server!,
+        body: {
+          organizationId,
+          name,
+          environmentId,
+          serverId: getLocalServerId()!,
+          inputs: { HOST_PORT: hostPort },
+          deployNow: false,
+        },
+        triggeredBy: userId,
+      });
+
+    const first = await deployOn('tcp-port-first', '25712');
+    const second = await deployOn('tcp-port-second', '25713');
+
+    expect(portMappingsOf(first.application)).toEqual([
+      { hostPort: 25712, containerPort: 25565, protocol: 'tcp' },
+    ]);
+    expect(portMappingsOf(second.application)).toEqual([
+      { hostPort: 25713, containerPort: 25565, protocol: 'tcp' },
+    ]);
+
+    const originalFetch = globalThis.fetch;
+
+    globalThis.fetch = (async (input: string | URL) => {
+      if (new URL(String(input)).pathname !== '/api/containers') {
+        throw new Error(`Unhandled agent request in test mock: ${String(input)}`);
+      }
+
+      return new Response(
+        JSON.stringify([
+          {
+            id: 'container-25712',
+            name: first.application.slug,
+            image: 'nginx:1.27',
+            state: 'running',
+            health: 'none',
+            restartCount: 0,
+            ports: [{ containerPort: 25565, hostPort: 25712, protocol: 'tcp' }],
+            labels: {},
+          },
+        ]),
+        { status: 200, headers: { 'content-type': 'application/json' } },
+      );
+    }) as typeof fetch;
+
+    try {
+      const conflict = await deployOn('tcp-port-third', '25712').catch(
+        (error: Error & { field?: string }) => error,
+      );
+
+      expect(conflict).toBeInstanceOf(Error);
+      expect((conflict as Error).message).toContain('25712');
+      expect((conflict as Error).message).toContain(first.application.slug);
+      expect((conflict as Error & { field?: string }).field).toBe('HOST_PORT');
+    } finally {
+      globalThis.fetch = originalFetch;
+    }
   });
 });

@@ -134,7 +134,7 @@ const healthcheckSchema = z.object({
   startPeriodSeconds: z.coerce.number().int().min(0).max(3600).optional(),
 });
 
-const resourcesSchema = z.object({
+export const resourcesSchema = z.object({
   cpus: z.coerce.number().positive().max(256).optional(),
   memoryMb: z.coerce
     .number()

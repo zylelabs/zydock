@@ -16,6 +16,23 @@ const unreachable = errorRes('The agent of this server could not be reached.');
 
 const protectedRes = errorRes('The volume is part of the Zydock platform and cannot be removed.');
 
+const fileEntrySchema = {
+  type: 'object',
+  properties: {
+    name: { type: 'string' },
+    path: { type: 'string' },
+    type: { type: 'string', enum: ['file', 'directory'] },
+    sizeBytes: { type: 'integer' },
+    modifiedAt: { type: 'string', format: 'date-time' },
+    readableAsText: { type: 'boolean' },
+  },
+};
+
+const fileContentRes = {
+  description: 'The file content, streamed as it is read.',
+  content: { 'application/octet-stream': { schema: { type: 'string', format: 'binary' } } },
+};
+
 export const volumesDocs = {
   list: {
     tags: ['Volumes'],
@@ -52,6 +69,64 @@ export const volumesDocs = {
       400: errorRes('The volume is still in use by a container.'),
       404: errorRes('Server not found.'),
       423: protectedRes,
+      502: unreachable,
+    },
+  },
+  listFiles: {
+    tags: ['Volumes'],
+    summary: 'List the entries of a directory inside a volume',
+    security: bearerOrApiKeyAuth,
+    responses: {
+      200: jsonRes('Directory entries.', { type: 'array', items: fileEntrySchema }),
+      400: errorRes('Invalid path.'),
+      404: errorRes('Server, volume or path not found.'),
+      502: unreachable,
+    },
+  },
+  readFile: {
+    tags: ['Volumes'],
+    summary: 'Read a file inside a volume',
+    security: bearerOrApiKeyAuth,
+    responses: {
+      200: fileContentRes,
+      400: errorRes('Invalid path.'),
+      404: errorRes('Server, volume or file not found.'),
+      502: unreachable,
+    },
+  },
+  writeFile: {
+    tags: ['Volumes'],
+    summary: 'Write a file inside a volume',
+    description:
+      'Streams the request body straight to the agent through a throwaway container — the ' +
+      'backend never buffers the upload in memory.',
+    security: bearerOrApiKeyAuth,
+    responses: {
+      200: messageRes('File written.'),
+      400: errorRes('Invalid path or upload too large.'),
+      404: errorRes('Server or volume not found.'),
+      502: unreachable,
+    },
+  },
+  createDirectory: {
+    tags: ['Volumes'],
+    summary: 'Create a directory inside a volume',
+    security: bearerOrApiKeyAuth,
+    responses: {
+      201: messageRes('Directory created.'),
+      400: errorRes('Invalid path.'),
+      404: errorRes('Server or volume not found.'),
+      502: unreachable,
+    },
+  },
+  removeFile: {
+    tags: ['Volumes'],
+    summary: 'Remove a file or directory inside a volume',
+    security: bearerOrApiKeyAuth,
+    responses: {
+      200: messageRes('Path removed.'),
+      400: errorRes('Invalid path.'),
+      404: errorRes('Server, volume or path not found.'),
       502: unreachable,
     },
   },

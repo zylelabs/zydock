@@ -147,6 +147,7 @@
   const selectedTemplate = ref<Template | null>(null);
   const templateInputValues = reactive<Record<string, string>>({});
   const templateVersion = ref('');
+  const templateMemoryMb = ref('');
 
   const templateVersionsListing = ref<TemplateVersionsListing | null>(null);
   const templateVersionsError = ref('');
@@ -198,6 +199,7 @@
     templateVersion.value = template.versions?.default ?? '';
     templateVersionsListing.value = null;
     templateVersionsError.value = '';
+    templateMemoryMb.value = '';
 
     for (const key of Object.keys(templateInputValues)) {
       Reflect.deleteProperty(templateInputValues, key);
@@ -315,10 +317,36 @@
       return null;
     }
 
+    if (
+      form.values.resourceMode === 'template' &&
+      selectedTemplate.value &&
+      selectedTemplate.value.expose.kind !== 'http'
+    ) {
+      return null;
+    }
+
     const slug = slugify(form.values.name) || 'app';
     const ipLabel = selectedServer.value.publicIp.replace(/[.:]/g, '-');
 
     return `${slug}.${ipLabel}.${health.value.autoDomain.suffix}`;
+  });
+
+  const templateEndpointPreview = computed(() => {
+    const template = selectedTemplate.value;
+
+    if (!template || template.expose.kind === 'http') {
+      return null;
+    }
+
+    const hostPortKey = template.expose.host_port_key;
+    const port = hostPortKey ? templateInputValues[hostPortKey] : undefined;
+    const host = selectedServer.value?.publicIp;
+
+    if (!host || !port) {
+      return null;
+    }
+
+    return `${host}:${port}/${template.expose.kind}`;
   });
 
   const gitSourcePicker = ref<{ reset: () => void } | null>(null);
@@ -518,6 +546,9 @@
         ),
         version: templateVersion.value || undefined,
         deployNow: true,
+        resources: templateMemoryMb.value.trim()
+          ? { memoryMb: Number(templateMemoryMb.value) }
+          : undefined,
       });
 
       await navigateTo(`/applications/${application.id}`);
@@ -625,7 +656,15 @@
               .filter(Boolean)
               .join(', ') || '—',
         },
-        { label: 'Domain', value: template?.expose.domain ? 'automatic' : 'none' },
+        template?.expose.kind !== 'http'
+          ? {
+              label: 'Endpoint',
+              value: templateEndpointPreview.value ?? 'no public IP configured on the server',
+            }
+          : { label: 'Domain', value: template?.expose.domain ? 'automatic' : 'none' },
+        ...(template?.expose.kind !== 'http' && templateMemoryMb.value.trim()
+          ? [{ label: 'Memory limit', value: `${templateMemoryMb.value} MB` }]
+          : []),
         { label: 'Volumes', value: 'defined in the template’s compose file' },
         { label: 'Project', value: `${projectName.value} · ${environmentName.value}` },
         { label: 'Server', value: serverName.value },
@@ -856,7 +895,18 @@
                   :inputs="selectedTemplate?.inputs ?? []"
                   :values="templateInputValues"
                   :errors="templateInputError"
+                  :host-port-key="selectedTemplate?.expose.host_port_key"
                   @update:value="(key, value) => (templateInputValues[key] = value)"
+                />
+
+                <Input
+                  v-if="selectedTemplate && selectedTemplate.expose.kind !== 'http'"
+                  v-model="templateMemoryMb"
+                  label="Memory limit (MB)"
+                  placeholder="Default is 512 MB — often too low for this workload"
+                  type="number"
+                  mono
+                  boxed
                 />
               </template>
 
@@ -919,6 +969,24 @@
             <span class="text-ink-2">Your application will be reachable at</span>
             <span class="truncate font-mono text-ink">{{ autoDomainPreview }}</span>
           </div>
+          <div
+            v-else-if="templateEndpointPreview"
+            class="mb-3.5 flex items-center gap-2 rounded-card border border-edge bg-inset px-4 py-3 text-caption"
+          >
+            <Icon name="lucide:plug" class="size-4 shrink-0 text-ink-2" />
+            <span class="text-ink-2">Your application will be reachable at</span>
+            <span class="truncate font-mono text-ink">{{ templateEndpointPreview }}</span>
+          </div>
+          <p
+            v-else-if="
+              form.values.resourceMode === 'template' &&
+              selectedTemplate?.expose.kind !== 'http' &&
+              form.values.serverId
+            "
+            class="mb-3.5 text-caption text-ink-3"
+          >
+            No endpoint preview yet — the selected server has no public IP configured.
+          </p>
           <p
             v-else-if="health?.autoDomain.enabled && form.values.serverId"
             class="mb-3.5 text-caption text-ink-3"

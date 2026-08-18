@@ -69,6 +69,7 @@ export type ContainerInfo = {
   labels: Record<string, string>;
   addresses?: Record<string, string>;
   protected: boolean;
+  stdinOpen: boolean;
 };
 
 export type ContainerFilter = {
@@ -141,6 +142,14 @@ export type VolumeInfo = {
 
 export type ArchiveStream = ReadableStream<Uint8Array>;
 
+export type VolumeFileEntry = {
+  name: string;
+  path: string;
+  type: 'file' | 'directory';
+  sizeBytes?: number;
+  modifiedAt?: string;
+};
+
 export type ContainerProvider = {
   createContainer: (spec: ContainerSpec) => Promise<ContainerInfo>;
   startContainer: (id: string) => Promise<void>;
@@ -166,6 +175,15 @@ export type ContainerProvider = {
   restoreVolume: (name: string, archive: ArchiveStream) => Promise<void>;
   archiveFromContainer: (id: string, command: string[]) => Promise<ArchiveStream>;
   restoreIntoContainer: (id: string, command: string[], archive: ArchiveStream) => Promise<void>;
+  listVolumeFiles: (name: string, path: string) => Promise<VolumeFileEntry[]>;
+  readVolumeFile: (name: string, path: string) => Promise<ArchiveStream>;
+  writeVolumeFile: (
+    name: string,
+    path: string,
+    stream: ReadableStream<Uint8Array>,
+  ) => Promise<void>;
+  deleteVolumePath: (name: string, path: string) => Promise<void>;
+  createVolumeDirectory: (name: string, path: string) => Promise<void>;
 };
 
 export type ContainerProviderFactory = (connection: ContainerConnection) => ContainerProvider;
