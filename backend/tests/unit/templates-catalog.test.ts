@@ -45,11 +45,15 @@ const dummyValueFor = (input: TemplateInput | TemplateSecret): string => {
   }
 
   if (input.type === 'boolean') {
-    return 'false';
+    return input.must_be_true ? 'true' : 'false';
+  }
+
+  if (input.default !== undefined && String(input.default).length > 0) {
+    return String(input.default);
   }
 
   if (input.type === 'number') {
-    return '10000';
+    return String(input.min ?? Math.min(10000, input.max ?? 10000));
   }
 
   return input.options?.[0] ?? 'value';
