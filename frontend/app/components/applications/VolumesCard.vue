@@ -90,7 +90,7 @@
       <Row v-if="isCompose && volumes.length" as="div" class="flex items-baseline">
         <div class="w-33 shrink-0 text-caption text-ink-2">Contents</div>
         <NuxtLink
-          :to="`/applications/${application.id}/files`"
+          :to="`/applications/${application.id}?tab=files`"
           class="text-caption text-accent underline"
         >
           Browse files

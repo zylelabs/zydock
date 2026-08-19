@@ -4,6 +4,7 @@
   import VariablesTab from './.VariablesTab.vue';
   import SettingsTab from './.SettingsTab.vue';
   import ComposeTab from './.ComposeTab.vue';
+  import FilesTab from './.FilesTab.vue';
   import {
     applicationExposeKind,
     applicationStatusDot,
@@ -209,12 +210,13 @@
     }
   };
 
-  type TabId = 'overview' | 'network' | 'variables' | 'compose' | 'settings';
+  type TabId = 'overview' | 'network' | 'variables' | 'files' | 'compose' | 'settings';
 
   const TABS: { id: TabId; label: string }[] = [
     { id: 'overview', label: 'Overview' },
     { id: 'network', label: 'Domains & network' },
     { id: 'variables', label: 'Variables' },
+    { id: 'files', label: 'Files' },
     { id: 'compose', label: 'Compose' },
     { id: 'settings', label: 'Settings' },
   ];
@@ -225,15 +227,22 @@
         return application.value?.source === 'compose';
       }
 
+      if (tab.id === 'files') {
+        return Boolean(application.value?.volumes?.length);
+      }
+
       return true;
     });
 
-    return canManage.value ? tabs : tabs.filter(tab => tab.id === 'overview');
+    return canManage.value ? tabs : tabs.filter(tab => tab.id === 'overview' || tab.id === 'files');
   });
-  const activeTab = ref<TabId>('overview');
+  const isKnownTab = (value: unknown): value is TabId => TABS.some(tab => tab.id === value);
 
-  watch(canManage, manage => {
-    if (!manage) {
+  const initialTab = route.query.tab;
+  const activeTab = ref<TabId>(isKnownTab(initialTab) ? initialTab : 'overview');
+
+  watch(visibleTabs, tabs => {
+    if (!tabs.some(tab => tab.id === activeTab.value)) {
       activeTab.value = 'overview';
     }
   });
@@ -311,14 +320,6 @@
         <Button theme="secondary" size="sm" :to="`/applications/${application.id}/console`">
           Console
         </Button>
-        <Button
-          v-if="application.volumes?.length"
-          theme="secondary"
-          size="sm"
-          :to="`/applications/${application.id}/files`"
-        >
-          Files
-        </Button>
 
         <template v-if="canManage">
           <Button
@@ -382,6 +383,11 @@
     />
     <VariablesTab
       v-else-if="activeTab === 'variables'"
+      :application="application"
+      :can-manage="canManage"
+    />
+    <FilesTab
+      v-else-if="activeTab === 'files'"
       :application="application"
       :can-manage="canManage"
     />
