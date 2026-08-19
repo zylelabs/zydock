@@ -82,7 +82,7 @@
     @dragleave.prevent="dragging = false"
     @drop.prevent="handleCardDrop"
   >
-    <div class="flex items-center justify-between gap-2 border-b border-edge px-3 py-1.5">
+    <div class="flex shrink-0 items-center justify-between gap-2 border-b border-edge px-3 py-1.5">
       <span class="truncate font-mono text-caption text-ink-2">/</span>
       <button
         v-if="canManage"
@@ -95,7 +95,7 @@
       </button>
     </div>
 
-    <div class="py-1.5">
+    <div class="min-h-0 flex-1 overflow-y-auto py-1.5">
       <EmptyState
         v-if="entries.length === 0"
         variant="prompt"
