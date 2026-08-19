@@ -118,7 +118,7 @@
   <div class="flex flex-col gap-4.5">
     <Card
       title="Catalog sources"
-      description="Community catalogs synced from a Git repository, in addition to the built-in marketplace."
+      description="Community catalogs synced from a Git repository, in addition to the built-in marketplace. Their templates run on your own servers — add only sources you trust."
     >
       <template #right>
         <Button theme="primary" size="xs" @click="openAdd">
@@ -127,20 +127,12 @@
         </Button>
       </template>
 
-      <Row as="div" class="flex items-start">
-        <Alert theme="warning" class="w-full">
-          A template from a third-party source runs a container on your own server. The compose
-          denylist limits what it can do, but it does not replace trusting whoever maintains the
-          source — review it before adding.
-        </Alert>
-      </Row>
-
-      <div v-if="sourcesFirstLoad" class="flex flex-col gap-3 p-3">
-        <Skeleton class="h-24 w-full rounded-card" />
-        <Skeleton class="h-24 w-full rounded-card" />
+      <div v-if="sourcesFirstLoad" class="flex flex-col gap-3">
+        <Skeleton class="h-32 w-full rounded-card" />
+        <Skeleton class="h-32 w-full rounded-card" />
       </div>
 
-      <Alert v-else-if="sourcesError" theme="error" class="m-3">{{ sourcesError }}</Alert>
+      <Alert v-else-if="sourcesError" theme="error">{{ sourcesError }}</Alert>
 
       <EmptyState
         v-else-if="!sources.length"

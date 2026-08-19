@@ -21,7 +21,7 @@
   };
 
   const base =
-    'inline-flex items-center justify-center gap-2 font-medium cursor-pointer transition-colors focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-accent disabled:cursor-not-allowed disabled:opacity-50';
+    'inline-flex items-center justify-center gap-2 whitespace-nowrap font-medium cursor-pointer transition-colors focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-accent disabled:cursor-not-allowed disabled:opacity-50';
 
   const themes: Record<ButtonTheme, string> = {
     primary: 'bg-ink text-page hover:opacity-90',

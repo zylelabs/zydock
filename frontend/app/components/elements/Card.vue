@@ -49,7 +49,7 @@
         </div>
       </div>
 
-      <div v-if="slots.right" class="min-h-7 w-full sm:ml-auto sm:w-auto">
+      <div v-if="slots.right" class="min-h-7 w-full sm:ml-auto sm:w-auto sm:shrink-0">
         <slot name="right" />
       </div>
 
