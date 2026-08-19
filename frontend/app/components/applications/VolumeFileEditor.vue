@@ -44,8 +44,11 @@
 </script>
 
 <template>
-  <div class="flex min-h-0 flex-1 flex-col overflow-hidden rounded-card border border-edge bg-card">
-    <div v-if="openFiles.length" class="flex items-stretch overflow-x-auto border-b border-edge">
+  <div class="flex min-h-0 flex-1 flex-col overflow-clip rounded-card border border-edge bg-card">
+    <div
+      v-if="openFiles.length"
+      class="sticky top-0 z-10 flex items-stretch overflow-x-auto border-b border-edge bg-card"
+    >
       <button
         v-for="file in openFiles"
         :key="file.path"
@@ -113,7 +116,7 @@
 
       <div
         v-if="active.readableAsText && !active.loading && !active.error"
-        class="flex items-center justify-between border-t border-edge px-3.5 py-2"
+        class="sticky bottom-0 z-10 flex items-center justify-between border-t border-edge bg-card px-3.5 py-2"
       >
         <span class="font-mono text-caption text-ink-2"
           >{{ active.path }} · {{ lineCount }} lines</span

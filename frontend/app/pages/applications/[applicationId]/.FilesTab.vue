@@ -215,7 +215,10 @@
         :active-path="workspace.activePath.value"
         :can-manage="canManage"
         :busy-path="downloadingPath"
-        :class="rootLoading && 'opacity-60'"
+        :class="[
+          'lg:sticky lg:top-0 lg:max-h-[calc(100dvh-4.5rem)] lg:self-start',
+          rootLoading && 'opacity-60',
+        ]"
         @toggle="workspace.toggleDirectory"
         @open="openEntry"
         @download="entry => handleDownload(entry.path, entry.name)"
@@ -225,6 +228,7 @@
       />
 
       <VolumeFileEditor
+        class="lg:min-h-[calc(100dvh-4.5rem)]"
         :open-files="workspace.openFiles.value"
         :active-path="workspace.activePath.value"
         :can-manage="canManage"
