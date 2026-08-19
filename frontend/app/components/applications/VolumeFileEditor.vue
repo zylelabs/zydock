@@ -6,6 +6,7 @@
     activePath: string;
     canManage: boolean;
     saving: boolean;
+    busyPath?: string;
   }>();
 
   const emit = defineEmits<{
@@ -14,6 +15,7 @@
     revert: [path: string];
     save: [path: string];
     download: [path: string];
+    remove: [path: string];
     'update:content': [path: string, content: string];
   }>();
 
@@ -83,12 +85,35 @@
     />
 
     <template v-else>
-      <EmptyState v-if="!active.readableAsText" variant="prompt" class="m-4 flex-1 border-none">
+      <EmptyState
+        v-if="!active.readableAsText"
+        variant="prompt"
+        class="m-4 flex flex-1 flex-col items-center justify-center border-none"
+      >
         <p>This file is binary or too large to edit here.</p>
-        <Button theme="secondary" size="sm" class="mt-3" @click="emit('download', active.path)">
-          <Icon name="lucide:download" class="size-4" />
-          Download
-        </Button>
+        <div class="mt-3 flex items-center gap-2">
+          <Button
+            theme="secondary"
+            size="sm"
+            :disabled="busyPath === active.path"
+            @click="emit('download', active.path)"
+          >
+            <Icon
+              :name="busyPath === active.path ? 'svg-spinners:tadpole' : 'lucide:download'"
+              class="size-4"
+            />
+            Download
+          </Button>
+          <Button
+            v-if="canManage"
+            theme="destructive"
+            size="sm"
+            @click="emit('remove', active.path)"
+          >
+            <Icon name="lucide:trash-2" class="size-4" />
+            Delete
+          </Button>
+        </div>
       </EmptyState>
 
       <Skeleton v-else-if="active.loading" class="m-3 flex-1 rounded-control" />

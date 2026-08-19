@@ -116,13 +116,18 @@
     }
   };
 
-  const removeTarget = ref<VolumeFileEntry | null>(null);
+  const removeTarget = ref<{ path: string; type: VolumeFileEntry['type'] } | null>(null);
   const removing = ref(false);
   const removeError = ref('');
 
   const askRemove = (entry: VolumeFileEntry) => {
     removeError.value = '';
-    removeTarget.value = entry;
+    removeTarget.value = { path: entry.path, type: entry.type };
+  };
+
+  const askRemoveFile = (path: string) => {
+    removeError.value = '';
+    removeTarget.value = { path, type: 'file' };
   };
 
   const confirmRemove = async () => {
@@ -154,15 +159,6 @@
   const confirmClose = () => {
     workspace.forceCloseFile(closeTarget.value);
     closeTarget.value = '';
-  };
-
-  const openEntry = (entry: VolumeFileEntry) => {
-    if (entry.readableAsText === false) {
-      handleDownload(entry.path, entry.name);
-      return;
-    }
-
-    workspace.openFile(entry);
   };
 
   const downloadActive = (path: string) => {
@@ -220,7 +216,7 @@
           rootLoading && 'opacity-60',
         ]"
         @toggle="workspace.toggleDirectory"
-        @open="openEntry"
+        @open="workspace.openFile"
         @download="entry => handleDownload(entry.path, entry.name)"
         @remove="askRemove"
         @upload="askUpload"
@@ -233,11 +229,13 @@
         :active-path="workspace.activePath.value"
         :can-manage="canManage"
         :saving="saving"
+        :busy-path="downloadingPath"
         @activate="path => (workspace.activePath.value = path)"
         @close="handleClose"
         @revert="workspace.revert"
         @save="handleSave"
         @download="downloadActive"
+        @remove="askRemoveFile"
         @update:content="
           (path, content) => {
             const file = workspace.openFiles.value.find(item => item.path === path);
