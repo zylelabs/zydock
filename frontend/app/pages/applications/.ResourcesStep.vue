@@ -54,23 +54,12 @@
     return [{ value: '', label: 'All' }, ...unique.map(value => ({ value, label: value }))];
   });
 
-  const origins = [
-    { value: '', label: 'All' },
-    { value: 'official', label: 'Official' },
-    { value: 'community', label: 'Community' },
-  ] as const;
-
   const search = ref('');
   const activeCategory = ref('');
-  const activeOrigin = ref('');
 
   const visibleTemplates = computed(() =>
     templates.value.filter(template => {
       if (activeCategory.value && template.category !== activeCategory.value) {
-        return false;
-      }
-
-      if (activeOrigin.value && template.origin !== activeOrigin.value) {
         return false;
       }
 
@@ -123,23 +112,6 @@
       </button>
     </div>
 
-    <div class="flex flex-wrap gap-1.5 border-t border-hairline px-4.25 py-2.75">
-      <button
-        v-for="origin in origins"
-        :key="origin.value"
-        type="button"
-        class="cursor-pointer rounded-full border px-2.75 py-1 text-caption transition-colors"
-        :class="
-          activeOrigin === origin.value
-            ? 'border-accent bg-accent-soft/15 text-accent'
-            : 'border-edge text-ink-2 hover:bg-inset'
-        "
-        @click="activeOrigin = origin.value"
-      >
-        {{ origin.label }}
-      </button>
-    </div>
-
     <div class="max-h-125 overflow-y-auto border-t border-hairline p-3">
       <div v-if="status === 'pending'" class="grid grid-cols-2 gap-3">
         <SkeletonCard v-for="index in 4" :key="index" :rows="2" />
@@ -179,19 +151,11 @@
             <div class="min-w-0 flex-1 truncate text-body font-semibold text-ink">
               {{ template.name }}
             </div>
-            <Tag
-              :color="template.origin === 'official' ? 'live' : 'default'"
-              :title="
-                template.origin === 'community'
-                  ? 'Community template: not audited by the Zydock team.'
-                  : undefined
-              "
-            >
-              {{ template.origin }}
-            </Tag>
           </div>
           <p class="mt-2 line-clamp-2 text-caption text-ink-2">{{ template.tagline }}</p>
-          <p class="mt-2 font-mono text-caption text-ink-3">{{ template.author }}</p>
+          <div v-if="template.category" class="mt-2.5">
+            <Tag>{{ template.category }}</Tag>
+          </div>
         </button>
 
         <button
