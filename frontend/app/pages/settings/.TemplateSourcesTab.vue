@@ -97,9 +97,15 @@
     try {
       await acceptUpdate(source.id);
       await refreshSources();
-      toast.success({ title: 'Update accepted', message: 'The catalog now serves the new commit.' });
+      toast.success({
+        title: 'Update accepted',
+        message: 'The catalog now serves the new commit.',
+      });
     } catch (error) {
-      toast.error({ title: 'Error', message: errorMessageOf(error, 'Could not accept the update.') });
+      toast.error({
+        title: 'Error',
+        message: errorMessageOf(error, 'Could not accept the update.'),
+      });
     } finally {
       decidingId.value = null;
     }
@@ -112,7 +118,10 @@
       await rejectUpdate(source.id);
       await refreshSources();
     } catch (error) {
-      toast.error({ title: 'Error', message: errorMessageOf(error, 'Could not reject the update.') });
+      toast.error({
+        title: 'Error',
+        message: errorMessageOf(error, 'Could not reject the update.'),
+      });
     } finally {
       decidingId.value = null;
     }

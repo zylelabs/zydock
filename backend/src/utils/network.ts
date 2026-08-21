@@ -55,9 +55,7 @@ const isPrivateIPv6 = (address: string) => {
   }
 
   return (
-    normalized.startsWith('fe80:') ||
-    normalized.startsWith('fc') ||
-    normalized.startsWith('fd')
+    normalized.startsWith('fe80:') || normalized.startsWith('fc') || normalized.startsWith('fd')
   );
 };
 

@@ -1,6 +1,11 @@
 import { z } from 'zod';
 
-export const AUDIT_LOG_ACTIONS = ['console', 'volume.read', 'volume.write', 'volume.remove'] as const;
+export const AUDIT_LOG_ACTIONS = [
+  'console',
+  'volume.read',
+  'volume.write',
+  'volume.remove',
+] as const;
 
 export type AuditLogAction = (typeof AUDIT_LOG_ACTIONS)[number];
 

@@ -1,6 +1,11 @@
 import config from '../../config';
 import { createOpensslTlsProvider } from './openssl.provider';
-import { TLS_IMPLEMENTATIONS, type TlsImplementation, type TlsProvider, type TlsProviderFactory } from './tls.contract';
+import {
+  TLS_IMPLEMENTATIONS,
+  type TlsImplementation,
+  type TlsProvider,
+  type TlsProviderFactory,
+} from './tls.contract';
 
 const factories: Partial<Record<TlsImplementation, TlsProviderFactory>> = {
   openssl: createOpensslTlsProvider,
