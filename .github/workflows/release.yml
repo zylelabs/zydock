@@ -9,6 +9,16 @@ on:
         description: "Existing tag to publish (e.g. v0.2.0)."
         required: true
         type: string
+  workflow_call:
+    inputs:
+      tag:
+        description: "Existing tag to publish (e.g. v0.2.0)."
+        required: true
+        type: string
+
+concurrency:
+  group: release-${{ inputs.tag || github.ref_name }}
+  cancel-in-progress: false
 
 jobs:
   release:
@@ -18,13 +28,25 @@ jobs:
       contents: write
     env:
       TAG: ${{ inputs.tag || github.ref_name }}
+      CALLED: ${{ github.event_name == 'workflow_call' }}
     steps:
+      - name: Validate tag format
+        run: |
+          case "${TAG}" in
+          v[0-9]*) ;;
+          *)
+            echo "::error::Refusing to publish '${TAG}': tag must match v*."
+            exit 1
+            ;;
+          esac
+
       - uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262 # v4.4.0
         with:
           fetch-depth: 0
           ref: ${{ inputs.tag || github.ref_name }}
 
       - name: Verify tag is publishable
+        id: verify
         env:
           GH_TOKEN: ${{ github.token }}
         run: |
@@ -33,12 +55,19 @@ jobs:
             exit 1
           fi
           if gh release view "${TAG}" >/dev/null 2>&1; then
+            if [ "${CALLED}" = "true" ]; then
+              echo "::warning::A release for ${TAG} already exists; nothing to publish."
+              echo "skip=true" >> "$GITHUB_OUTPUT"
+              exit 0
+            fi
             echo "::error::A release for ${TAG} already exists."
             exit 1
           fi
+          echo "skip=false" >> "$GITHUB_OUTPUT"
 
       - name: Resolve previous tag
         id: previous
+        if: steps.verify.outputs.skip != 'true'
         run: |
           case "${TAG}" in
           *-*) CANDIDATES="$(git tag --sort=-v:refname)" ;;
@@ -50,14 +79,15 @@ jobs:
           echo "Comparing ${TAG} against ${PREVIOUS:-the start of history}."
 
       - name: Publish release
+        if: steps.verify.outputs.skip != 'true'
         env:
           GH_TOKEN: ${{ github.token }}
           PREVIOUS_TAG: ${{ steps.previous.outputs.tag }}
         run: |
           if [ -n "${PREVIOUS_TAG}" ]; then
-            NOTES="$(git log --oneline --no-decorate "${PREVIOUS_TAG}..${TAG}")"
+            git log --oneline --no-decorate "${PREVIOUS_TAG}..${TAG}" > /tmp/release-notes.md
           else
-            NOTES="$(git log --oneline --no-decorate "${TAG}")"
+            git log --oneline --no-decorate "${TAG}" > /tmp/release-notes.md
           fi
 
           PRERELEASE_ARGS=()
@@ -65,4 +95,4 @@ jobs:
           *-*) PRERELEASE_ARGS=(--prerelease) ;;
           esac
 
-          gh release create "${TAG}" --title "${TAG}" --notes "${NOTES}" "${PRERELEASE_ARGS[@]}"
+          gh release create "${TAG}" --title "${TAG}" --notes-file /tmp/release-notes.md "${PRERELEASE_ARGS[@]}"
