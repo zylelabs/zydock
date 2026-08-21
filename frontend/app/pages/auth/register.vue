@@ -35,10 +35,7 @@
       .trim()
       .transform(normalizeBootstrapCode)
       .pipe(
-        z
-          .string()
-          .regex(bootstrapCodePattern, 'Enter the eight-character code')
-          .or(z.literal('')),
+        z.string().regex(bootstrapCodePattern, 'Enter the eight-character code').or(z.literal('')),
       )
       .optional(),
   });

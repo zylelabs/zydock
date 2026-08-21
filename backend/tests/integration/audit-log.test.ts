@@ -98,7 +98,9 @@ describe('audit log', () => {
   test('a write on a volume not created by Zydock is refused with 423', async () => {
     installAgentMock({
       status: 423,
-      body: { error: 'This volume was not created by Zydock and cannot be accessed through this API.' },
+      body: {
+        error: 'This volume was not created by Zydock and cannot be accessed through this API.',
+      },
     });
 
     const response = await app.request(
@@ -137,7 +139,12 @@ describe('audit log', () => {
 
     expect(write.status).toBe(200);
 
-    const list = await json(`/organizations/${organizationId}/audit-log`, 'GET', undefined, adminToken);
+    const list = await json(
+      `/organizations/${organizationId}/audit-log`,
+      'GET',
+      undefined,
+      adminToken,
+    );
     const body = (await list.json()) as { items: { action: string; volume: string }[] };
 
     expect(

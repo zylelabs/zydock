@@ -30,7 +30,11 @@ export const auditLogDocs = {
     security: bearerOrApiKeyAuth,
     parameters: [
       { name: 'serverId', in: 'query' as const, schema: { type: 'string' } },
-      { name: 'action', in: 'query' as const, schema: { type: 'string', enum: [...AUDIT_LOG_ACTIONS] } },
+      {
+        name: 'action',
+        in: 'query' as const,
+        schema: { type: 'string', enum: [...AUDIT_LOG_ACTIONS] },
+      },
     ],
     responses: {
       200: jsonRes('Audit log entries.', paginatedSchema(auditLogSchema)),

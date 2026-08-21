@@ -185,9 +185,7 @@ const uploadAgentTls = async (session: SshSession, prefix: string, serverId: str
 
 const resolveBackendIp = async (session: SshSession) => {
   const backendHost = new URL(config.backendUrl).hostname;
-  const result = await session.exec(
-    `getent hosts ${backendHost} | awk '{print $1}' | head -n1`,
-  );
+  const result = await session.exec(`getent hosts ${backendHost} | awk '{print $1}' | head -n1`);
   const backendIp = result.stdout.trim();
 
   if (!backendIp) {

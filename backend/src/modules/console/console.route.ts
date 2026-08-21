@@ -9,7 +9,11 @@ import { buildAgentConnection, findServerWithAgentToken } from '../servers/serve
 import { upgradeWebSocket } from '../websocket/websocket.service';
 import { websocketAuthMiddleware } from '../websocket/websocket.middleware';
 import { consoleDocs } from './console.docs';
-import { ConsoleSessionHandle, registerConsoleSession, unregisterConsoleSession } from './console.service';
+import {
+  ConsoleSessionHandle,
+  registerConsoleSession,
+  unregisterConsoleSession,
+} from './console.service';
 
 const { router, get } = createRouter();
 

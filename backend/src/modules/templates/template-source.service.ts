@@ -154,7 +154,12 @@ export const syncTemplateSource = async (templateSourceId: string): Promise<Temp
         { _id: templateSourceId },
         {
           $set: { templateCount: templates.length, commit, lastSyncedAt: new Date() },
-          $unset: { lastError: '', pendingCommit: '', pendingTemplateCount: '', pendingSyncedAt: '' },
+          $unset: {
+            lastError: '',
+            pendingCommit: '',
+            pendingTemplateCount: '',
+            pendingSyncedAt: '',
+          },
         },
       );
 

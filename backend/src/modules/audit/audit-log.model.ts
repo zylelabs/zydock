@@ -30,11 +30,6 @@ const auditLogSchema = new Schema(
 
 auditLogSchema.index({ organizationId: 1, createdAt: -1 });
 
-auditLogSchema.index(
-  { createdAt: 1 },
-  { expireAfterSeconds: AUDIT_LOG_RETENTION_SECONDS },
-);
+auditLogSchema.index({ createdAt: 1 }, { expireAfterSeconds: AUDIT_LOG_RETENTION_SECONDS });
 
-export default model('audit_logs', auditLogSchema) as unknown as PaginateModel<
-  AuditLog & Document
->;
+export default model('audit_logs', auditLogSchema) as unknown as PaginateModel<AuditLog & Document>;

@@ -102,7 +102,8 @@ const resourceError = (message: string): ProtectedResourceFailure => {
   return error;
 };
 
-const protectedResourceError = (): ProtectedResourceFailure => resourceError(PROTECTED_RESOURCE_MESSAGE);
+const protectedResourceError = (): ProtectedResourceFailure =>
+  resourceError(PROTECTED_RESOURCE_MESSAGE);
 
 export const protectedResourceStatus = (error: unknown): 423 | undefined => {
   const status =
