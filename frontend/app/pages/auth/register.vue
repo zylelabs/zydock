@@ -13,15 +13,39 @@
   const toast = useToast();
   const session = useSessionStore();
 
+  const { data: bootstrapStatus } = useLazyAsyncData(
+    'bootstrap-status',
+    () => api.get<{ required: boolean }>('/bootstrap/status', { anonymous: true }),
+    { server: false, default: () => ({ required: false }) },
+  );
+
+  const bootstrapRequired = computed(() => bootstrapStatus.value?.required ?? false);
+
+  const normalizeBootstrapCode = (input: string) =>
+    input.toUpperCase().replace(/[\s-]/g, '').replace(/[IL]/g, '1').replace(/O/g, '0');
+
+  const bootstrapCodePattern = /^[0-9A-HJ-KM-NP-TV-Z]{8}$/;
+
   const schema = z.object({
     name: z.string().trim().min(1, 'Enter a name').max(120, 'Name is too long'),
     email: z.email('Enter a valid email'),
     password: z.string().min(8, 'At least 8 characters').max(128, 'Password is too long'),
+    bootstrapCode: z
+      .string()
+      .trim()
+      .transform(normalizeBootstrapCode)
+      .pipe(
+        z
+          .string()
+          .regex(bootstrapCodePattern, 'Enter the eight-character code')
+          .or(z.literal('')),
+      )
+      .optional(),
   });
 
   const form = useSchemaForm(
     schema,
-    { name: '', email: '', password: '' },
+    { name: '', email: '', password: '', bootstrapCode: '' },
     {
       onError: (message, error) => {
         console.error('Registration failed:', error);
@@ -34,8 +58,22 @@
     },
   );
 
+  watch(
+    () => form.values.bootstrapCode,
+    value => {
+      const normalized = normalizeBootstrapCode(value ?? '');
+
+      if (normalized !== value) {
+        form.values.bootstrapCode = normalized;
+      }
+    },
+  );
+
   const handleSubmit = form.submit(async data => {
-    const response = await api.post<AuthResponse>('/auth/signup', { body: data, anonymous: true });
+    const response = await api.post<AuthResponse>('/auth/signup', {
+      body: { ...data, bootstrapCode: data.bootstrapCode || undefined },
+      anonymous: true,
+    });
 
     session.start({ accessToken: response.accessToken }, response.user);
 
@@ -47,7 +85,11 @@
   <div>
     <h1 class="text-title text-ink">Create your account</h1>
     <p class="mt-1.75 mb-5.5 text-body text-pretty text-ink-2">
-      You land straight in the product. No email confirmation step.
+      {{
+        bootstrapRequired
+          ? 'This is the first account on this installation, and it will be the administrator.'
+          : 'You land straight in the product. No email confirmation step.'
+      }}
     </p>
 
     <form @submit.prevent="handleSubmit">
@@ -78,10 +120,24 @@
           :disabled="form.loading.value"
           :call-error="form.errors.value.password"
         />
+        <Input
+          v-if="bootstrapRequired"
+          v-model="form.values.bootstrapCode"
+          stacked
+          mono
+          label="Installation code"
+          placeholder="XXXXXXXX"
+          :disabled="form.loading.value"
+          :call-error="form.errors.value.bootstrapCode"
+        />
       </Card>
 
       <p class="mt-2.25 text-caption text-ink-2">
-        A personal organization is created for you. You can add others later.
+        {{
+          bootstrapRequired
+            ? 'The installation code came from the installer output on the server.'
+            : 'A personal organization is created for you. You can add others later.'
+        }}
       </p>
 
       <Button theme="primary" type="submit" class="mt-4 w-full" :disabled="form.loading.value">

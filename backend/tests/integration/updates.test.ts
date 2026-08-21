@@ -50,7 +50,7 @@ const LATEST_TAG = 'v0.1.0';
 const REMOTE_COMMIT = '2222222222222222222222222222222222222222';
 
 const password = 'updates-secret-1';
-const superuserEmail = config.auth.superusers[0]!;
+const superuserEmail = 'updates-superuser@zydock.test';
 const memberEmail = `updates-member-${Date.now()}@zydock.test`;
 
 let app: ReturnType<typeof createApp>;
@@ -126,7 +126,7 @@ beforeAll(async () => {
         name: 'updates-superuser',
         status: 'active',
         password: hashed,
-        provisionedBySeed: true,
+        superuser: true,
       },
     },
     { upsert: true },

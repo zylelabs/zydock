@@ -30,7 +30,7 @@ type DashboardSettings = {
 const objectId = () => new mongoose.Types.ObjectId().toString();
 
 const password = 'dashboard-secret-1';
-const superuserEmail = config.auth.superusers[0]!;
+const superuserEmail = 'dashboard-superuser@zydock.test';
 const memberEmail = `dashboard-member-${Date.now()}@zydock.test`;
 
 let app: ReturnType<typeof createApp>;
@@ -94,7 +94,7 @@ beforeAll(async () => {
         name: 'dashboard-superuser',
         status: 'active',
         password: hashed,
-        provisionedBySeed: true,
+        superuser: true,
       },
     },
     { upsert: true },

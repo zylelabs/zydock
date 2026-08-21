@@ -8,17 +8,12 @@ import { logInfo, logWarn } from '../utils/logger';
 const DEFAULT_ORGANIZATION_SLUG = 'my-organization';
 
 export const seedDefaultOrganization = async () => {
-  if (!config.auth.superusers.length) {
-    logWarn('No SUPERUSER_EMAILS configured, skipping default organization');
-    return;
-  }
-
   if (await organizationModel.findOne({ slug: DEFAULT_ORGANIZATION_SLUG })) {
     logInfo('Default organization already exists');
     return;
   }
 
-  const owners = await userModel.find({ email: { $in: config.auth.superusers } });
+  const owners = await userModel.find({ superuser: true });
 
   if (!owners.length) {
     logWarn('No superuser accounts found yet, skipping default organization');

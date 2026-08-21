@@ -1,13 +1,11 @@
 import { connectDatabase, disconnectDatabase } from '../config/mongodb';
 import { logError } from '../utils/logger';
 import { seedDefaultOrganization } from './organization.seed';
-import { seedSuperadmins } from './superadmin.seed';
 
 const run = async () => {
   await connectDatabase();
 
   try {
-    await seedSuperadmins();
     await seedDefaultOrganization();
   } finally {
     await disconnectDatabase();

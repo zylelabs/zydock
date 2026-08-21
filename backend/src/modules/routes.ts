@@ -2,6 +2,7 @@ import { createRouter } from 'hono-route-docs';
 import applicationsRoute from './applications/applications.route';
 import auditLogRoute from './audit/audit-log.route';
 import backupsRoute from './backups/backups.route';
+import bootstrapRoute from './bootstrap/bootstrap.route';
 import webhookRoute from './applications/webhook.route';
 import gitSourceWebhookRoute from './git-sources/webhook.route';
 import apiKeyRoute from './auth/api-key.route';
@@ -43,6 +44,8 @@ import websocketRoute from './websocket/websocket.route';
 const { router, route } = createRouter();
 
 route('/health', healthRoute);
+
+route('/bootstrap', bootstrapRoute);
 
 route('/auth', authRoute);
 route('/auth/sessions', sessionRoute);

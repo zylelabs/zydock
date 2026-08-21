@@ -23,10 +23,17 @@ export const authDocs = {
   signup: {
     tags: ['Auth'],
     summary: 'Sign up',
-    description: 'Creates a user with email and password and issues the access and refresh tokens.',
+    description:
+      'Creates a user with email and password and issues the access and refresh tokens. When ' +
+      'no superuser exists yet, an optional `bootstrapCode` field accepts the eight-character ' +
+      'code printed by the installer; a correct, unused code makes this account the superadmin ' +
+      'and gives it the default organization. A wrong code, a consumed code, a locked-out ' +
+      'instance and an already-initialized instance all answer the same generic 403 — the ' +
+      'endpoint never reveals which one happened.',
     responses: {
       201: jsonRes('User created.', authResponseSchema),
       400: errorRes('Invalid data.'),
+      403: errorRes('Unable to create this account.'),
       409: errorRes('Email already registered.'),
       429: errorRes('Too many requests.'),
     },

@@ -5,7 +5,7 @@ interface UserData {
   status: 'active' | 'disabled';
   password?: string;
   lastLoginAt?: Date;
-  provisionedBySeed?: boolean;
+  superuser?: boolean;
 }
 
 type User = BaseDocument<UserData>;

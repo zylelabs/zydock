@@ -1,0 +1,7 @@
+export const BOOTSTRAP_CODE_ALPHABET = '0123456789ABCDEFGHJKMNPQRSTVWXYZ';
+
+export const BOOTSTRAP_CODE_LENGTH = 8;
+
+export const bootstrapCodePattern = new RegExp(
+  `^[${BOOTSTRAP_CODE_ALPHABET}]{${BOOTSTRAP_CODE_LENGTH}}$`,
+);
