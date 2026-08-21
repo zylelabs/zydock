@@ -1,0 +1,167 @@
+name: Tag
+
+on:
+  workflow_dispatch:
+    inputs:
+      channel:
+        description: "Channel to cut. nightly runs on the nightly branch, stable on main."
+        required: true
+        type: choice
+        options: [nightly, stable]
+      version:
+        description: "Stable only: tag to create (e.g. v0.2.0). Empty = root package.json version."
+        required: false
+        type: string
+
+concurrency:
+  group: tag
+  cancel-in-progress: false
+
+permissions:
+  contents: write
+  actions: read
+
+jobs:
+  tag:
+    name: Cut ${{ inputs.channel }} tag
+    runs-on: ubuntu-latest
+    permissions:
+      contents: write
+      actions: read
+    outputs:
+      version: ${{ steps.tag.outputs.version }}
+    steps:
+      - name: Guard channel against branch
+        env:
+          CHANNEL: ${{ inputs.channel }}
+        run: |
+          case "${CHANNEL}" in
+          nightly) EXPECTED="nightly" ;;
+          stable) EXPECTED="main" ;;
+          *)
+            echo "::error::Unknown channel '${CHANNEL}'."
+            exit 1
+            ;;
+          esac
+
+          if [ "${GITHUB_REF_NAME}" != "${EXPECTED}" ]; then
+            echo "::error::Channel '${CHANNEL}' is cut from '${EXPECTED}' only (ran on '${GITHUB_REF_NAME}')."
+            exit 1
+          fi
+
+      - name: Reject version input outside stable
+        if: inputs.channel != 'stable' && inputs.version != ''
+        run: |
+          echo "::error::The version input is accepted on the stable channel only."
+          exit 1
+
+      - uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262 # v4.4.0
+        with:
+          fetch-depth: 0
+          token: ${{ github.token }}
+
+      - name: Check CI status for this commit
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          CONCLUSIONS="$(gh api "repos/${GITHUB_REPOSITORY}/commits/${GITHUB_SHA}/check-runs" \
+            --paginate --jq '.check_runs[]
+              | select(.details_url | contains("/actions/runs/'"${GITHUB_RUN_ID}"'/") | not)
+              | "\(.name) \(.status):\(.conclusion // "pending")"')"
+
+          if [ -z "${CONCLUSIONS}" ]; then
+            echo "::error::No check runs found for ${GITHUB_SHA} — CI has not reported on this commit."
+            exit 1
+          fi
+
+          PENDING="$(printf '%s\n' "${CONCLUSIONS}" | { grep -v ' completed:' || true; })"
+          if [ -n "${PENDING}" ]; then
+            echo "::error::CI is still running for ${GITHUB_SHA} — wait for it to finish."
+            exit 1
+          fi
+
+          FAILED="$(printf '%s\n' "${CONCLUSIONS}" | { grep -Ev ' completed:(success|skipped)$' || true; })"
+          if [ -n "${FAILED}" ]; then
+            echo "::error::CI is not green for ${GITHUB_SHA} (${FAILED})."
+            exit 1
+          fi
+
+      - name: Check nightly is fully merged into main
+        if: inputs.channel == 'stable'
+        run: |
+          git fetch --quiet origin main nightly
+          PENDING="$(git rev-list --count origin/main..origin/nightly)"
+          if [ "${PENDING}" != "0" ]; then
+            echo "::error::${PENDING} commit(s) on nightly are not in main — promote them before tagging."
+            exit 1
+          fi
+
+      - name: Resolve and create tag
+        id: tag
+        env:
+          CHANNEL: ${{ inputs.channel }}
+          INPUT_VERSION: ${{ inputs.version }}
+        run: |
+          if [ "${CHANNEL}" = "nightly" ]; then
+            VERSION="$(scripts/version.sh next-nightly)"
+            if git rev-parse -q --verify "refs/tags/${VERSION}" >/dev/null; then
+              echo "::error::HEAD is already tagged as ${VERSION} — nothing to cut."
+              exit 1
+            fi
+          else
+            VERSION="${INPUT_VERSION:-v$(scripts/version.sh root-version)}"
+
+            case "${VERSION}" in
+            v[0-9]*.[0-9]*.[0-9]*) ;;
+            *)
+              echo "::error::'${VERSION}' is not a stable version in vX.Y.Z form."
+              exit 1
+              ;;
+            esac
+            case "${VERSION}" in
+            *-*)
+              echo "::error::'${VERSION}' is a prerelease — stable tags carry no suffix."
+              exit 1
+              ;;
+            esac
+
+            if git rev-parse -q --verify "refs/tags/${VERSION}" >/dev/null; then
+              echo "::error::Tag ${VERSION} already exists — bump the root package.json version."
+              exit 1
+            fi
+          fi
+
+          git config user.name "github-actions[bot]"
+          git config user.email "github-actions[bot]@users.noreply.github.com"
+          git tag -a "${VERSION}" -m "${VERSION}"
+          git push origin "${VERSION}"
+
+          echo "version=${VERSION}" >> "$GITHUB_OUTPUT"
+
+  publish:
+    name: Publish release
+    needs: [tag]
+    uses: ./.github/workflows/release.yml
+    permissions:
+      contents: write
+    with:
+      tag: ${{ needs.tag.outputs.version }}
+
+  summary:
+    name: Summary
+    needs: [tag, publish]
+    runs-on: ubuntu-latest
+    permissions:
+      contents: read
+    steps:
+      - name: Write summary
+        env:
+          VERSION: ${{ needs.tag.outputs.version }}
+        run: |
+          {
+            echo "## Tag ${VERSION}"
+            echo
+            echo "- Channel: \`${{ inputs.channel }}\`"
+            echo "- Branch: \`${GITHUB_REF_NAME}\`"
+            echo "- Release: ${GITHUB_SERVER_URL}/${GITHUB_REPOSITORY}/releases/tag/${VERSION}"
+          } >> "$GITHUB_STEP_SUMMARY"
