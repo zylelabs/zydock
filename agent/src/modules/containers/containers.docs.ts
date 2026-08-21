@@ -140,6 +140,7 @@ export const containersDocs = {
         },
       }),
       404: errorRes('Container not found.'),
+      423: protectedRes,
     },
   },
   exec: {
@@ -156,6 +157,7 @@ export const containersDocs = {
         },
       }),
       404: errorRes('Container not found.'),
+      423: protectedRes,
     },
   },
 } satisfies Record<string, DocOptions>;

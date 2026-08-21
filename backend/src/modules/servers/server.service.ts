@@ -7,6 +7,7 @@ import { generateToken } from '../auth/session.service';
 import { isSuperuser } from '../users/user.service';
 import { findMembership } from '../organizations/membership.service';
 import { registerTopicAuthorizer } from '../websocket/websocket.service';
+import { buildAgentTlsMaterial } from './agent-ca.service';
 import { getLocalServerId, isLocalServer } from './local-server.service';
 import serverModel from './server.model';
 
@@ -111,16 +112,27 @@ export const findServerWithAgentToken = (organizationId: string, serverId: strin
   serverModel.findOne({ _id: serverId, ...scoped(organizationId) }).select('+agent.token');
 
 export const buildAgentConnection = (server: Server) => {
+  const serverId = String(server._id);
+
   if (!server.agent.token) {
-    throw new Error(`Server ${String(server._id)} has no agent token: provision it first`);
+    throw new Error(`Server ${serverId} has no agent token: provision it first`);
   }
 
   const host = server.agent.host ?? server.ssh.host;
+  const isLocal = server.type === 'local';
+
+  if (!isLocal && !server.agent.tlsIssuedAt) {
+    throw new Error(
+      `Server ${serverId} agent channel is not protected by TLS yet: reprovision the server or wait ` +
+        'for the automatic migration on the next backend restart',
+    );
+  }
 
   return {
-    serverId: String(server._id),
-    endpoint: `http://${host}:${server.agent.port}`,
+    serverId,
+    endpoint: `${isLocal ? 'http' : 'https'}://${host}:${server.agent.port}`,
     token: decryptSecret(server.agent.token),
+    tls: isLocal ? undefined : buildAgentTlsMaterial(serverId),
   };
 };
 
@@ -227,6 +239,7 @@ export const serializeServer = (server: Server) => ({
     version: server.agent.version,
     installedAt: server.agent.installedAt,
     lastHeartbeatAt: server.agent.lastHeartbeatAt,
+    tlsIssuedAt: server.agent.tlsIssuedAt,
   },
   resources: {
     cpuCount: server.resources?.cpuCount,
@@ -247,7 +260,7 @@ const authorizeServerTopic = async (auth: AuthPayload, serverId: string) => {
     return false;
   }
 
-  if (isSuperuser(auth.email) || isLocalServer(server)) {
+  if ((await isSuperuser(auth.email)) || isLocalServer(server)) {
     return true;
   }
 

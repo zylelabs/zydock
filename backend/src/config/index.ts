@@ -96,6 +96,32 @@ export default {
     superusers: readList('SUPERUSER_EMAILS'),
     passwordResetTtlMinutes: readNumber('PASSWORD_RESET_TTL_MINUTES', 30),
   },
+  rateLimit: {
+    signin: {
+      windowMs: readNumber('RATE_LIMIT_SIGNIN_WINDOW_MS', 15 * 60 * 1000),
+      max: readNumber('RATE_LIMIT_SIGNIN_MAX', 10),
+    },
+    signup: {
+      windowMs: readNumber('RATE_LIMIT_SIGNUP_WINDOW_MS', 60 * 60 * 1000),
+      max: readNumber('RATE_LIMIT_SIGNUP_MAX', 10),
+    },
+    forgotPassword: {
+      windowMs: readNumber('RATE_LIMIT_FORGOT_PASSWORD_WINDOW_MS', 15 * 60 * 1000),
+      max: readNumber('RATE_LIMIT_FORGOT_PASSWORD_MAX', 5),
+    },
+    resetPassword: {
+      windowMs: readNumber('RATE_LIMIT_RESET_PASSWORD_WINDOW_MS', 15 * 60 * 1000),
+      max: readNumber('RATE_LIMIT_RESET_PASSWORD_MAX', 10),
+    },
+    refresh: {
+      windowMs: readNumber('RATE_LIMIT_REFRESH_WINDOW_MS', 15 * 60 * 1000),
+      max: readNumber('RATE_LIMIT_REFRESH_MAX', 30),
+    },
+    inviteAccept: {
+      windowMs: readNumber('RATE_LIMIT_INVITE_ACCEPT_WINDOW_MS', 15 * 60 * 1000),
+      max: readNumber('RATE_LIMIT_INVITE_ACCEPT_MAX', 10),
+    },
+  },
   security: {
     encryptionKey: readEncryptionKey(),
   },
@@ -190,6 +216,7 @@ export default {
     dns: { implementation: readString('DNS_PROVIDER', 'cloudflare') },
     git: { defaultHost: readString('GIT_DEFAULT_HOST', 'github') },
     ssh: { implementation: readString('SSH_PROVIDER', 'ssh2') },
+    tls: { implementation: readString('TLS_PROVIDER', 'openssl') },
     registry: {
       enabled: readBoolean('REGISTRY_TAGS_ENABLED', true),
       ttlHours: readNumber('REGISTRY_TAGS_TTL_HOURS', 6),

@@ -10,6 +10,8 @@ const logger = createConsola({
   },
 });
 
+const REFRESH_TOKEN_ROUTES = new Set(['auth/signin', 'auth/signup', 'auth/refresh']);
+
 export default defineEventHandler(async event => {
   const path = event.context.params?.path || [];
   const pathString = Array.isArray(path) ? path.join('/') : path;
@@ -19,11 +21,21 @@ export default defineEventHandler(async event => {
 
   const baseUrl = process.env.URL_API;
   const targetUrl = `${baseUrl}/api/${pathString}`.replaceAll('//', '/').replaceAll(':/', '://');
-  const body = ['POST', 'PUT', 'PATCH', 'DELETE'].includes(method)
+  let body = ['POST', 'PUT', 'PATCH', 'DELETE'].includes(method)
     ? await readBody(event)
     : undefined;
   const headers = event.headers;
   const queryToSend = query.ignoreSerialize ? query : flattenObject(query);
+
+  if (pathString === 'auth/refresh') {
+    const refreshToken = readRefreshTokenCookie(event);
+
+    if (!refreshToken) {
+      throw createError({ statusCode: 401, statusMessage: 'Invalid or expired refresh token' });
+    }
+
+    body = { refreshToken };
+  }
 
   try {
     const response = await $fetch(targetUrl, {
@@ -54,6 +66,24 @@ export default defineEventHandler(async event => {
       setResponseHeader(event, 'content-type', response.type || 'application/octet-stream');
 
       return Buffer.from(await response.arrayBuffer());
+    }
+
+    if (pathString === 'auth/logout') {
+      clearRefreshTokenCookie(event);
+    }
+
+    if (
+      REFRESH_TOKEN_ROUTES.has(pathString) &&
+      isPlainObject(response) &&
+      'refreshToken' in (response as Record<string, unknown>)
+    ) {
+      const { refreshToken, ...rest } = response as Record<string, unknown> & {
+        refreshToken: string;
+      };
+
+      setRefreshTokenCookie(event, refreshToken);
+
+      return rest;
     }
 
     return response;

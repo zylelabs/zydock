@@ -1,10 +1,18 @@
 import config from '../config';
 import { describeConnectionFailure } from './network';
 
+export type AgentTlsMaterial = {
+  cert: string;
+  key: string;
+  ca: string;
+  serverName: string;
+};
+
 export type AgentConnection = {
   serverId: string;
   endpoint: string;
   token: string;
+  tls?: AgentTlsMaterial;
 };
 
 export type AgentRequest = {
@@ -143,6 +151,7 @@ export const createAgentClient = (connection: AgentConnection) => {
         body: raw ?? (body === undefined ? undefined : JSON.stringify(body)),
         ...(raw === undefined ? {} : { duplex: 'half' }),
         signal: streamed ? signal : AbortSignal.timeout(config.agent.requestTimeoutMs),
+        ...(connection.tls ? { tls: connection.tls } : {}),
       });
     } catch (error) {
       if (isAbortError(error)) {

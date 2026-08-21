@@ -4,6 +4,7 @@ import { resolveContainerProvider } from '../../providers/container';
 import { errorMessage } from '../../utils';
 import { agentAuthMiddleware } from '../agent/agent.middleware';
 import {
+  assertManagedVolume,
   assertUnprotected,
   isProtectedResource,
   protectedResourceStatus,
@@ -51,6 +52,7 @@ del(
     const { name } = c.req.valid('param' as never) as VolumeNameParam;
 
     try {
+      await assertManagedVolume(name);
       await assertUnprotected('volume', name);
       await containers.removeVolume(name);
 

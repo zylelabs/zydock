@@ -1,4 +1,4 @@
-FROM oven/bun:alpine AS agent-bundle
+FROM oven/bun:alpine@sha256:07235578f79ef8c6f97d94aee7938e76f5cdba5f21ae5dbfdd3d3d38058437eb AS agent-bundle
 
 WORKDIR /agent
 
@@ -10,9 +10,9 @@ COPY agent/ ./
 
 RUN bun run build
 
-FROM oven/bun:alpine
+FROM oven/bun:alpine@sha256:07235578f79ef8c6f97d94aee7938e76f5cdba5f21ae5dbfdd3d3d38058437eb
 
-RUN apk add --no-cache git
+RUN apk add --no-cache git openssl
 
 WORKDIR /app
 

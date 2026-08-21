@@ -1,4 +1,5 @@
 import { createHmac } from 'node:crypto';
+import { assertPublicHost } from '../../utils/network';
 import type { NotificationProvider } from './notification.contract';
 
 const REQUEST_TIMEOUT_MS = 10000;
@@ -17,6 +18,8 @@ export const createWebhookProvider = (): NotificationProvider => ({
       metadata: message.metadata ?? {},
       sentAt: new Date().toISOString(),
     });
+
+    await assertPublicHost(target.address);
 
     let response: Response;
 

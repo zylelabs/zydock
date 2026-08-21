@@ -30,6 +30,7 @@ const serverSchema = new Schema(
       bundleHash: { type: String },
       installedAt: { type: Date },
       lastHeartbeatAt: { type: Date },
+      tlsIssuedAt: { type: Date },
     },
     resources: {
       cpuCount: { type: Number },

@@ -13,7 +13,8 @@ export const consoleDocs = {
       'and never reach the shell. Output is sent back as text frames. `shell` may be `sh` ' +
       '(default) or `bash`. `mode` selects `shell` (default, `docker exec`) or `attach` ' +
       '(`docker attach` to the main process, PID 1) — attach fails if the container was not ' +
-      'started with `stdin_open: true`.',
+      'started with `stdin_open: true`. A container that is part of the Zydock platform refuses ' +
+      'the session: the socket opens and immediately sends an error frame before closing.',
     security: agentAuth,
     parameters: [
       { name: 'shell', in: 'query', schema: { type: 'string', enum: ['sh', 'bash'] } },

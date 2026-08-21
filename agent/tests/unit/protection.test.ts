@@ -2,8 +2,10 @@ import { describe, expect, test } from 'bun:test';
 import {
   COMPOSE_PROJECT_LABEL,
   COMPOSE_SERVICE_LABEL,
+  isManagedVolume,
   isProtectedContainer,
   isProtectedResource,
+  MANAGED_VOLUME_LABEL,
   PROTECTED_LABEL,
 } from '../../src/modules/containers/protection.service';
 
@@ -49,5 +51,24 @@ describe('isProtectedResource', () => {
 
     expect(isProtectedResource(labels)).toBe(false);
     expect(isProtectedResource({})).toBe(false);
+  });
+});
+
+describe('isManagedVolume', () => {
+  test('a volume created through the Zydock API carries the managed label', () => {
+    expect(isManagedVolume({ [MANAGED_VOLUME_LABEL]: 'true' })).toBe(true);
+  });
+
+  test('a volume created by a Compose deploy carries the project label', () => {
+    expect(isManagedVolume({ [COMPOSE_PROJECT_LABEL]: 'my-app' })).toBe(true);
+  });
+
+  test('a protected system volume is also managed', () => {
+    expect(isManagedVolume({ [PROTECTED_LABEL]: 'true' })).toBe(true);
+  });
+
+  test('a volume created outside Zydock has none of these labels', () => {
+    expect(isManagedVolume({})).toBe(false);
+    expect(isManagedVolume({ some: 'other-label' })).toBe(false);
   });
 });

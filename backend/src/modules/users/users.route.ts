@@ -44,7 +44,7 @@ get('/me', usersDocs.me, authMiddleware, async (c: Context) => {
     return c.json({ error: 'User not found' }, 404);
   }
 
-  return c.json({ user: serializeUser(user) });
+  return c.json({ user: await serializeUser(user) });
 });
 
 patch(
@@ -64,7 +64,7 @@ patch(
       return c.json({ error: 'User not found' }, 404);
     }
 
-    return c.json({ user: serializeUser(user) });
+    return c.json({ user: await serializeUser(user) });
   },
 );
 
@@ -124,7 +124,7 @@ get('/', usersDocs.list, authMiddleware, requireSuperuser, async (c: Context) =>
 
   const result = await userModel.paginate(filter, { page, size, sort, order });
 
-  return c.json({ ...result, items: result.items.map(serializeUser) });
+  return c.json({ ...result, items: await Promise.all(result.items.map(serializeUser)) });
 });
 
 get(
@@ -142,7 +142,7 @@ get(
       return c.json({ error: 'User not found' }, 404);
     }
 
-    return c.json({ user: serializeUser(user) });
+    return c.json({ user: await serializeUser(user) });
   },
 );
 
@@ -181,7 +181,7 @@ patch(
 
     const user = await userModel.findById(id);
 
-    return c.json({ user: serializeUser(user!) });
+    return c.json({ user: await serializeUser(user!) });
   },
 );
 

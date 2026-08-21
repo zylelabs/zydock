@@ -47,6 +47,7 @@ export const serverSchema = {
         version: { type: 'string', nullable: true },
         installedAt: { type: 'string', format: 'date-time', nullable: true },
         lastHeartbeatAt: { type: 'string', format: 'date-time', nullable: true },
+        tlsIssuedAt: { type: 'string', format: 'date-time', nullable: true },
       },
     },
     resources: {

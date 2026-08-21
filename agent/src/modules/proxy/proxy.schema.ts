@@ -40,6 +40,7 @@ export const routeSpecSchema = z
     pathPrefix: z.string().min(1).max(512).startsWith('/').optional(),
     tls: z.boolean().optional(),
     headers: z.record(z.string(), z.string()).optional(),
+    responseHeaders: z.record(z.string(), z.string()).optional(),
   })
   .refine(spec => Boolean(spec.domain) !== Boolean(spec.isDefault), {
     message: 'Set either domain or isDefault, never both or neither',

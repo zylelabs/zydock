@@ -9,9 +9,11 @@ import {
   type TemplateSourceIdParam,
 } from './template-source.schema';
 import {
+  acceptTemplateSourceUpdate,
   createTemplateSource,
   findTemplateSourceById,
   listTemplateSources,
+  rejectTemplateSourceUpdate,
   removeTemplateSource,
   serializeTemplateSource,
   syncTemplateSource,
@@ -55,6 +57,48 @@ post(
     }
 
     const source = await syncTemplateSource(templateSourceId);
+
+    return c.json({ source: serializeTemplateSource(source) });
+  },
+);
+
+post(
+  '/:templateSourceId/accept-update',
+  templateSourcesDocs.acceptUpdate,
+  authMiddleware,
+  requireSuperuser,
+  validator('param', templateSourceIdParamSchema),
+  async (c: Context) => {
+    const { templateSourceId } = c.req.valid('param' as never) as TemplateSourceIdParam;
+
+    if (!(await findTemplateSourceById(templateSourceId))) {
+      return c.json({ error: 'Template source not found' }, 404);
+    }
+
+    try {
+      const source = await acceptTemplateSourceUpdate(templateSourceId);
+
+      return c.json({ source: serializeTemplateSource(source) });
+    } catch (error) {
+      return c.json({ error: error instanceof Error ? error.message : String(error) }, 400);
+    }
+  },
+);
+
+post(
+  '/:templateSourceId/reject-update',
+  templateSourcesDocs.rejectUpdate,
+  authMiddleware,
+  requireSuperuser,
+  validator('param', templateSourceIdParamSchema),
+  async (c: Context) => {
+    const { templateSourceId } = c.req.valid('param' as never) as TemplateSourceIdParam;
+
+    if (!(await findTemplateSourceById(templateSourceId))) {
+      return c.json({ error: 'Template source not found' }, 404);
+    }
+
+    const source = await rejectTemplateSourceUpdate(templateSourceId);
 
     return c.json({ source: serializeTemplateSource(source) });
   },

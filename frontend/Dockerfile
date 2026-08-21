@@ -1,4 +1,4 @@
-FROM oven/bun:alpine
+FROM oven/bun:alpine@sha256:07235578f79ef8c6f97d94aee7938e76f5cdba5f21ae5dbfdd3d3d38058437eb
 
 WORKDIR /app
 

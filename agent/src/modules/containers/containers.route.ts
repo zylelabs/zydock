@@ -20,6 +20,8 @@ import {
 import {
   assertUnprotected,
   isProtectedContainer,
+  PROTECTED_RESOURCE_MESSAGE,
+  PROTECTED_RESOURCE_STATUS,
   protectedResourceStatus,
 } from './protection.service';
 import { checkReachability } from './reachability.service';
@@ -164,8 +166,14 @@ post(
     const { id } = c.req.valid('param' as never) as ContainerIdParam;
     const body = c.req.valid('json' as never) as ExecDTO;
 
-    if (!(await containers.inspectContainer(id))) {
+    const container = await containers.inspectContainer(id);
+
+    if (!container) {
       return c.json({ error: 'Container not found' }, 404);
+    }
+
+    if (isProtectedContainer(container)) {
+      return c.json({ error: PROTECTED_RESOURCE_MESSAGE }, PROTECTED_RESOURCE_STATUS);
     }
 
     return c.json(await containers.execCommand(id, body));
@@ -180,8 +188,14 @@ get(
   async (c: Context) => {
     const { id } = c.req.valid('param' as never) as ContainerIdParam;
 
-    if (!(await containers.inspectContainer(id))) {
+    const container = await containers.inspectContainer(id);
+
+    if (!container) {
       return c.json({ error: 'Container not found' }, 404);
+    }
+
+    if (isProtectedContainer(container)) {
+      return c.json({ error: PROTECTED_RESOURCE_MESSAGE }, PROTECTED_RESOURCE_STATUS);
     }
 
     const tail = Number(c.req.query('tail')) || undefined;

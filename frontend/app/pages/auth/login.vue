@@ -1,7 +1,7 @@
 <script setup lang="ts">
   import z from 'zod';
 
-  type AuthResponse = { accessToken: string; refreshToken: string; user: ISessionUser };
+  type AuthResponse = { accessToken: string; user: ISessionUser };
 
   definePageMeta({
     layout: 'blank',
@@ -36,10 +36,7 @@
   const handleSubmit = form.submit(async data => {
     const response = await api.post<AuthResponse>('/auth/signin', { body: data, anonymous: true });
 
-    session.start(
-      { accessToken: response.accessToken, refreshToken: response.refreshToken },
-      response.user,
-    );
+    session.start({ accessToken: response.accessToken }, response.user);
 
     await navigateTo('/');
   });

@@ -55,6 +55,7 @@ const readLogLevel = (): LogLevel => {
 
 export default {
   port: readNumber('PORT', 9000),
+  bindHost: readString('BIND_HOST', '127.0.0.1'),
   idleTimeoutSeconds: Math.min(readNumber('SERVER_IDLE_TIMEOUT_SECONDS', 120), 255),
   mode: readString('MODE', 'prod'),
   logLevel: readLogLevel(),
@@ -74,6 +75,11 @@ export default {
     maxReadAsTextBytes: readNumber('FILES_MAX_READ_AS_TEXT_BYTES', 2 * 1024 * 1024),
     maxListEntries: readNumber('FILES_MAX_LIST_ENTRIES', 1000),
     maxPathDepth: readNumber('FILES_MAX_PATH_DEPTH', 16),
+  },
+  tls: {
+    certPath: readString('TLS_CERT_PATH', ''),
+    keyPath: readString('TLS_KEY_PATH', ''),
+    caPath: readString('TLS_CA_PATH', ''),
   },
   proxy: {
     adminUrl: readString('CADDY_ADMIN_URL', 'http://127.0.0.1:2019'),

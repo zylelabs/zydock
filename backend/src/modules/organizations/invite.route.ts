@@ -1,6 +1,8 @@
 import type { Context } from 'hono';
 import { createRouter, validator } from 'hono-route-docs';
+import config from '../../config';
 import { paginationQuery } from '../../utils/pagination';
+import { createRateLimiter } from '../../utils/rate-limit.middleware';
 import { authMiddleware, requireUserSession } from '../auth/auth.middleware';
 import { inviteDocs } from './invite.docs';
 import inviteModel from './invite.model';
@@ -28,6 +30,11 @@ import { createOrganizationRoleGuard } from './organizations.middleware';
 import userModel from '../users/user.model';
 
 const { router, get, post, delete: del } = createRouter();
+
+const inviteAcceptRateLimiter = createRateLimiter({
+  ...config.rateLimit.inviteAccept,
+  identify: c => c.get('auth').sub,
+});
 
 get(
   '/',
@@ -128,6 +135,7 @@ post(
   requireUserSession,
   validator('param', organizationIdParamSchema),
   validator('json', inviteTokenSchema),
+  inviteAcceptRateLimiter,
   async (c: Context) => {
     const auth = c.get('auth');
     const { organizationId } = c.req.valid('param' as never) as OrganizationIdParam;

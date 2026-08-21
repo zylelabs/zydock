@@ -34,6 +34,7 @@ export const seedSuperadmins = async () => {
       name: email.split('@')[0],
       status: 'active',
       password: await hashPassword(password),
+      provisionedBySeed: true,
     });
 
     logInfo(`Superuser created: ${email} — temporary password: ${password}`);

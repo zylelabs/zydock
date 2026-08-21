@@ -60,7 +60,7 @@ get(
 
     const { organizationId } = c.req.valid('param' as never) as ServerIdParam;
     const query = c.req.valid('query' as never) as AccessQueryDTO;
-    const superuser = isSuperuser(c.get('auth').email);
+    const superuser = await isSuperuser(c.get('auth').email);
 
     try {
       const proxy = resolveProxyOfServer(loaded.server);
@@ -88,7 +88,7 @@ get(
 
     const { organizationId, serverId } = c.req.valid('param' as never) as ServerIdParam;
     const query = c.req.valid('query' as never) as AccessStreamQueryDTO;
-    const superuser = isSuperuser(c.get('auth').email);
+    const superuser = await isSuperuser(c.get('auth').email);
     const proxy = resolveProxyOfServer(loaded.server);
     const controller = new AbortController();
 
@@ -148,7 +148,7 @@ get(
       return c.json({ error: 'Server not found' }, 404);
     }
 
-    const superuser = isSuperuser(c.get('auth').email);
+    const superuser = await isSuperuser(c.get('auth').email);
 
     return c.json(await fetchServerAccessStats(serverId, organizationId, superuser, query.minutes));
   },

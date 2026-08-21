@@ -8,6 +8,7 @@ import { upgradeWebSocket } from '../../utils/ws';
 import { agentAuthMiddleware } from '../agent/agent.middleware';
 import { consoleDocs } from './console.docs';
 import { consoleControlSchema, consoleModeSchema } from './console.schema';
+import { isProtectedContainer, PROTECTED_RESOURCE_MESSAGE } from './protection.service';
 
 const { router, get } = createRouter();
 
@@ -65,6 +66,21 @@ get(
       onOpen: (_event, ws) => {
         void (async () => {
           try {
+            const container = await containers.inspectContainer(id);
+
+            if (!container) {
+              ws.send('Failed to open the console: container not found\r\n');
+              ws.close();
+              return;
+            }
+
+            if (isProtectedContainer(container)) {
+              logWarn('Console session denied for a protected container', { container: id });
+              ws.send(`Failed to open the console: ${PROTECTED_RESOURCE_MESSAGE}\r\n`);
+              ws.close();
+              return;
+            }
+
             session = await containers.openConsole(id, {
               shell,
               mode,

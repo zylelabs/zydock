@@ -35,14 +35,9 @@ const messageOf = (error: unknown) => {
 export const renewSession = async () => {
   const session = useSessionStore();
 
-  if (!session.refreshToken) {
-    return false;
-  }
-
   renewal ??= (
     $fetch('/api/proxy/auth/refresh', {
       method: 'POST',
-      body: { refreshToken: session.refreshToken },
       skipAuth: true,
     }) as Promise<ISessionTokens>
   )

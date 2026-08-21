@@ -1,6 +1,6 @@
 services:
   mongo:
-    image: mongo:7
+    image: mongo:7@sha256:b6421fd6d1c5ded6377b397d8983e2f82e2100dc5123332dcfda2065a472be5b
     restart: unless-stopped
     volumes:
       - mongo-data:/data/db
@@ -48,6 +48,7 @@ services:
       - caddy-admin:/var/run/caddy
     environment:
       MODE: prod
+      BIND_HOST: 0.0.0.0
       AGENT_TOKEN: ${LOCAL_AGENT_TOKEN}
       BACKEND_URL: http://backend:8000
       WORKSPACE_PATH: /var/lib/zydock/builds
@@ -68,7 +69,7 @@ services:
       URL_API: http://backend:8000
 
   caddy:
-    image: caddy:2
+    image: caddy:2@sha256:df7f1c2fb114453b951de51a98efc010db1655a92c2e86be6706714e2417a78d
     restart: unless-stopped
     command: sh -c 'rm -f /var/run/caddy/admin.sock && exec caddy run --config /etc/caddy/Caddyfile --adapter caddyfile --resume'
     depends_on:

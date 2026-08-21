@@ -1,11 +1,14 @@
 import type { Context } from 'hono';
 import { createRouter, validator } from 'hono-route-docs';
+import config from '../../config';
 import { logInfo } from '../../utils/logger';
+import { createRateLimiter } from '../../utils/rate-limit.middleware';
 import userModel from '../users/user.model';
 import {
   findUserByEmail,
   findUserWithPassword,
   hashPassword,
+  isSuperuserEmail,
   serializeUser,
   verifyPassword,
 } from '../users/user.service';
@@ -43,94 +46,141 @@ const { router, post } = createRouter();
 
 const GENERIC_RESET_MESSAGE = 'If the email exists, a reset link was sent';
 
-post('/signup', authDocs.signup, validator('json', signupSchema), async (c: Context) => {
-  const body = c.req.valid('json' as never) as SignupDTO;
-
-  const existingUser = await findUserByEmail(body.email);
-
-  if (existingUser) {
-    return c.json({ error: 'A user with this email already exists' }, 409);
-  }
-
-  const user = await userModel.create({
-    email: body.email,
-    name: body.name,
-    status: 'active',
-    password: await hashPassword(body.password),
-  });
-
-  const { userAgent, ip } = getClientMeta(c);
-
-  const { accessToken, refreshToken } = await issueSession({
-    userId: String(user._id),
-    email: user.email,
-    userAgent,
-    ip,
-  });
-
-  return c.json({ accessToken, refreshToken, user: serializeUser(user) }, 201);
+const signupRateLimiter = createRateLimiter({
+  ...config.rateLimit.signup,
+  identify: c => (c.req.valid('json' as never) as SignupDTO).email,
 });
 
-post('/signin', authDocs.signin, validator('json', signinSchema), async (c: Context) => {
-  const body = c.req.valid('json' as never) as SigninDTO;
-
-  const user = await findUserWithPassword(body.email);
-
-  if (!user?.password) {
-    return c.json({ error: 'Invalid credentials' }, 401);
-  }
-
-  const isValid = await verifyPassword(body.password, user.password);
-
-  if (!isValid) {
-    return c.json({ error: 'Invalid credentials' }, 401);
-  }
-
-  if (user.status !== 'active') {
-    return c.json({ error: 'Account disabled' }, 403);
-  }
-
-  const { userAgent, ip } = getClientMeta(c);
-
-  const { accessToken, refreshToken } = await issueSession({
-    userId: String(user._id),
-    email: user.email,
-    userAgent,
-    ip,
-  });
-
-  await userModel.updateOne({ _id: user._id }, { $set: { lastLoginAt: new Date() } });
-
-  return c.json({ accessToken, refreshToken, user: serializeUser(user) });
+const signinRateLimiter = createRateLimiter({
+  ...config.rateLimit.signin,
+  identify: c => (c.req.valid('json' as never) as SigninDTO).email,
 });
 
-post('/refresh', authDocs.refresh, validator('json', refreshSchema), async (c: Context) => {
-  const body = c.req.valid('json' as never) as RefreshDTO;
-
-  const session = await findActiveSessionByToken(body.refreshToken);
-
-  if (!session) {
-    return c.json({ error: 'Invalid or expired refresh token' }, 401);
-  }
-
-  const user = await userModel.findById(session.userId);
-
-  if (!user) {
-    return c.json({ error: 'Invalid or expired refresh token' }, 401);
-  }
-
-  if (user.status !== 'active') {
-    await revokeAllUserSessions(String(user._id));
-
-    return c.json({ error: 'Account disabled' }, 403);
-  }
-
-  const { userAgent, ip } = getClientMeta(c);
-
-  const rotated = await rotateSession({ session, email: user.email, userAgent, ip });
-
-  return c.json({ accessToken: rotated.accessToken, refreshToken: rotated.refreshToken });
+const refreshRateLimiter = createRateLimiter({
+  ...config.rateLimit.refresh,
+  identify: c => (c.req.valid('json' as never) as RefreshDTO).refreshToken,
 });
+
+const forgotPasswordRateLimiter = createRateLimiter({
+  ...config.rateLimit.forgotPassword,
+  identify: c => (c.req.valid('json' as never) as ForgotPasswordDTO).email,
+});
+
+const resetPasswordRateLimiter = createRateLimiter({
+  ...config.rateLimit.resetPassword,
+  identify: c => (c.req.valid('json' as never) as ResetPasswordDTO).token,
+});
+
+post(
+  '/signup',
+  authDocs.signup,
+  validator('json', signupSchema),
+  signupRateLimiter,
+  async (c: Context) => {
+    const body = c.req.valid('json' as never) as SignupDTO;
+
+    const existingUser = await findUserByEmail(body.email);
+
+    if (existingUser) {
+      return c.json({ error: 'A user with this email already exists' }, 409);
+    }
+
+    if (isSuperuserEmail(body.email)) {
+      return c.json({ error: 'Unable to create this account' }, 403);
+    }
+
+    const user = await userModel.create({
+      email: body.email,
+      name: body.name,
+      status: 'active',
+      password: await hashPassword(body.password),
+    });
+
+    const { userAgent, ip } = getClientMeta(c);
+
+    const { accessToken, refreshToken } = await issueSession({
+      userId: String(user._id),
+      email: user.email,
+      userAgent,
+      ip,
+    });
+
+    return c.json({ accessToken, refreshToken, user: await serializeUser(user) }, 201);
+  },
+);
+
+post(
+  '/signin',
+  authDocs.signin,
+  validator('json', signinSchema),
+  signinRateLimiter,
+  async (c: Context) => {
+    const body = c.req.valid('json' as never) as SigninDTO;
+
+    const user = await findUserWithPassword(body.email);
+
+    if (!user?.password) {
+      return c.json({ error: 'Invalid credentials' }, 401);
+    }
+
+    const isValid = await verifyPassword(body.password, user.password);
+
+    if (!isValid) {
+      return c.json({ error: 'Invalid credentials' }, 401);
+    }
+
+    if (user.status !== 'active') {
+      return c.json({ error: 'Account disabled' }, 403);
+    }
+
+    const { userAgent, ip } = getClientMeta(c);
+
+    const { accessToken, refreshToken } = await issueSession({
+      userId: String(user._id),
+      email: user.email,
+      userAgent,
+      ip,
+    });
+
+    await userModel.updateOne({ _id: user._id }, { $set: { lastLoginAt: new Date() } });
+
+    return c.json({ accessToken, refreshToken, user: await serializeUser(user) });
+  },
+);
+
+post(
+  '/refresh',
+  authDocs.refresh,
+  validator('json', refreshSchema),
+  refreshRateLimiter,
+  async (c: Context) => {
+    const body = c.req.valid('json' as never) as RefreshDTO;
+
+    const session = await findActiveSessionByToken(body.refreshToken);
+
+    if (!session) {
+      return c.json({ error: 'Invalid or expired refresh token' }, 401);
+    }
+
+    const user = await userModel.findById(session.userId);
+
+    if (!user) {
+      return c.json({ error: 'Invalid or expired refresh token' }, 401);
+    }
+
+    if (user.status !== 'active') {
+      await revokeAllUserSessions(String(user._id));
+
+      return c.json({ error: 'Account disabled' }, 403);
+    }
+
+    const { userAgent, ip } = getClientMeta(c);
+
+    const rotated = await rotateSession({ session, email: user.email, userAgent, ip });
+
+    return c.json({ accessToken: rotated.accessToken, refreshToken: rotated.refreshToken });
+  },
+);
 
 post('/logout', authDocs.logout, authMiddleware, requireUserSession, async (c: Context) => {
   const auth = c.get('auth');
@@ -144,6 +194,7 @@ post(
   '/forgot-password',
   authDocs.forgotPassword,
   validator('json', forgotPasswordSchema),
+  forgotPasswordRateLimiter,
   async (c: Context) => {
     const body = c.req.valid('json' as never) as ForgotPasswordDTO;
 
@@ -167,6 +218,7 @@ post(
   '/reset-password',
   authDocs.resetPassword,
   validator('json', resetPasswordSchema),
+  resetPasswordRateLimiter,
   async (c: Context) => {
     const body = c.req.valid('json' as never) as ResetPasswordDTO;
 

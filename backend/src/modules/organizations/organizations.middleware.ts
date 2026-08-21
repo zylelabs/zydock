@@ -14,7 +14,7 @@ export const resolveOrganizationRole = async (
   auth: AuthPayload,
   organizationId: string,
 ): Promise<OrganizationRole | null> => {
-  if (isSuperuser(auth.email)) {
+  if (await isSuperuser(auth.email)) {
     return 'owner';
   }
 

@@ -11,8 +11,13 @@ export const COMPOSE_SERVICE_LABEL = 'com.docker.compose.service';
 
 export const PROTECTED_LABEL = 'zydock.protected';
 
+export const MANAGED_VOLUME_LABEL = 'zydock.managed';
+
 export const PROTECTED_RESOURCE_MESSAGE =
   'This resource is part of the Zydock platform and cannot be stopped or removed.';
+
+export const UNMANAGED_VOLUME_MESSAGE =
+  'This volume was not created by Zydock and cannot be accessed through this API.';
 
 export const PROTECTED_RESOURCE_STATUS = 423;
 
@@ -84,19 +89,39 @@ const isOwnContainer = (id: string) => {
 export const isProtectedContainer = (container: Pick<ContainerInfo, 'id' | 'labels'>): boolean =>
   isOwnContainer(container.id) || isProtectedResource(container.labels);
 
-const protectedResourceError = (): ProtectedResourceFailure => {
-  const error: ProtectedResourceFailure = new Error(PROTECTED_RESOURCE_MESSAGE);
+export const isManagedVolume = (labels: Record<string, string>): boolean =>
+  labels[COMPOSE_PROJECT_LABEL] !== undefined ||
+  labels[PROTECTED_LABEL] === 'true' ||
+  labels[MANAGED_VOLUME_LABEL] === 'true';
+
+const resourceError = (message: string): ProtectedResourceFailure => {
+  const error: ProtectedResourceFailure = new Error(message);
 
   error.statusCode = PROTECTED_RESOURCE_STATUS;
 
   return error;
 };
 
+const protectedResourceError = (): ProtectedResourceFailure => resourceError(PROTECTED_RESOURCE_MESSAGE);
+
 export const protectedResourceStatus = (error: unknown): 423 | undefined => {
   const status =
     error instanceof Error ? (error as ProtectedResourceFailure).statusCode : undefined;
 
   return status === PROTECTED_RESOURCE_STATUS ? status : undefined;
+};
+
+export const assertManagedVolume = async (name: string) => {
+  const containers = resolveContainerProvider();
+  const volume = (await containers.listVolumes()).find(item => item.name === name);
+
+  if (!volume) {
+    throw new Error('Volume not found');
+  }
+
+  if (!isManagedVolume(volume.labels)) {
+    throw resourceError(UNMANAGED_VOLUME_MESSAGE);
+  }
 };
 
 export const assertUnprotected = async (kind: ProtectedResourceKind, id: string) => {
