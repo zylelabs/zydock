@@ -11,6 +11,13 @@ const templateSourceSchema = {
     lastSyncedAt: { type: 'string', format: 'date-time' },
     lastError: { type: 'string' },
     templateCount: { type: 'integer' },
+    commit: { type: 'string', description: 'Commit currently active in the composed catalog.' },
+    pendingCommit: {
+      type: 'string',
+      description: 'Commit fetched by the last sync, differs from `commit` and awaits acceptance.',
+    },
+    pendingTemplateCount: { type: 'integer' },
+    pendingSyncedAt: { type: 'string', format: 'date-time' },
     collisions: {
       type: 'array',
       description:
@@ -82,13 +89,46 @@ export const templateSourcesDocs = {
     description:
       'Superuser only. Clones `ref` into a temporary directory, validates every template with the ' +
       'same checks as the embedded catalog (`parseTemplateManifest` + `validateComposeSecurity`), ' +
-      'and only then swaps it in atomically. A single invalid template rejects the sync as a whole ' +
-      '— it is never half-applied. On failure the previous cache (if any) keeps serving the ' +
-      'catalog and the error is recorded in `lastError`; the response is always 200, with the ' +
-      'outcome readable from the returned source.',
+      'and reads the commit the clone resolved to. The first sync ever, and any sync that resolves ' +
+      'to the same commit already active, applies immediately. A sync that resolves to a ' +
+      '**different** commit than the one currently active is cached but **not** applied — it is ' +
+      'exposed as `pendingCommit`/`pendingTemplateCount` until `POST ' +
+      '/:templateSourceId/accept-update` or `.../reject-update` is called, so the source cannot ' +
+      'change what an installation runs without an explicit look at what changed. A single invalid ' +
+      'template rejects the sync as a whole. On failure the previously active cache (if any) keeps ' +
+      'serving the catalog and the error is recorded in `lastError`; the response is always 200, ' +
+      'with the outcome readable from the returned source.',
     security: bearerOrApiKeyAuth,
     responses: {
       200: jsonRes('Source after the sync attempt.', templateSourceResponse),
+      403: errorRes('Permission denied.'),
+      404: errorRes('Template source not found.'),
+    },
+  },
+  acceptUpdate: {
+    tags: ['Template sources'],
+    summary: 'Apply the pending commit fetched by the last sync',
+    description:
+      'Superuser only. Swaps the cached `pendingCommit` catalog into place and makes it `commit`. ' +
+      'Fails with 400 when there is no pending update, or when the cached clone is no longer on ' +
+      'disk (sync again in that case).',
+    security: bearerOrApiKeyAuth,
+    responses: {
+      200: jsonRes('Source after accepting the update.', templateSourceResponse),
+      400: errorRes('No pending update to accept.'),
+      403: errorRes('Permission denied.'),
+      404: errorRes('Template source not found.'),
+    },
+  },
+  rejectUpdate: {
+    tags: ['Template sources'],
+    summary: 'Discard the pending commit fetched by the last sync',
+    description:
+      'Superuser only. Deletes the cached pending clone and clears `pendingCommit`. The catalog ' +
+      'keeps serving the previously accepted `commit` until the next sync.',
+    security: bearerOrApiKeyAuth,
+    responses: {
+      200: jsonRes('Source after rejecting the update.', templateSourceResponse),
       403: errorRes('Permission denied.'),
       404: errorRes('Template source not found.'),
     },

@@ -283,7 +283,7 @@ const authorizeApplicationTopic = async (auth: AuthPayload, applicationId: strin
     return false;
   }
 
-  if (isSuperuser(auth.email)) {
+  if (await isSuperuser(auth.email)) {
     return true;
   }
 

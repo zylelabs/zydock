@@ -3,9 +3,10 @@ import type { Document } from 'mongoose';
 import { createHash } from 'node:crypto';
 import config from '../../config';
 import type { SshSession } from '../../providers/ssh';
-import { encryptSecret } from '../../utils/crypto';
+import { decryptSecret, encryptSecret } from '../../utils/crypto';
 import { logError, logInfo, logWarn } from '../../utils/logger';
 import { publish } from '../websocket/websocket.service';
+import { getAgentCaCertPem, issueServerCertificate } from './agent-ca.service';
 import serverModel from './server.model';
 import {
   decryptSshCredentials,
@@ -19,6 +20,10 @@ const AGENT_ENV_DIR = '/etc/zydock';
 const AGENT_BUNDLE = `${AGENT_DIR}/agent.js`;
 const AGENT_ENV_FILE = `${AGENT_ENV_DIR}/agent.env`;
 const AGENT_UNIT = '/etc/systemd/system/zydock-agent.service';
+const AGENT_TLS_DIR = `${AGENT_ENV_DIR}/tls`;
+const AGENT_TLS_CA = `${AGENT_TLS_DIR}/ca.pem`;
+const AGENT_TLS_CERT = `${AGENT_TLS_DIR}/agent-cert.pem`;
+const AGENT_TLS_KEY = `${AGENT_TLS_DIR}/agent-key.pem`;
 
 export type ProvisioningStep =
   | 'connect'
@@ -27,6 +32,7 @@ export type ProvisioningStep =
   | 'install-proxy'
   | 'upload-agent'
   | 'configure-agent'
+  | 'secure-network'
   | 'start-agent'
   | 'verify-agent';
 
@@ -152,12 +158,63 @@ const agentEnvFile = (params: {
   token: string;
   port: number;
 }) => `PORT="${params.port}"
+BIND_HOST="0.0.0.0"
 MODE="prod"
 LOG_LEVEL="info"
 SERVER_ID="${params.serverId}"
 AGENT_TOKEN="${params.token}"
 BACKEND_URL="${config.backendUrl}"
 WORKSPACE_PATH="${config.deploy.workspacePath}"
+TLS_CERT_PATH="${AGENT_TLS_CERT}"
+TLS_KEY_PATH="${AGENT_TLS_KEY}"
+TLS_CA_PATH="${AGENT_TLS_CA}"
+`;
+
+const uploadAgentTls = async (session: SshSession, prefix: string, serverId: string) => {
+  const certificate = await issueServerCertificate(serverId);
+
+  await runChecked(
+    session,
+    `${prefix}mkdir -p ${AGENT_TLS_DIR} && ${prefix}chmod 700 ${AGENT_TLS_DIR}`,
+    'Failed to create the agent TLS directory',
+  );
+  await session.uploadFile(AGENT_TLS_CA, getAgentCaCertPem(), 0o644);
+  await session.uploadFile(AGENT_TLS_CERT, certificate.certPem, 0o644);
+  await session.uploadFile(AGENT_TLS_KEY, certificate.keyPem, 0o600);
+};
+
+const resolveBackendIp = async (session: SshSession) => {
+  const backendHost = new URL(config.backendUrl).hostname;
+  const result = await session.exec(
+    `getent hosts ${backendHost} | awk '{print $1}' | head -n1`,
+  );
+  const backendIp = result.stdout.trim();
+
+  if (!backendIp) {
+    throw new Error(
+      `Could not resolve the backend host "${backendHost}" from the managed server: the ` +
+        'agent port could not be restricted to it',
+    );
+  }
+
+  return backendIp;
+};
+
+const secureNetwork = (prefix: string, backendIp: string, port: number) => `
+set -e
+if command -v ufw >/dev/null 2>&1; then
+  ${prefix}ufw allow from ${backendIp} to any port ${port} proto tcp comment zydock-agent
+  ${prefix}ufw --force enable >/dev/null 2>&1 || true
+  ${prefix}ufw deny ${port}/tcp comment zydock-agent-deny-all || true
+elif command -v iptables >/dev/null 2>&1; then
+  ${prefix}iptables -C INPUT -p tcp --dport ${port} -s ${backendIp} -j ACCEPT 2>/dev/null || \\
+    ${prefix}iptables -I INPUT -p tcp --dport ${port} -s ${backendIp} -j ACCEPT
+  ${prefix}iptables -C INPUT -p tcp --dport ${port} -j DROP 2>/dev/null || \\
+    ${prefix}iptables -A INPUT -p tcp --dport ${port} -j DROP
+else
+  echo "Neither ufw nor iptables was found: the agent port was not restricted" >&2
+  exit 1
+fi
 `;
 
 type AgentBundle = { content: string; hash: string };
@@ -176,8 +233,11 @@ const readAgentBundle = async (): Promise<AgentBundle> => {
   return { content, hash: createHash('sha256').update(content).digest('hex') };
 };
 
-const healthCheck = (port: number) =>
-  `curl -fsS -m 10 --retry 10 --retry-delay 2 --retry-connrefused http://127.0.0.1:${port}/api/health`;
+const healthCheck = (port: number, tlsEnabled: boolean) =>
+  tlsEnabled
+    ? `curl -fsS -m 10 --retry 10 --retry-delay 2 --retry-connrefused --cacert ${AGENT_TLS_CA} ` +
+      `--cert ${AGENT_TLS_CERT} --key ${AGENT_TLS_KEY} -k https://127.0.0.1:${port}/api/health`
+    : `curl -fsS -m 10 --retry 10 --retry-delay 2 --retry-connrefused http://127.0.0.1:${port}/api/health`;
 
 export const provisionServer = async (server: Server & Document) => {
   const serverId = String(server._id);
@@ -248,6 +308,7 @@ export const provisionServer = async (server: Server & Document) => {
 
     const token = generateAgentToken();
 
+    await uploadAgentTls(session, prefix, serverId);
     await session.uploadFile(
       AGENT_ENV_FILE,
       agentEnvFile({ serverId, token, port: server.agent.port }),
@@ -255,6 +316,17 @@ export const provisionServer = async (server: Server & Document) => {
     );
     await session.uploadFile(AGENT_UNIT, systemdUnit(), 0o644);
     record({ step: 'configure-agent', ok: true });
+
+    currentStep = 'secure-network';
+
+    const backendIp = await resolveBackendIp(session);
+
+    await runChecked(
+      session,
+      secureNetwork(prefix, backendIp, server.agent.port),
+      'Failed to restrict the agent port to the backend',
+    );
+    record({ step: 'secure-network', ok: true, detail: backendIp });
 
     currentStep = 'start-agent';
 
@@ -269,7 +341,7 @@ export const provisionServer = async (server: Server & Document) => {
 
     const health = await runChecked(
       session,
-      healthCheck(server.agent.port),
+      healthCheck(server.agent.port, true),
       'The agent did not answer its health check',
     );
     record({ step: 'verify-agent', ok: true, detail: health });
@@ -282,6 +354,7 @@ export const provisionServer = async (server: Server & Document) => {
           'agent.token': encryptSecret(token),
           'agent.installedAt': new Date(),
           'agent.bundleHash': bundle.hash,
+          'agent.tlsIssuedAt': new Date(),
           lastError: null,
         },
       },
@@ -330,7 +403,7 @@ const pushAgentBundle = async (server: Server & Document, bundle: AgentBundle) =
     );
     await runChecked(
       session,
-      healthCheck(server.agent.port),
+      healthCheck(server.agent.port, Boolean(server.agent.tlsIssuedAt)),
       'The agent did not answer its health check',
     );
 
@@ -377,6 +450,81 @@ export const syncAgentBundles = async () => {
       await pushAgentBundle(server, bundle);
     } catch (error) {
       logWarn('Failed to update the agent, it stays on the previous bundle', {
+        serverId: String(server._id),
+        error: error instanceof Error ? error.message : String(error),
+      });
+    }
+  }
+};
+
+const migrateAgentToMtls = async (server: Server & Document) => {
+  const serverId = String(server._id);
+
+  if (!server.agent.token) {
+    throw new Error(`Server ${serverId} has no agent token: it was never fully provisioned`);
+  }
+
+  const token = decryptSecret(server.agent.token);
+  const session = await openSshSession(server.ssh, server.ssh.fingerprint);
+
+  try {
+    const prefix = await detectPrivilegePrefix(session);
+
+    await uploadAgentTls(session, prefix, serverId);
+    await session.uploadFile(
+      AGENT_ENV_FILE,
+      agentEnvFile({ serverId, token, port: server.agent.port }),
+      0o600,
+    );
+    await session.uploadFile(AGENT_UNIT, systemdUnit(), 0o644);
+
+    const backendIp = await resolveBackendIp(session);
+
+    await runChecked(
+      session,
+      secureNetwork(prefix, backendIp, server.agent.port),
+      'Failed to restrict the agent port to the backend',
+    );
+
+    await runChecked(
+      session,
+      `${prefix}systemctl daemon-reload && ${prefix}systemctl restart zydock-agent`,
+      'Failed to restart the agent service',
+    );
+    await runChecked(
+      session,
+      healthCheck(server.agent.port, true),
+      'The agent did not answer its health check',
+    );
+
+    await serverModel.updateOne({ _id: serverId }, { $set: { 'agent.tlsIssuedAt': new Date() } });
+
+    logInfo('Agent migrated to the protected channel', { serverId });
+  } finally {
+    session.close();
+  }
+};
+
+export const migrateAgentsToMtls = async () => {
+  const servers = await serverModel
+    .find({
+      type: 'ssh',
+      'agent.installedAt': { $exists: true, $ne: null },
+      'agent.tlsIssuedAt': { $exists: false },
+    })
+    .select('+ssh.privateKey +ssh.password +ssh.passphrase +agent.token');
+
+  if (!servers.length) {
+    return;
+  }
+
+  logInfo('Migrating agents to the protected channel', { servers: servers.length });
+
+  for (const server of servers) {
+    try {
+      await migrateAgentToMtls(server);
+    } catch (error) {
+      logWarn('Failed to migrate the agent to the protected channel, it stays on plain HTTP', {
         serverId: String(server._id),
         error: error instanceof Error ? error.message : String(error),
       });

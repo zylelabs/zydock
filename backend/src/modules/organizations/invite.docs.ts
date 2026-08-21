@@ -85,6 +85,7 @@ export const inviteDocs = {
       400: errorRes('Invalid, expired or already used invite.'),
       403: errorRes('The invite belongs to a different e-mail.'),
       409: errorRes('You are already a member.'),
+      429: errorRes('Too many requests.'),
     },
   },
   revoke: {

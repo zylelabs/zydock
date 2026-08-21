@@ -89,7 +89,14 @@ beforeAll(async () => {
 
   await userModel.findOneAndUpdate(
     { email: superuserEmail },
-    { $set: { name: 'dashboard-superuser', status: 'active', password: hashed } },
+    {
+      $set: {
+        name: 'dashboard-superuser',
+        status: 'active',
+        password: hashed,
+        provisionedBySeed: true,
+      },
+    },
     { upsert: true },
   );
 

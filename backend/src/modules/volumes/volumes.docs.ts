@@ -16,6 +16,8 @@ const unreachable = errorRes('The agent of this server could not be reached.');
 
 const protectedRes = errorRes('The volume is part of the Zydock platform and cannot be removed.');
 
+const unmanagedRes = errorRes('The volume was not created by Zydock.');
+
 const fileEntrySchema = {
   type: 'object',
   properties: {
@@ -80,6 +82,7 @@ export const volumesDocs = {
       200: jsonRes('Directory entries.', { type: 'array', items: fileEntrySchema }),
       400: errorRes('Invalid path.'),
       404: errorRes('Server, volume or path not found.'),
+      423: unmanagedRes,
       502: unreachable,
     },
   },
@@ -91,6 +94,7 @@ export const volumesDocs = {
       200: fileContentRes,
       400: errorRes('Invalid path.'),
       404: errorRes('Server, volume or file not found.'),
+      423: unmanagedRes,
       502: unreachable,
     },
   },
@@ -105,6 +109,7 @@ export const volumesDocs = {
       200: messageRes('File written.'),
       400: errorRes('Invalid path or upload too large.'),
       404: errorRes('Server or volume not found.'),
+      423: unmanagedRes,
       502: unreachable,
     },
   },
@@ -116,6 +121,7 @@ export const volumesDocs = {
       201: messageRes('Directory created.'),
       400: errorRes('Invalid path.'),
       404: errorRes('Server or volume not found.'),
+      423: unmanagedRes,
       502: unreachable,
     },
   },
@@ -127,6 +133,7 @@ export const volumesDocs = {
       200: messageRes('Path removed.'),
       400: errorRes('Invalid path.'),
       404: errorRes('Server, volume or path not found.'),
+      423: unmanagedRes,
       502: unreachable,
     },
   },

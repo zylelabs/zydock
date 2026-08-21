@@ -142,7 +142,7 @@ const authorizeDeploymentTopic = async (auth: AuthPayload, deploymentId: string)
     return false;
   }
 
-  if (isSuperuser(auth.email)) {
+  if (await isSuperuser(auth.email)) {
     return true;
   }
 

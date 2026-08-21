@@ -22,6 +22,7 @@ export type RouteSpec = {
   pathPrefix?: string;
   tls?: boolean;
   headers?: Record<string, string>;
+  responseHeaders?: Record<string, string>;
 };
 
 export type CertificateStatus = {

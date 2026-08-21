@@ -889,7 +889,10 @@ export const createDockerProvider = (): ContainerProvider => ({
   },
 
   createVolume: async (name): Promise<VolumeInfo> => {
-    await runChecked(['volume', 'create', name], `Failed to create volume ${name}`);
+    await runChecked(
+      ['volume', 'create', '--label', 'zydock.managed=true', name],
+      `Failed to create volume ${name}`,
+    );
 
     const raw = await runChecked(
       ['volume', 'inspect', name, '--format', '{{.Driver}}|{{.Mountpoint}}|{{json .Labels}}'],

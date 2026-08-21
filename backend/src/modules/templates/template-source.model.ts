@@ -9,6 +9,10 @@ const templateSourceSchema = new Schema(
     lastSyncedAt: { type: Date },
     lastError: { type: String },
     templateCount: { type: Number, required: true, default: 0 },
+    commit: { type: String },
+    pendingCommit: { type: String },
+    pendingTemplateCount: { type: Number },
+    pendingSyncedAt: { type: Date },
   },
   {
     versionKey: false,

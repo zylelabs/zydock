@@ -42,7 +42,7 @@ post(
     const serverId = c.req.param('serverId');
     const token = c.req.header('X-Agent-Token');
 
-    if (!serverId || !token) {
+    if (!serverId || serverId.length !== 24 || !token) {
       return c.json({ error: 'Invalid agent token' }, 401);
     }
 
@@ -113,7 +113,7 @@ get('/applications/:applicationId/status', serversDocs.applicationStatus, async 
   const applicationId = c.req.param('applicationId');
   const token = c.req.header('X-Agent-Token');
 
-  if (!applicationId || !token) {
+  if (!applicationId || applicationId.length !== 24 || !token) {
     return c.json({ error: 'Invalid agent token' }, 401);
   }
 

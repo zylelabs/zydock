@@ -4,7 +4,9 @@ import { streamSSE } from 'hono/streaming';
 import { errorMessage } from '../../utils';
 import { agentFailureStatus } from '../../utils/agent';
 import { logWarn } from '../../utils/logger';
+import { findApplicationWithSecrets } from '../applications/application.service';
 import { authMiddleware } from '../auth/auth.middleware';
+import { maskSecrets, secretValuesOf } from '../compose/compose.service';
 import { APPLICATION_LABEL } from '../deployments/naming';
 import { createOrganizationRoleGuard } from '../organizations/organizations.middleware';
 import { serverIdParamSchema } from '../servers/server.schema';
@@ -196,13 +198,32 @@ get(
     const { tail, since, until, follow } = c.req.valid('query' as never) as LogQueryDTO;
     const runtime = c.get('runtime');
 
+    let secretValues: string[] = [];
+
     try {
-      if (!(await runtime.inspectContainer(containerId))) {
+      const container = await runtime.inspectContainer(containerId);
+
+      if (!container) {
         return c.json({ error: 'Container not found' }, 404);
       }
 
+      const applicationId = container.labels[APPLICATION_LABEL];
+
+      if (applicationId) {
+        const application = await findApplicationWithSecrets(
+          c.req.param('organizationId'),
+          applicationId,
+        );
+
+        secretValues = application ? secretValuesOf(application) : [];
+      }
+
       if (!follow) {
-        return c.json(await runtime.getLogs(containerId, { tail, since, until }));
+        const logs = await runtime.getLogs(containerId, { tail, since, until });
+
+        return c.json(
+          logs.map(entry => ({ ...entry, message: maskSecrets(entry.message, secretValues) })),
+        );
       }
     } catch (error) {
       return failed(c, error);
@@ -241,7 +262,7 @@ get(
           until,
           signal: controller.signal,
         })) {
-          await write('log', entry);
+          await write('log', { ...entry, message: maskSecrets(entry.message, secretValues) });
         }
       } catch (error) {
         logWarn('Log stream ended', { container: containerId, error: errorMessage(error) });

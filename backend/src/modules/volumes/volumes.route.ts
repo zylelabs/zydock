@@ -3,6 +3,7 @@ import { createRouter, validator } from 'hono-route-docs';
 import { errorMessage } from '../../utils';
 import { agentFailureStatus } from '../../utils/agent';
 import { logInfo } from '../../utils/logger';
+import { recordAuditLog } from '../audit/audit-log.service';
 import { authMiddleware } from '../auth/auth.middleware';
 import { serverRuntimeMiddleware } from '../containers/container.middleware';
 import {
@@ -118,11 +119,21 @@ get(
   validator('query', volumePathQuerySchema),
   serverRuntimeMiddleware,
   async (c: Context) => {
-    const { name } = c.req.valid('param' as never) as VolumeNameParam;
+    const { organizationId, serverId, name } = c.req.valid('param' as never) as VolumeNameParam;
     const { path } = c.req.valid('query' as never) as VolumePathQuery;
+    const auth = c.get('auth');
 
     try {
       const stream = await c.get('runtime').readVolumeFile(name, path);
+
+      await recordAuditLog({
+        organizationId,
+        serverId,
+        userId: auth.sub,
+        action: 'volume.read',
+        volume: name,
+        path,
+      });
 
       return new Response(stream, { headers: { 'Content-Type': 'application/octet-stream' } });
     } catch (error) {
@@ -158,6 +169,15 @@ put(
         volume: name,
         path,
         user: auth.sub,
+      });
+
+      await recordAuditLog({
+        organizationId,
+        serverId,
+        userId: auth.sub,
+        action: 'volume.write',
+        volume: name,
+        path,
       });
 
       return c.json({ message: 'File written' });
@@ -220,6 +240,15 @@ del(
         volume: name,
         path,
         user: auth.sub,
+      });
+
+      await recordAuditLog({
+        organizationId,
+        serverId,
+        userId: auth.sub,
+        action: 'volume.remove',
+        volume: name,
+        path,
       });
 
       return c.json({ message: 'Path removed' });

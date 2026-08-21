@@ -105,7 +105,7 @@ export const requireUserSession = async (c: Context, next: Next) => {
 export const requireSuperuser = async (c: Context, next: Next) => {
   const auth = c.get('auth');
 
-  if (!isSuperuser(auth.email)) {
+  if (!(await isSuperuser(auth.email))) {
     logWarn('Superuser action denied', { userId: auth.sub, path: c.req.path });
 
     return c.json({ error: 'Permission denied' }, 403);

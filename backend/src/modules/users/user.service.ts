@@ -7,7 +7,20 @@ export const hashPassword = (password: string) =>
 export const verifyPassword = (password: string, hash: string) =>
   Bun.password.verify(password, hash);
 
-export const isSuperuser = (email: string) => config.auth.superusers.includes(email.toLowerCase());
+export const isSuperuserEmail = (email: string) =>
+  config.auth.superusers.includes(email.toLowerCase());
+
+export const isSuperuser = async (email: string) => {
+  if (!isSuperuserEmail(email)) {
+    return false;
+  }
+
+  const user = await userModel
+    .findOne({ email: email.toLowerCase() })
+    .select('+provisionedBySeed');
+
+  return Boolean(user?.provisionedBySeed);
+};
 
 export const findActiveUserById = (id: string) => userModel.findOne({ _id: id, status: 'active' });
 
@@ -16,13 +29,13 @@ export const findUserByEmail = (email: string) => userModel.findOne({ email: ema
 export const findUserWithPassword = (email: string) =>
   userModel.findOne({ email: email.toLowerCase() }).select('+password');
 
-export const serializeUser = (user: User) => ({
+export const serializeUser = async (user: User) => ({
   id: String(user._id),
   email: user.email,
   name: user.name,
   avatar: user.avatar,
   status: user.status,
-  superuser: isSuperuser(user.email),
+  superuser: await isSuperuser(user.email),
   lastLoginAt: user.lastLoginAt,
   createdAt: user.createdAt,
 });

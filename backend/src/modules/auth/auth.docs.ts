@@ -28,6 +28,7 @@ export const authDocs = {
       201: jsonRes('User created.', authResponseSchema),
       400: errorRes('Invalid data.'),
       409: errorRes('Email already registered.'),
+      429: errorRes('Too many requests.'),
     },
   },
   signin: {
@@ -38,6 +39,7 @@ export const authDocs = {
       200: jsonRes('Authenticated successfully.', authResponseSchema),
       401: errorRes('Invalid credentials.'),
       403: errorRes('Account disabled.'),
+      429: errorRes('Too many requests.'),
     },
   },
   refresh: {
@@ -49,6 +51,7 @@ export const authDocs = {
       200: jsonRes('New token pair.', tokenPairSchema),
       401: errorRes('Invalid or expired refresh token.'),
       403: errorRes('Account disabled.'),
+      429: errorRes('Too many requests.'),
     },
   },
   logout: {
@@ -70,6 +73,7 @@ export const authDocs = {
       'so the endpoint never reveals whether an account exists.',
     responses: {
       200: messageRes('If the email exists, a reset link was sent.'),
+      429: errorRes('Too many requests.'),
     },
   },
   resetPassword: {
@@ -81,6 +85,7 @@ export const authDocs = {
     responses: {
       200: messageRes('Password updated.'),
       400: errorRes('Invalid or expired token.'),
+      429: errorRes('Too many requests.'),
     },
   },
 } satisfies Record<string, DocOptions>;

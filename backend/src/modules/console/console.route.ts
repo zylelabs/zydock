@@ -1,12 +1,15 @@
 import type { Context } from 'hono';
 import { createRouter, validator } from 'hono-route-docs';
 import { logDebug, logWarn } from '../../utils/logger';
+import { endAuditLog, startAuditLog } from '../audit/audit-log.service';
+import { findActiveSessionById } from '../auth/session.service';
 import { ContainerIdParam, containerIdParamSchema } from '../containers/containers.schema';
 import { createOrganizationRoleGuard } from '../organizations/organizations.middleware';
 import { buildAgentConnection, findServerWithAgentToken } from '../servers/server.service';
 import { upgradeWebSocket } from '../websocket/websocket.service';
 import { websocketAuthMiddleware } from '../websocket/websocket.middleware';
 import { consoleDocs } from './console.docs';
+import { ConsoleSessionHandle, registerConsoleSession, unregisterConsoleSession } from './console.service';
 
 const { router, get } = createRouter();
 
@@ -28,14 +31,23 @@ get(
     const shell = ALLOWED_SHELLS.includes(requestedShell ?? '') ? requestedShell : 'sh';
     const requestedMode = c.req.query('mode');
     const mode = ALLOWED_MODES.includes(requestedMode ?? '') ? requestedMode : 'shell';
+    const auth = c.get('auth');
 
     let agent: WebSocket | undefined;
     let closed = false;
+    let auditLogId: string | undefined;
+    let sessionHandle: ConsoleSessionHandle | undefined;
     const pending: (string | ArrayBuffer)[] = [];
 
     return {
       onOpen: (_event, ws) => {
         void (async () => {
+          if (auth.sid && !(await findActiveSessionById(auth.sid))) {
+            ws.send('This session has been revoked.\r\n');
+            ws.close();
+            return;
+          }
+
           const server = await findServerWithAgentToken(organizationId, serverId);
 
           if (!server?.agent.token) {
@@ -44,11 +56,29 @@ get(
             return;
           }
 
+          const auditLog = await startAuditLog({
+            organizationId,
+            userId: auth.sub,
+            serverId,
+            action: 'console',
+            containerId,
+          });
+
+          auditLogId = String(auditLog._id);
+
+          if (auth.sid) {
+            sessionHandle = { close: () => ws.close() };
+            registerConsoleSession(auth.sid, sessionHandle);
+          }
+
           const connection = buildAgentConnection(server);
           const endpoint = connection.endpoint.replace(/^http/, 'ws');
           const url = `${endpoint}/api/containers/${encodeURIComponent(containerId)}/console?shell=${shell}&mode=${mode}`;
 
-          agent = new WebSocket(url, { headers: { 'X-Agent-Token': connection.token } });
+          agent = new WebSocket(url, {
+            headers: { 'X-Agent-Token': connection.token },
+            ...(connection.tls ? { tls: connection.tls } : {}),
+          });
 
           agent.addEventListener('open', () => {
             for (const frame of pending) {
@@ -82,6 +112,14 @@ get(
       onClose: () => {
         closed = true;
         agent?.close();
+
+        if (auth.sid && sessionHandle) {
+          unregisterConsoleSession(auth.sid, sessionHandle);
+        }
+
+        if (auditLogId) {
+          void endAuditLog(auditLogId);
+        }
 
         logWarn('Console bridge closed', { server: serverId, container: containerId });
       },

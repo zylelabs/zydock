@@ -1,5 +1,4 @@
 import { defineStore } from 'pinia';
-import SecureLS from 'secure-ls';
 
 export interface ISessionUser {
   id: string;
@@ -11,7 +10,6 @@ export interface ISessionUser {
 
 export interface ISessionTokens {
   accessToken: string;
-  refreshToken: string;
 }
 
 interface ISessionStore extends ISessionTokens {
@@ -22,19 +20,16 @@ interface ISessionStore extends ISessionTokens {
 export const useSessionStore = defineStore('session', {
   state: (): ISessionStore => ({
     accessToken: '',
-    refreshToken: '',
     user: null,
     organizationId: '',
   }),
   actions: {
     start(tokens: ISessionTokens, user: ISessionUser) {
       this.accessToken = tokens.accessToken;
-      this.refreshToken = tokens.refreshToken;
       this.user = user;
     },
     renew(tokens: ISessionTokens) {
       this.accessToken = tokens.accessToken;
-      this.refreshToken = tokens.refreshToken;
     },
     selectOrganization(organizationId: string) {
       this.organizationId = organizationId;
@@ -53,13 +48,6 @@ export const useSessionStore = defineStore('session', {
   },
   persist: {
     key: 'zydock:session',
-    storage: {
-      getItem: key => {
-        return new SecureLS({ isCompression: false }).get(key);
-      },
-      setItem: (key, value) => {
-        new SecureLS({ isCompression: false }).set(key, value);
-      },
-    },
+    pick: ['user', 'organizationId'],
   },
 });

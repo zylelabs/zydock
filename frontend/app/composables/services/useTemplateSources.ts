@@ -14,6 +14,10 @@ export interface TemplateSource {
   lastSyncedAt?: string;
   lastError?: string;
   templateCount: number;
+  commit?: string;
+  pendingCommit?: string;
+  pendingTemplateCount?: number;
+  pendingSyncedAt?: string;
   collisions: TemplateSourceCollision[];
   createdAt: string;
 }
@@ -36,8 +40,14 @@ export const useTemplateSources = () => {
   const sync = (templateSourceId: string) =>
     api.post<{ source: TemplateSource }>(`${base()}/${templateSourceId}/sync`);
 
+  const acceptUpdate = (templateSourceId: string) =>
+    api.post<{ source: TemplateSource }>(`${base()}/${templateSourceId}/accept-update`);
+
+  const rejectUpdate = (templateSourceId: string) =>
+    api.post<{ source: TemplateSource }>(`${base()}/${templateSourceId}/reject-update`);
+
   const remove = (templateSourceId: string) =>
     api.del<{ message: string }>(`${base()}/${templateSourceId}`);
 
-  return { list, create, sync, remove };
+  return { list, create, sync, acceptUpdate, rejectUpdate, remove };
 };

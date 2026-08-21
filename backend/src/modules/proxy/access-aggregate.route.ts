@@ -16,7 +16,7 @@ post(
     const serverId = c.req.param('serverId');
     const token = c.req.header('X-Agent-Token');
 
-    if (!serverId || !token) {
+    if (!serverId || serverId.length !== 24 || !token) {
       return c.json({ error: 'Invalid agent token' }, 401);
     }
 

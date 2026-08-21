@@ -60,6 +60,16 @@ jobs:
       - run: bun audit
         continue-on-error: true
 
+  static-analysis:
+    name: static analysis (Semgrep)
+    runs-on: ubuntu-latest
+    if: github.event_name == 'pull_request'
+    container:
+      image: semgrep/semgrep
+    steps:
+      - uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262 # v4.4.0
+      - run: semgrep scan --config p/typescript --config p/security-audit --config p/dockerfile --error
+
   frontend:
     name: frontend (lint · test · build)
     runs-on: ubuntu-latest

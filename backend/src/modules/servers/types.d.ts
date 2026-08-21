@@ -16,6 +16,7 @@ interface ServerAgent {
   bundleHash?: string;
   installedAt?: Date;
   lastHeartbeatAt?: Date;
+  tlsIssuedAt?: Date;
 }
 
 interface ServerResources {
@@ -40,3 +41,12 @@ interface ServerData {
 }
 
 type Server = BaseDocument<ServerData>;
+
+interface AgentCaData {
+  caCertPem: string;
+  caKeyPem: string;
+  clientCertPem: string;
+  clientKeyPem: string;
+}
+
+type AgentCa = BaseDocument<AgentCaData>;

@@ -1,5 +1,6 @@
 import { createRouter } from 'hono-route-docs';
 import applicationsRoute from './applications/applications.route';
+import auditLogRoute from './audit/audit-log.route';
 import backupsRoute from './backups/backups.route';
 import webhookRoute from './applications/webhook.route';
 import gitSourceWebhookRoute from './git-sources/webhook.route';
@@ -82,6 +83,7 @@ route('/organizations/:organizationId/domains', domainsRoute);
 route('/organizations/:organizationId/databases', databasesRoute);
 route('/organizations/:organizationId/notifications', notificationsRoute);
 route('/organizations/:organizationId/backups', backupsRoute);
+route('/organizations/:organizationId/audit-log', auditLogRoute);
 
 route('/queue', queueRoute);
 

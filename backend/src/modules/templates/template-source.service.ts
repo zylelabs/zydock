@@ -46,7 +46,35 @@ const cloneShallow = async (url: string, ref: string, targetDir: string): Promis
   }
 };
 
+const revParseHead = async (targetDir: string): Promise<string> => {
+  const process = Bun.spawn(['git', '-C', targetDir, 'rev-parse', 'HEAD'], {
+    stdout: 'pipe',
+    stderr: 'ignore',
+  });
+
+  const [stdout, code] = await Promise.all([new Response(process.stdout).text(), process.exited]);
+
+  if (code !== 0) {
+    throw new Error('Could not read the cloned commit');
+  }
+
+  return stdout.trim();
+};
+
 const removeIfExists = (path: string) => rmSync(path, { recursive: true, force: true });
+
+const swapIntoPlace = (finalDir: string, sourceDir: string) => {
+  const backupDir = `${finalDir}.old`;
+
+  removeIfExists(backupDir);
+
+  if (existsSync(finalDir)) {
+    renameSync(finalDir, backupDir);
+  }
+
+  renameSync(sourceDir, finalDir);
+  removeIfExists(backupDir);
+};
 
 export const refreshCatalogFromSources = async (): Promise<void> => {
   const sources = await templateSourceModel.find({}, { enabled: 1 }).sort({ createdAt: 1 }).lean();
@@ -93,6 +121,7 @@ export const removeTemplateSource = async (templateSourceId: string): Promise<vo
   removeIfExists(dir);
   removeIfExists(`${dir}.tmp`);
   removeIfExists(`${dir}.old`);
+  removeIfExists(`${dir}.pending`);
 
   await refreshCatalogFromSources();
 };
@@ -106,45 +135,60 @@ export const syncTemplateSource = async (templateSourceId: string): Promise<Temp
 
   const finalDir = sourceCacheDirOf(templateSourceId);
   const tmpDir = `${finalDir}.tmp`;
-  const backupDir = `${finalDir}.old`;
+  const pendingDir = `${finalDir}.pending`;
 
   mkdirSync(dirname(finalDir), { recursive: true });
   removeIfExists(tmpDir);
-  removeIfExists(backupDir);
 
   try {
     await cloneShallow(source.url, source.ref, tmpDir);
 
+    const commit = await revParseHead(tmpDir);
     const templates = validateCatalogDirectory(tmpDir);
 
-    if (existsSync(finalDir)) {
-      renameSync(finalDir, backupDir);
+    if (!source.commit || commit === source.commit) {
+      swapIntoPlace(finalDir, tmpDir);
+      removeIfExists(pendingDir);
+
+      await templateSourceModel.updateOne(
+        { _id: templateSourceId },
+        {
+          $set: { templateCount: templates.length, commit, lastSyncedAt: new Date() },
+          $unset: { lastError: '', pendingCommit: '', pendingTemplateCount: '', pendingSyncedAt: '' },
+        },
+      );
+
+      logInfo('Template source synced', {
+        templateSourceId,
+        url: source.url,
+        commit,
+        templateCount: templates.length,
+      });
+    } else {
+      removeIfExists(pendingDir);
+      renameSync(tmpDir, pendingDir);
+
+      await templateSourceModel.updateOne(
+        { _id: templateSourceId },
+        {
+          $set: {
+            pendingCommit: commit,
+            pendingTemplateCount: templates.length,
+            pendingSyncedAt: new Date(),
+          },
+          $unset: { lastError: '' },
+        },
+      );
+
+      logInfo('Template source content changed: awaiting acceptance', {
+        templateSourceId,
+        url: source.url,
+        previousCommit: source.commit,
+        pendingCommit: commit,
+      });
     }
-
-    renameSync(tmpDir, finalDir);
-    removeIfExists(backupDir);
-
-    await templateSourceModel.updateOne(
-      { _id: templateSourceId },
-      {
-        $set: { templateCount: templates.length, lastSyncedAt: new Date() },
-        $unset: { lastError: '' },
-      },
-    );
-
-    logInfo('Template source synced', {
-      templateSourceId,
-      url: source.url,
-      templateCount: templates.length,
-    });
   } catch (error) {
     removeIfExists(tmpDir);
-
-    if (!existsSync(finalDir) && existsSync(backupDir)) {
-      renameSync(backupDir, finalDir);
-    } else {
-      removeIfExists(backupDir);
-    }
 
     const message = errorMessage(error);
 
@@ -161,6 +205,64 @@ export const syncTemplateSource = async (templateSourceId: string): Promise<Temp
   return (await templateSourceModel.findById(templateSourceId))!;
 };
 
+export const acceptTemplateSourceUpdate = async (
+  templateSourceId: string,
+): Promise<TemplateSource> => {
+  const source = await templateSourceModel.findById(templateSourceId);
+
+  if (!source) {
+    throw new Error('Template source not found');
+  }
+
+  if (!source.pendingCommit) {
+    throw new Error('This template source has no pending update to accept');
+  }
+
+  const finalDir = sourceCacheDirOf(templateSourceId);
+  const pendingDir = `${finalDir}.pending`;
+
+  if (!existsSync(pendingDir)) {
+    throw new Error('The pending update is no longer cached on disk: sync the source again');
+  }
+
+  swapIntoPlace(finalDir, pendingDir);
+
+  await templateSourceModel.updateOne(
+    { _id: templateSourceId },
+    {
+      $set: { commit: source.pendingCommit, templateCount: source.pendingTemplateCount ?? 0 },
+      $unset: { pendingCommit: '', pendingTemplateCount: '', pendingSyncedAt: '' },
+    },
+  );
+
+  await refreshCatalogFromSources();
+
+  logInfo('Template source update accepted', { templateSourceId, commit: source.pendingCommit });
+
+  return (await templateSourceModel.findById(templateSourceId))!;
+};
+
+export const rejectTemplateSourceUpdate = async (
+  templateSourceId: string,
+): Promise<TemplateSource> => {
+  const source = await templateSourceModel.findById(templateSourceId);
+
+  if (!source) {
+    throw new Error('Template source not found');
+  }
+
+  removeIfExists(`${sourceCacheDirOf(templateSourceId)}.pending`);
+
+  await templateSourceModel.updateOne(
+    { _id: templateSourceId },
+    { $unset: { pendingCommit: '', pendingTemplateCount: '', pendingSyncedAt: '' } },
+  );
+
+  logInfo('Template source update rejected', { templateSourceId, commit: source.pendingCommit });
+
+  return (await templateSourceModel.findById(templateSourceId))!;
+};
+
 export const serializeTemplateSource = (source: TemplateSource) => ({
   id: String(source._id),
   url: source.url,
@@ -169,6 +271,10 @@ export const serializeTemplateSource = (source: TemplateSource) => ({
   lastSyncedAt: source.lastSyncedAt,
   lastError: source.lastError,
   templateCount: source.templateCount,
+  commit: source.commit,
+  pendingCommit: source.pendingCommit,
+  pendingTemplateCount: source.pendingTemplateCount,
+  pendingSyncedAt: source.pendingSyncedAt,
   collisions: catalogCollisions().filter(collision => collision.sourceId === String(source._id)),
   createdAt: source.createdAt,
 });

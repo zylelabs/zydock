@@ -28,6 +28,7 @@ export const filesDocs = {
       200: jsonRes('Directory entries.', { type: 'array', items: entrySchema }),
       400: errorRes('Invalid path.'),
       404: errorRes('Volume or path not found.'),
+      423: errorRes('The volume was not created by Zydock.'),
     },
   },
   readContent: {
@@ -38,6 +39,7 @@ export const filesDocs = {
       200: contentRes,
       400: errorRes('Invalid path.'),
       404: errorRes('Volume or file not found.'),
+      423: errorRes('The volume was not created by Zydock.'),
     },
   },
   writeContent: {
@@ -50,6 +52,7 @@ export const filesDocs = {
       200: messageRes('File written.'),
       400: errorRes('Invalid path or upload too large.'),
       404: errorRes('Volume or parent directory not found.'),
+      423: errorRes('The volume was not created by Zydock.'),
     },
   },
   createDirectory: {
@@ -60,6 +63,7 @@ export const filesDocs = {
       201: messageRes('Directory created.'),
       400: errorRes('Invalid path.'),
       404: errorRes('Volume or parent directory not found.'),
+      423: errorRes('The volume was not created by Zydock.'),
     },
   },
   remove: {
@@ -70,6 +74,7 @@ export const filesDocs = {
       200: messageRes('Path removed.'),
       400: errorRes('Invalid path.'),
       404: errorRes('Volume or path not found.'),
+      423: errorRes('The volume was not created by Zydock.'),
     },
   },
 } satisfies Record<string, DocOptions>;

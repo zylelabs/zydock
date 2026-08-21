@@ -2,6 +2,7 @@ import type { Context } from 'hono';
 import { createRouter, validator } from 'hono-route-docs';
 import { errorMessage } from '../../utils';
 import { agentAuthMiddleware } from '../agent/agent.middleware';
+import { assertManagedVolume, protectedResourceStatus } from '../containers/protection.service';
 import { filesDocs } from './files.docs';
 import {
   CreateDirectoryDTO,
@@ -16,6 +17,12 @@ import { createDirectory, listFiles, readFile, removePath, writeFile } from './f
 const { router, get, put, post, delete: del } = createRouter();
 
 const statusForError = (error: unknown) => {
+  const protectedStatus = protectedResourceStatus(error);
+
+  if (protectedStatus) {
+    return protectedStatus;
+  }
+
   const message = errorMessage(error);
 
   return message.includes('not found') || message.startsWith('Not a') ? 404 : 400;
@@ -32,6 +39,8 @@ get(
     const { path } = c.req.valid('query' as never) as VolumePathQuery;
 
     try {
+      await assertManagedVolume(name);
+
       return c.json(await listFiles(name, path));
     } catch (error) {
       return c.json({ error: errorMessage(error) }, statusForError(error));
@@ -50,6 +59,8 @@ get(
     const { path } = c.req.valid('query' as never) as VolumePathQuery;
 
     try {
+      await assertManagedVolume(name);
+
       const stream = await readFile(name, path);
 
       return new Response(stream, { headers: { 'Content-Type': 'application/octet-stream' } });
@@ -75,6 +86,7 @@ put(
     }
 
     try {
+      await assertManagedVolume(name);
       await writeFile(name, path, body);
 
       return c.json({ message: 'File written' });
@@ -95,6 +107,7 @@ post(
     const { path } = c.req.valid('json' as never) as CreateDirectoryDTO;
 
     try {
+      await assertManagedVolume(name);
       await createDirectory(name, path);
 
       return c.json({ message: 'Directory created' }, 201);
@@ -115,6 +128,7 @@ del(
     const { path } = c.req.valid('query' as never) as VolumePathQuery;
 
     try {
+      await assertManagedVolume(name);
       await removePath(name, path);
 
       return c.json({ message: 'Path removed' });

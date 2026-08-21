@@ -26,6 +26,7 @@ type CaddyRoute = {
     handler?: string;
     upstreams?: { dial?: string }[];
     headers?: { request?: { set?: Record<string, string[]> } };
+    response?: { set?: Record<string, string[]> };
   }[];
   terminal?: boolean;
 };
@@ -111,6 +112,7 @@ const load = (configuration: CaddyConfig) =>
 
 export const toCaddyRoute = (spec: RouteSpec): CaddyRoute => {
   const headers = Object.entries(spec.headers ?? {});
+  const responseHeaders = Object.entries(spec.responseHeaders ?? {});
   const path = spec.pathPrefix ? [`${spec.pathPrefix.replace(/\*$/, '')}*`] : undefined;
   const match = spec.domain
     ? [{ host: [spec.domain], ...(path ? { path } : {}) }]
@@ -122,6 +124,16 @@ export const toCaddyRoute = (spec: RouteSpec): CaddyRoute => {
     '@id': routeIdOf(spec.id),
     ...(match ? { match } : {}),
     handle: [
+      ...(responseHeaders.length
+        ? [
+            {
+              handler: 'headers',
+              response: {
+                set: Object.fromEntries(responseHeaders.map(([key, value]) => [key, [value]])),
+              },
+            },
+          ]
+        : []),
       {
         handler: 'reverse_proxy',
         upstreams: spec.upstreams.map(upstream => ({ dial: `${upstream.host}:${upstream.port}` })),
@@ -147,9 +159,11 @@ export const fromCaddyRoute = (route: CaddyRoute, managedDomains: string[]): Rou
 
   const match = route.match?.[0];
   const handle = route.handle?.find(entry => entry.handler === 'reverse_proxy');
+  const headersHandle = route.handle?.find(entry => entry.handler === 'headers');
   const domain = match?.host?.[0];
   const path = match?.path?.[0];
   const headers = Object.entries(handle?.headers?.request?.set ?? {});
+  const responseHeaders = Object.entries(headersHandle?.response?.set ?? {});
 
   return {
     id: id.slice(ROUTE_ID_PREFIX.length),
@@ -168,6 +182,13 @@ export const fromCaddyRoute = (route: CaddyRoute, managedDomains: string[]): Rou
     tls: domain ? managedDomains.includes(domain) : false,
     ...(headers.length
       ? { headers: Object.fromEntries(headers.map(([key, value]) => [key, value[0] ?? ''])) }
+      : {}),
+    ...(responseHeaders.length
+      ? {
+          responseHeaders: Object.fromEntries(
+            responseHeaders.map(([key, value]) => [key, value[0] ?? '']),
+          ),
+        }
       : {}),
   };
 };

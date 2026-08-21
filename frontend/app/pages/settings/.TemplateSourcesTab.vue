@@ -6,7 +6,14 @@
   } from '~/composables/services/useTemplateSources';
 
   const toast = useToast();
-  const { list: listTemplateSources, create, sync, remove } = useTemplateSources();
+  const {
+    list: listTemplateSources,
+    create,
+    sync,
+    acceptUpdate,
+    rejectUpdate,
+    remove,
+  } = useTemplateSources();
 
   const emptySources = { items: [], total: 0, page: 1, size: 0, pages: 0 };
 
@@ -79,6 +86,35 @@
       toast.error({ title: 'Error', message: errorMessageOf(error, 'Could not sync the source.') });
     } finally {
       syncingId.value = null;
+    }
+  };
+
+  const decidingId = ref<string | null>(null);
+
+  const acceptSourceUpdate = async (source: TemplateSource) => {
+    decidingId.value = source.id;
+
+    try {
+      await acceptUpdate(source.id);
+      await refreshSources();
+      toast.success({ title: 'Update accepted', message: 'The catalog now serves the new commit.' });
+    } catch (error) {
+      toast.error({ title: 'Error', message: errorMessageOf(error, 'Could not accept the update.') });
+    } finally {
+      decidingId.value = null;
+    }
+  };
+
+  const rejectSourceUpdate = async (source: TemplateSource) => {
+    decidingId.value = source.id;
+
+    try {
+      await rejectUpdate(source.id);
+      await refreshSources();
+    } catch (error) {
+      toast.error({ title: 'Error', message: errorMessageOf(error, 'Could not reject the update.') });
+    } finally {
+      decidingId.value = null;
     }
   };
 
@@ -178,6 +214,38 @@
                 {{ collision.keptBy === 'embedded' ? 'the built-in catalog' : 'another source' }}.
               </p>
             </Alert>
+          </Row>
+
+          <Row v-if="source.pendingCommit" as="div" class="flex flex-col items-start gap-2.5">
+            <Alert theme="warning" class="w-full">
+              The last sync fetched commit
+              <code class="font-mono">{{ source.pendingCommit.slice(0, 12) }}</code>
+              ({{ source.pendingTemplateCount }} template(s)), which differs from the commit
+              currently serving the catalog. Accept it to switch, or reject it to keep the current
+              content.
+            </Alert>
+            <div class="flex items-center gap-2">
+              <Button
+                theme="primary"
+                size="xs"
+                :disabled="decidingId === source.id"
+                @click="acceptSourceUpdate(source)"
+              >
+                <Icon
+                  :name="decidingId === source.id ? 'svg-spinners:tadpole' : 'proicons:checkmark'"
+                  size="14"
+                />
+                Accept update
+              </Button>
+              <Button
+                theme="quiet"
+                size="xs"
+                :disabled="decidingId === source.id"
+                @click="rejectSourceUpdate(source)"
+              >
+                Reject
+              </Button>
+            </div>
           </Row>
 
           <Row as="div" class="flex items-center gap-2">

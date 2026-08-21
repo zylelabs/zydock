@@ -17,8 +17,9 @@ import {
   resolveDashboardCorsOrigins,
 } from './modules/dashboard/dashboard.service';
 import { bootstrapDatabaseMetrics } from './modules/databases/database-sample.service';
+import { ensureAgentCa } from './modules/servers/agent-ca.service';
 import { ensureLocalServer } from './modules/servers/local-server.service';
-import { syncAgentBundles } from './modules/servers/provisioning.service';
+import { migrateAgentsToMtls, syncAgentBundles } from './modules/servers/provisioning.service';
 import { allTemplates } from './modules/templates/catalog.service';
 import { bootstrapTemplateSources } from './modules/templates/template-source.service';
 import { bootstrapUpdates } from './modules/updates/update.service';
@@ -30,6 +31,7 @@ let isShuttingDown = false;
 
 const connect = () => {
   connectDatabase()
+    .then(ensureAgentCa)
     .then(ensureLocalServer)
     .then(startWorker)
     .then(() => void bootstrapUpdates())
@@ -40,6 +42,11 @@ const connect = () => {
     .then(() =>
       syncAgentBundles().catch(error => {
         logError('Failed to sync the agents', error);
+      }),
+    )
+    .then(() =>
+      migrateAgentsToMtls().catch(error => {
+        logError('Failed to migrate agents to the protected channel', error);
       }),
     )
     .catch(error => {

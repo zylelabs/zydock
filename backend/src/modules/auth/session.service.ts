@@ -2,6 +2,7 @@ import type { Context } from 'hono';
 import { sign } from 'hono/jwt';
 import type { Document } from 'mongoose';
 import config from '../../config';
+import { closeConsoleSessionsOf } from '../console/console.service';
 import sessionModel from './session.model';
 
 const REFRESH_TOKEN_BYTES = 48;
@@ -89,6 +90,9 @@ export const findActiveSessionByToken = async (refreshToken: string) =>
     })
     .select('+refreshTokenHash');
 
+export const findActiveSessionById = (sessionId: string) =>
+  sessionModel.findOne({ _id: sessionId, revokedAt: null, expiresAt: { $gt: new Date() } });
+
 type RotateSessionParams = {
   session: Session & Document;
   email: string;
@@ -130,6 +134,10 @@ export const revokeSession = async (sessionId: string, userId: string) => {
     { $set: { revokedAt: new Date() } },
   );
 
+  if (result.matchedCount > 0) {
+    closeConsoleSessionsOf(sessionId);
+  }
+
   return result.matchedCount > 0;
 };
 
@@ -140,7 +148,12 @@ export const revokeAllUserSessions = async (userId: string, exceptSessionId?: st
     filter._id = { $ne: exceptSessionId };
   }
 
+  const revokedSessions = await sessionModel.find(filter).select('_id');
   const result = await sessionModel.updateMany(filter, { $set: { revokedAt: new Date() } });
+
+  for (const session of revokedSessions) {
+    closeConsoleSessionsOf(String(session._id));
+  }
 
   return result.modifiedCount;
 };

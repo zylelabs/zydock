@@ -94,6 +94,10 @@ interface TemplateSourceData {
   lastSyncedAt?: Date;
   lastError?: string;
   templateCount: number;
+  commit?: string;
+  pendingCommit?: string;
+  pendingTemplateCount?: number;
+  pendingSyncedAt?: Date;
 }
 
 type TemplateSource = BaseDocument<TemplateSourceData>;

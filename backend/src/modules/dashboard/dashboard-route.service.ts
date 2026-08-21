@@ -16,6 +16,18 @@ const DOMAIN_ROUTE_ID = 'system-dashboard-domain';
 const RETRY_DELAY_MS = 10_000;
 const MAX_ATTEMPTS = 30;
 
+const PANEL_SECURITY_HEADERS = {
+  'Content-Security-Policy':
+    "default-src 'self'; script-src 'self' 'unsafe-inline'; style-src 'self' 'unsafe-inline'; img-src 'self' data: blob:; connect-src 'self' ws: wss:; frame-ancestors 'none'",
+  'X-Content-Type-Options': 'nosniff',
+  'X-Frame-Options': 'DENY',
+};
+
+const panelHeadersFor = (tls: boolean) => ({
+  ...PANEL_SECURITY_HEADERS,
+  ...(tls ? { 'Strict-Transport-Security': 'max-age=31536000; includeSubDomains' } : {}),
+});
+
 const upstreamOf = (url: string) => {
   const { hostname, port, protocol } = new URL(url);
 
@@ -63,6 +75,7 @@ export const applyDashboardRoutes = async (domain: string) => {
     isDefault: true,
     tls: false,
     upstreams: [upstreamOf(config.frontendUrl)],
+    responseHeaders: panelHeadersFor(false),
   });
 
   if (!domain) {
@@ -94,6 +107,7 @@ export const applyDashboardRoutes = async (domain: string) => {
     domain,
     tls: true,
     upstreams: [upstreamOf(config.frontendUrl)],
+    responseHeaders: panelHeadersFor(true),
   });
 };
 
