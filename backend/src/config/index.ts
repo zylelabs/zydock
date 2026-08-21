@@ -93,8 +93,11 @@ export default {
     refreshTokenTtlDays: readNumber('JWT_REFRESH_TTL_DAYS', 30),
   },
   auth: {
-    superusers: readList('SUPERUSER_EMAILS'),
     passwordResetTtlMinutes: readNumber('PASSWORD_RESET_TTL_MINUTES', 30),
+  },
+  bootstrap: {
+    maxAttempts: readNumber('BOOTSTRAP_MAX_ATTEMPTS', 10),
+    lockoutMs: readNumber('BOOTSTRAP_LOCKOUT_MS', 15 * 60 * 1000),
   },
   rateLimit: {
     signin: {
@@ -120,6 +123,10 @@ export default {
     inviteAccept: {
       windowMs: readNumber('RATE_LIMIT_INVITE_ACCEPT_WINDOW_MS', 15 * 60 * 1000),
       max: readNumber('RATE_LIMIT_INVITE_ACCEPT_MAX', 10),
+    },
+    bootstrapSignup: {
+      windowMs: readNumber('RATE_LIMIT_BOOTSTRAP_SIGNUP_WINDOW_MS', 15 * 60 * 1000),
+      max: readNumber('RATE_LIMIT_BOOTSTRAP_SIGNUP_MAX', 5),
     },
   },
   security: {

@@ -3,12 +3,13 @@ import { createRouter, validator } from 'hono-route-docs';
 import config from '../../config';
 import { logInfo } from '../../utils/logger';
 import { createRateLimiter } from '../../utils/rate-limit.middleware';
+import { consumeBootstrapCode, verifyBootstrapCode } from '../bootstrap/bootstrap.service';
+import { createOrganization } from '../organizations/organization.service';
 import userModel from '../users/user.model';
 import {
   findUserByEmail,
   findUserWithPassword,
   hashPassword,
-  isSuperuserEmail,
   serializeUser,
   verifyPassword,
 } from '../users/user.service';
@@ -51,6 +52,11 @@ const signupRateLimiter = createRateLimiter({
   identify: c => (c.req.valid('json' as never) as SignupDTO).email,
 });
 
+const bootstrapSignupRateLimiter = createRateLimiter({
+  ...config.rateLimit.bootstrapSignup,
+  identify: () => 'bootstrap-code',
+});
+
 const signinRateLimiter = createRateLimiter({
   ...config.rateLimit.signin,
   identify: c => (c.req.valid('json' as never) as SigninDTO).email,
@@ -85,8 +91,20 @@ post(
       return c.json({ error: 'A user with this email already exists' }, 409);
     }
 
-    if (isSuperuserEmail(body.email)) {
-      return c.json({ error: 'Unable to create this account' }, 403);
+    let isBootstrap = false;
+
+    if (body.bootstrapCode) {
+      const limited = await bootstrapSignupRateLimiter(c, async () => undefined);
+
+      if (limited) {
+        return limited;
+      }
+
+      isBootstrap = await verifyBootstrapCode(body.bootstrapCode);
+
+      if (!isBootstrap) {
+        return c.json({ error: 'Unable to create this account' }, 403);
+      }
     }
 
     const user = await userModel.create({
@@ -94,7 +112,13 @@ post(
       name: body.name,
       status: 'active',
       password: await hashPassword(body.password),
+      ...(isBootstrap ? { superuser: true } : {}),
     });
+
+    if (isBootstrap) {
+      await consumeBootstrapCode(String(user._id));
+      await createOrganization(config.defaultOrganization.name, String(user._id));
+    }
 
     const { userAgent, ip } = getClientMeta(c);
 

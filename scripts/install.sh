@@ -8,7 +8,6 @@ ZYDOCK_CHANNEL="${ZYDOCK_CHANNEL:-}"
 ZYDOCK_BRANCH="${ZYDOCK_BRANCH:-}"
 ZYDOCK_DOMAIN="${ZYDOCK_DOMAIN:-}"
 ZYDOCK_HOST="${ZYDOCK_HOST:-}"
-ZYDOCK_SUPERUSER_EMAIL="${ZYDOCK_SUPERUSER_EMAIL:-}"
 
 log() { printf '\n\033[1;36m▸ %s\033[0m\n' "$1"; }
 warn() { printf '\n\033[1;33m⚠ %s\033[0m\n' "$1" >&2; }
@@ -176,13 +175,14 @@ cd "${ZYDOCK_INSTALL_DIR}"
 git fetch --tags origin "${BRANCH}"
 git reset --hard "$(channel_ref "${CHANNEL}")"
 
+NEW_INSTALL=false
+
 if [ ! -f .env ]; then
+  NEW_INSTALL=true
   log "Generating secrets"
 
   ZYDOCK_HOST="${ZYDOCK_HOST:-$(detect_public_ip || true)}"
   [ -n "${ZYDOCK_HOST}" ] || [ -n "${ZYDOCK_DOMAIN}" ] || fail "Could not autodetect the public IP — set ZYDOCK_HOST or ZYDOCK_DOMAIN explicitly."
-
-  ZYDOCK_SUPERUSER_EMAIL="${ZYDOCK_SUPERUSER_EMAIL:-admin@${ZYDOCK_DOMAIN:-zydock.local}}"
 
   MONGO_USERNAME="zydock"
   MONGO_PASSWORD="$(openssl rand -hex 24)"
@@ -212,8 +212,6 @@ MONGO_URI="mongodb://${MONGO_USERNAME}:${MONGO_PASSWORD}@mongo:27017/zydock?auth
 JWT_SECRET="${JWT_SECRET}"
 ENCRYPTION_KEY="${ENCRYPTION_KEY}"
 LOCAL_AGENT_TOKEN="${LOCAL_AGENT_TOKEN}"
-
-SUPERUSER_EMAILS="${ZYDOCK_SUPERUSER_EMAIL}"
 
 ZYDOCK_DOMAIN="${ZYDOCK_DOMAIN}"
 PUBLIC_IP="${ZYDOCK_HOST}"
@@ -274,10 +272,16 @@ egress)
   ;;
 esac
 
-log "Provisioning the superadmin account and the default organization"
-SEED_OUTPUT="$(docker compose "${COMPOSE_ARGS[@]}" exec -T backend bun run seed </dev/null 2>&1)" || true
-echo "${SEED_OUTPUT}"
-TEMP_PASSWORD="$(echo "${SEED_OUTPUT}" | grep -o 'temporary password: [^"]*' | head -n1 | sed 's/temporary password: //' || true)"
+BOOTSTRAP_CODE=""
+if [ "${NEW_INSTALL}" = true ]; then
+  log "Provisioning the bootstrap code"
+  BOOTSTRAP_OUTPUT="$(docker compose "${COMPOSE_ARGS[@]}" exec -T backend bun run bootstrap:code </dev/null 2>&1)" || true
+  echo "${BOOTSTRAP_OUTPUT}"
+  BOOTSTRAP_CODE="$(echo "${BOOTSTRAP_OUTPUT}" | grep -o 'Bootstrap code: [^"]*' | head -n1 | sed 's/Bootstrap code: //' || true)"
+else
+  log "Applying the superuser marker migration"
+  docker compose "${COMPOSE_ARGS[@]}" exec -T backend bun run migrate:superuser-marker </dev/null 2>&1 || true
+fi
 
 log "Done"
 echo "Zydock ${ZYDOCK_VERSION} (channel: ${CHANNEL})"
@@ -286,11 +290,11 @@ case "${APP_URL}" in
 https://*) ;;
 *) echo "No domain configured yet — set one in Settings → Panel for HTTPS access." ;;
 esac
-if [ -n "${TEMP_PASSWORD}" ]; then
-  echo "Superadmin: ${SUPERUSER_EMAILS}"
-  echo "Temporary password (shown once): ${TEMP_PASSWORD}"
-else
-  echo "Superadmin account already existed — no new password generated."
+if [ -n "${BOOTSTRAP_CODE}" ]; then
+  echo "Bootstrap code (shown once): ${BOOTSTRAP_CODE}"
+  echo "Open the dashboard and sign up with this code to create the superadmin account."
+elif [ "${NEW_INSTALL}" = true ]; then
+  echo "A superuser already exists — no bootstrap code generated."
 fi
 echo
 echo "Re-run this script anytime to update Zydock (git pull + rebuild); secrets are kept."

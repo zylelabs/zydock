@@ -1,4 +1,3 @@
-import config from '../../config';
 import userModel from './user.model';
 
 export const hashPassword = (password: string) =>
@@ -7,20 +6,15 @@ export const hashPassword = (password: string) =>
 export const verifyPassword = (password: string, hash: string) =>
   Bun.password.verify(password, hash);
 
-export const isSuperuserEmail = (email: string) =>
-  config.auth.superusers.includes(email.toLowerCase());
-
 export const isSuperuser = async (email: string) => {
-  if (!isSuperuserEmail(email)) {
-    return false;
-  }
+  const user = await userModel.findOne({ email: email.toLowerCase() }).select('+superuser');
 
-  const user = await userModel
-    .findOne({ email: email.toLowerCase() })
-    .select('+provisionedBySeed');
-
-  return Boolean(user?.provisionedBySeed);
+  return Boolean(user?.superuser);
 };
+
+export const countSuperusers = () => userModel.countDocuments({ superuser: true });
+
+export const superuserExists = async () => (await countSuperusers()) > 0;
 
 export const findActiveUserById = (id: string) => userModel.findOne({ _id: id, status: 'active' });
 

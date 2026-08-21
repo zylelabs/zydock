@@ -1,10 +1,19 @@
 import { z } from 'zod';
+import { bootstrapCodePattern } from '../bootstrap/bootstrap.schema';
+import { normalizeBootstrapCode } from '../bootstrap/bootstrap.service';
 import { passwordSchema } from '../users/user.schema';
 
 export const signupSchema = z.object({
   email: z.email().toLowerCase(),
   name: z.string().trim().min(1).max(120),
   password: passwordSchema,
+  bootstrapCode: z
+    .string()
+    .trim()
+    .min(1)
+    .transform(normalizeBootstrapCode)
+    .pipe(z.string().regex(bootstrapCodePattern))
+    .optional(),
 });
 
 export type SignupDTO = z.infer<typeof signupSchema>;

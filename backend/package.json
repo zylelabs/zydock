@@ -9,6 +9,8 @@
     "seed": "bun run src/seeds/index.ts",
     "validate:catalog": "bun run src/scripts/validate-catalog.ts",
     "fix:non-http-auto-domains": "bun run src/scripts/remove-non-http-auto-domains.ts",
+    "migrate:superuser-marker": "bun run src/scripts/migrate-superuser-marker.ts",
+    "bootstrap:code": "bun run src/scripts/bootstrap-code.ts",
     "build": "bun build index.ts --compile --outfile server",
     "typecheck": "tsc --noEmit",
     "test": "bun test",

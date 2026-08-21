@@ -11,7 +11,7 @@ export default model<User & Document>(
       status: { type: String, required: true, enum: ['active', 'disabled'], default: 'active' },
       password: { type: String, select: false },
       lastLoginAt: { type: Date },
-      provisionedBySeed: { type: Boolean, default: false, select: false },
+      superuser: { type: Boolean, default: false, select: false, index: { sparse: true } },
     },
     {
       collation: { locale: 'en', strength: 2 },

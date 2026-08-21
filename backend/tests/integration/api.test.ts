@@ -894,15 +894,14 @@ describe('ensureLocalServer (adoption)', () => {
 
 describe('seedDefaultOrganization', () => {
   test('creates "My organization" owned by the superuser', async () => {
-    const superuserEmail = config.auth.superusers[0]!;
-
-    expect(superuserEmail).toBeString();
+    const superuserEmail = 'seed-admin@zydock.test';
 
     await userModel.create({
       email: superuserEmail,
       name: 'seed-admin',
       status: 'active',
       password: await hashPassword('irrelevant-password'),
+      superuser: true,
     });
 
     await seedDefaultOrganization();

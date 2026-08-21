@@ -47,17 +47,17 @@ sudo bash install.sh
 
 The installer clones the repository into `/data/zydock`, generates the secrets (`JWT_SECRET`,
 `ENCRYPTION_KEY`, MongoDB credentials), brings the stack up with `docker-compose.prod.yml` and
-creates the first superadmin user. The generated temporary password is printed **once**, at the end
-of the installation. Running the script again updates an existing installation (git pull + rebuild)
-without regenerating the secrets.
+provisions the bootstrap code. That eight-character code is printed **once**, at the end of the
+installation: sign up with it on the panel to create the superadmin account. Running the script
+again updates an existing installation (git pull + rebuild) without regenerating the secrets.
 
 Without `ZYDOCK_DOMAIN`, the panel is reachable at the server IP on ports `3000`/`8000`. With
 `ZYDOCK_DOMAIN`, a Caddy container is started in front of the stack (`docker-compose.prod.yml`,
 profile `domain`) with automatic HTTPS via Let's Encrypt — and `3000`/`8000` are then published on
 the loopback only, so no plain-HTTP API is exposed.
 
-Optional environment variables (`ZYDOCK_DOMAIN`, `ZYDOCK_HOST`, `ZYDOCK_SUPERUSER_EMAIL`,
-`ZYDOCK_INSTALL_DIR`, `ZYDOCK_REPO`, `ZYDOCK_BRANCH`) are documented in the header of
+Optional environment variables (`ZYDOCK_DOMAIN`, `ZYDOCK_HOST`, `ZYDOCK_INSTALL_DIR`,
+`ZYDOCK_REPO`, `ZYDOCK_BRANCH`) are documented in the header of
 [`scripts/install.sh`](scripts/install.sh). To remove an installation, use
 [`scripts/uninstall.sh`](scripts/uninstall.sh).
 
