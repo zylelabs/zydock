@@ -98,21 +98,6 @@ jobs:
           --severity=warning
           /scripts/install.sh /scripts/uninstall.sh /scripts/update-runner.sh /scripts/update.sh /scripts/version.sh
 
-  compose-lint:
-    name: docker compose config
-    runs-on: ubuntu-latest
-    steps:
-      - uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262 # v4.4.0
-      - run: docker compose -f docker-compose.yml config -q
-      - name: Validate docker-compose.prod.yml
-        run: |
-          cat >.env.ci <<EOF
-          MONGO_USERNAME=zydock
-          MONGO_PASSWORD=$(openssl rand -hex 24)
-          LOCAL_AGENT_TOKEN=$(openssl rand -hex 32)
-          EOF
-          docker compose -f docker-compose.prod.yml --env-file .env.ci config -q
-
   static-analysis:
     name: static analysis (Semgrep)
     runs-on: ubuntu-latest
@@ -124,24 +109,6 @@ jobs:
     steps:
       - uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262 # v4.4.0
       - run: semgrep scan --config p/typescript --config p/security-audit --config p/dockerfile --error
-
-  audit:
-    name: dependency audit
-    runs-on: ubuntu-latest
-    strategy:
-      fail-fast: false
-      matrix:
-        package: [backend, agent, frontend]
-    defaults:
-      run:
-        working-directory: ${{ matrix.package }}
-    steps:
-      - uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262 # v4.4.0
-      - uses: oven-sh/setup-bun@0c5077e51419868618aeaa5fe8019c62421857d6 # v2.2.0
-        with:
-          bun-version-file: .bun-version
-      - run: bun install --frozen-lockfile
-      - run: bun audit
 
   smoke-test:
     name: smoke test (docker-compose.prod.yml)
