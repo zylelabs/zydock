@@ -5,6 +5,7 @@ import { encryptSecret } from '../../src/utils/crypto';
 import { APPLICATION_LABEL } from '../../src/modules/deployments/naming';
 import applicationModel from '../../src/modules/applications/application.model';
 import databaseModel from '../../src/modules/databases/database.model';
+import { ensureAgentCa } from '../../src/modules/servers/agent-ca.service';
 import { findDatabaseConsumers } from '../../src/modules/databases/database.service';
 import type { ContainerInfo } from '../../src/providers/container/container.contract';
 
@@ -21,7 +22,8 @@ const agentEndpoint = { host: '127.0.0.1', port: 9321 };
 
 const agentServer = {
   _id: agentServerId,
-  agent: { token: encryptSecret('agent-token'), ...agentEndpoint },
+  type: 'ssh',
+  agent: { token: encryptSecret('agent-token'), tlsIssuedAt: new Date(), ...agentEndpoint },
 } as unknown as Server;
 
 const originalFetch = globalThis.fetch;
@@ -69,6 +71,7 @@ const restoreFetch = () => {
 
 beforeAll(async () => {
   await connectDatabase();
+  await ensureAgentCa();
 });
 
 afterEach(async () => {

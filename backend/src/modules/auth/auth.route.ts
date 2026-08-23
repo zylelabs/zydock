@@ -48,32 +48,32 @@ const { router, post } = createRouter();
 const GENERIC_RESET_MESSAGE = 'If the email exists, a reset link was sent';
 
 const signupRateLimiter = createRateLimiter({
-  ...config.rateLimit.signup,
+  policy: config.rateLimit.signup,
   identify: c => (c.req.valid('json' as never) as SignupDTO).email,
 });
 
 const bootstrapSignupRateLimiter = createRateLimiter({
-  ...config.rateLimit.bootstrapSignup,
+  policy: config.rateLimit.bootstrapSignup,
   identify: () => 'bootstrap-code',
 });
 
 const signinRateLimiter = createRateLimiter({
-  ...config.rateLimit.signin,
+  policy: config.rateLimit.signin,
   identify: c => (c.req.valid('json' as never) as SigninDTO).email,
 });
 
 const refreshRateLimiter = createRateLimiter({
-  ...config.rateLimit.refresh,
+  policy: config.rateLimit.refresh,
   identify: c => (c.req.valid('json' as never) as RefreshDTO).refreshToken,
 });
 
 const forgotPasswordRateLimiter = createRateLimiter({
-  ...config.rateLimit.forgotPassword,
+  policy: config.rateLimit.forgotPassword,
   identify: c => (c.req.valid('json' as never) as ForgotPasswordDTO).email,
 });
 
 const resetPasswordRateLimiter = createRateLimiter({
-  ...config.rateLimit.resetPassword,
+  policy: config.rateLimit.resetPassword,
   identify: c => (c.req.valid('json' as never) as ResetPasswordDTO).token,
 });
 

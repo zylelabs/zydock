@@ -1,5 +1,5 @@
 import { afterAll, afterEach, beforeAll, describe, expect, test } from 'bun:test';
-import { createApp } from '../../src/app-server';
+import { createApp, waitForBootstrap } from '../../src/app-server';
 import { connectDatabase, disconnectDatabase } from '../../src/config/mongodb';
 import { decryptSecret } from '../../src/utils/crypto';
 import {
@@ -55,6 +55,7 @@ beforeAll(async () => {
   userId = String(user._id);
 
   app = createApp();
+  await waitForBootstrap();
 
   const response = await json('/auth/signin', 'POST', { email, password });
   const body = (await response.json()) as { accessToken: string };
@@ -563,7 +564,9 @@ describe('POST /templates/:templateId/deploy', () => {
     expect(response.status).toBe(201);
     expect(body.application.source).toBe('compose');
     expect(body.application.origin?.templateId).toBe('uptime-kuma');
-    expect(body.application.origin?.templateVersion).toBe(3);
+    expect(body.application.origin?.templateVersion).toBe(
+      allTemplates().find(template => template.id === 'uptime-kuma')!.version,
+    );
     expect(body.deployment).toBeUndefined();
   });
 
@@ -767,7 +770,7 @@ describe('POST /templates/:templateId/deploy', () => {
         },
         triggeredBy: 'test-user',
       }),
-    ).rejects.toThrow(/Input "API_KEY" is required/);
+    ).rejects.toThrow(/"API key" is required for template "synthetic-required-input"/);
 
     expect(String(environment!.projectId)).toBe(projectId);
   });

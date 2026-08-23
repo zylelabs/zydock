@@ -43,6 +43,7 @@ interface ServerData {
 type Server = BaseDocument<ServerData>;
 
 interface AgentCaData {
+  singleton: string;
   caCertPem: string;
   caKeyPem: string;
   clientCertPem: string;

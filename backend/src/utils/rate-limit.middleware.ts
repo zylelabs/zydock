@@ -7,9 +7,13 @@ type RateLimitEntry = {
   resetAt: number;
 };
 
-type RateLimitOptions = {
+type RateLimitPolicy = {
   windowMs: number;
   max: number;
+};
+
+type RateLimitOptions = {
+  policy: RateLimitPolicy;
   identify?: (c: Context) => Promise<string | undefined> | string | undefined;
 };
 
@@ -34,12 +38,12 @@ export const createRateLimiter = (options: RateLimitOptions) => {
     const entry = buckets.get(key);
 
     if (!entry || entry.resetAt <= now) {
-      buckets.set(key, { count: 1, resetAt: now + options.windowMs });
+      buckets.set(key, { count: 1, resetAt: now + options.policy.windowMs });
 
       return next();
     }
 
-    if (entry.count >= options.max) {
+    if (entry.count >= options.policy.max) {
       const retryAfterSeconds = Math.ceil((entry.resetAt - now) / 1000);
 
       logWarn('Rate limit exceeded', { path: c.req.path, ip: getClientMeta(c).ip });

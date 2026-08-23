@@ -28,15 +28,16 @@ import { logError, logInfo } from './utils/logger';
 type AppEnv = { Variables: RequestIdVariables };
 
 let isShuttingDown = false;
+let bootstrap: Promise<void> | undefined;
 
 const connect = () => {
-  connectDatabase()
+  bootstrap = connectDatabase()
     .then(ensureAgentCa)
     .then(ensureLocalServer)
     .then(startWorker)
-    .then(() => void bootstrapUpdates())
-    .then(() => void bootstrapTemplateSources())
-    .then(() => void bootstrapDatabaseMetrics())
+    .then(bootstrapUpdates)
+    .then(bootstrapTemplateSources)
+    .then(bootstrapDatabaseMetrics)
     .then(bootstrapDashboard)
     .then(() => void ensureDashboardRoutes())
     .then(() =>
@@ -53,6 +54,8 @@ const connect = () => {
       logError('Failed to connect to MongoDB', error);
     });
 };
+
+export const waitForBootstrap = () => bootstrap ?? Promise.resolve();
 
 const cleanup = async () => {
   try {

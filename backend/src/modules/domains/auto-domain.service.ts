@@ -13,10 +13,10 @@ import {
 const ipLabelOf = (ip: string) => ip.replace(/[.:]/g, '-');
 
 const hostnameOf = (slug: string, ipLabel: string) =>
-  `${slug}.${ipLabel}.${config.autoDomain.suffix}`;
+  `${slug}.${ipLabel}.${config.autoDomain.suffix}`.toLowerCase();
 
 const hostnameWithEnvironmentOf = (slug: string, environmentSlug: string, ipLabel: string) =>
-  `${slug}-${environmentSlug}.${ipLabel}.${config.autoDomain.suffix}`;
+  `${slug}-${environmentSlug}.${ipLabel}.${config.autoDomain.suffix}`.toLowerCase();
 
 export const buildAutoDomainHostname = async (params: {
   slug: string;
