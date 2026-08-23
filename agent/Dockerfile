@@ -1,6 +1,4 @@
-FROM oven/bun:alpine@sha256:07235578f79ef8c6f97d94aee7938e76f5cdba5f21ae5dbfdd3d3d38058437eb
-
-RUN apk add --no-cache docker-cli docker-cli-compose git
+FROM oven/bun:1.3.14-alpine@sha256:5acc90a93e91ff07bf72aa90a7c9f0fa189765aec90b47bdbf2152d2196383c0 AS builder
 
 WORKDIR /app
 
@@ -8,8 +6,21 @@ COPY package.json bun.lock ./
 
 RUN bun install --frozen-lockfile
 
-COPY . ./
+COPY . .
+
+RUN bun run build
+
+FROM oven/bun:1.3.14-alpine@sha256:5acc90a93e91ff07bf72aa90a7c9f0fa189765aec90b47bdbf2152d2196383c0
+
+RUN apk add --no-cache docker-cli docker-cli-compose git
+
+WORKDIR /app
+
+COPY --from=builder /app/dist/agent.js ./dist/agent.js
 
 EXPOSE 9000
 
-CMD ["bun", "run", "start"]
+HEALTHCHECK --interval=5s --timeout=5s --retries=20 \
+  CMD wget -qO- http://127.0.0.1:9000/api/health || exit 1
+
+CMD ["bun", "dist/agent.js"]

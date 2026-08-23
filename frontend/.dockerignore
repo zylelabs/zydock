@@ -1,7 +1,7 @@
 # .dockerignore
 
 # Ignore node_modules directory
-/**/*/node_modules
+node_modules
 
 # Ignore log files
 *.log
@@ -13,6 +13,12 @@ docker-compose.yml
 # Ignore build directories
 dist
 build
+
+# Ignore Nuxt build/runtime output
+.nuxt
+.output
+.data
+.nitro
 
 # Ignore OS-specific files
 .DS_Store
@@ -28,19 +34,23 @@ Thumbs.db
 *.swo
 
 # Ignore development files
-/**/*/tests
-/**/*/docs
-/**/*/*.spec.*
-/**/*/*.test.*
-/**/*/*.e2e.*
-/**/*/.markdownlint.json
-/**/*/.prettierignore
-/**/*/.prettierrc
-/**/*/.eslintrc
-/**/*/.eslintignore
-/**/*/.editorconfig
-/**/*/.gitignore
-/**/*/.gitattributes
-/**/*/.npmrc
-/**/*/.nvmrc
-/**/*/*.md
+tests
+docs
+*.spec.*
+*.test.*
+*.e2e.*
+.markdownlint.json
+.prettierignore
+.prettierrc
+.eslintrc
+.eslintignore
+.editorconfig
+.gitignore
+.gitattributes
+.npmrc
+.nvmrc
+*.md
+
+# Ignore local secrets
+.env
+.env.*

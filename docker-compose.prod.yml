@@ -14,6 +14,7 @@ services:
       retries: 10
 
   backend:
+    image: ${ZYDOCK_IMAGE_REGISTRY:-ghcr.io/zylelabs}/zydock-backend:${ZYDOCK_IMAGE_TAG:-latest}
     build:
       context: .
       dockerfile: backend/Dockerfile
@@ -36,6 +37,7 @@ services:
       retries: 20
 
   agent:
+    image: ${ZYDOCK_IMAGE_REGISTRY:-ghcr.io/zylelabs}/zydock-agent:${ZYDOCK_IMAGE_TAG:-latest}
     build: ./agent
     restart: unless-stopped
     depends_on:
@@ -55,8 +57,14 @@ services:
       ZYDOCK_INSTALL_DIR: ${ZYDOCK_INSTALL_DIR:-/data/zydock}
       CADDY_ADMIN_URL: unix:/var/run/caddy/admin.sock
       PROXY_HTTPS_HOST: caddy
+    healthcheck:
+      test: ['CMD', 'wget', '-qO-', 'http://127.0.0.1:9000/api/health']
+      interval: 5s
+      timeout: 5s
+      retries: 20
 
   frontend:
+    image: ${ZYDOCK_IMAGE_REGISTRY:-ghcr.io/zylelabs}/zydock-frontend:${ZYDOCK_IMAGE_TAG:-latest}
     build: ./frontend
     restart: unless-stopped
     depends_on:
@@ -67,6 +75,11 @@ services:
       PORT: '3000'
       HOST: 0.0.0.0
       URL_API: http://backend:8000
+    healthcheck:
+      test: ['CMD', 'wget', '-qO-', 'http://127.0.0.1:3000/api/health_check']
+      interval: 5s
+      timeout: 5s
+      retries: 20
 
   caddy:
     image: caddy:2@sha256:df7f1c2fb114453b951de51a98efc010db1655a92c2e86be6706714e2417a78d

@@ -23,6 +23,7 @@ node_modules
 .DS_Store
 .fleet
 .idea
+/template-sources-cache
 
 # Local env files
 .env
