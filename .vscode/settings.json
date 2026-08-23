@@ -6,8 +6,6 @@
   },
   "eslint.useFlatConfig": true,
   "eslint.validate": ["javascript", "typescript", "vue"],
-  "prettier.prettierPath": "./node_modules/prettier",
-  "prettier.configPath": ".prettierrc",
   "prettier.requireConfig": true,
   "[vue]": {
     "editor.defaultFormatter": "esbenp.prettier-vscode"

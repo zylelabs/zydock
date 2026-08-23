@@ -7,12 +7,34 @@ ZYDOCK_CHANNEL="${ZYDOCK_CHANNEL:-}"
 ZYDOCK_BRANCH="${ZYDOCK_BRANCH:-}"
 ZYDOCK_REF="${ZYDOCK_REF:-}"
 ZYDOCK_FORCE="${ZYDOCK_FORCE:-false}"
+ZYDOCK_BUILD="${ZYDOCK_BUILD:-0}"
 
 log() { printf '\n\033[1;36m▸ %s\033[0m\n' "$1"; }
 warn() { printf '\n\033[1;33m⚠ %s\033[0m\n' "$1" >&2; }
 fail() {
   printf '\n\033[1;31m✖ %s\033[0m\n' "$1" >&2
   exit 1
+}
+
+channel_image_tag() {
+  case "$1" in
+  stable) echo "latest" ;;
+  nightly) echo "nightly" ;;
+  *) echo "" ;;
+  esac
+}
+
+check_build_resources() {
+  local mem_kb mem_mb disk_kb disk_mb
+
+  mem_kb="$(awk '/MemTotal/ {print $2}' /proc/meminfo 2>/dev/null || echo 0)"
+  mem_mb="$((mem_kb / 1024))"
+
+  disk_kb="$(df -Pk . 2>/dev/null | awk 'NR==2 {print $4}')"
+  disk_mb="$((${disk_kb:-0} / 1024))"
+
+  [ "${mem_mb}" -ge 2048 ] || fail "Building locally needs at least 2GB RAM (found ${mem_mb}MB). Unset ZYDOCK_BUILD to use the published images instead, or add swap."
+  [ "${disk_mb}" -ge 4096 ] || fail "Building locally needs at least 4GB free disk (found ${disk_mb}MB free). Unset ZYDOCK_BUILD to use the published images instead, or free up space."
 }
 
 ensure_env() {
@@ -93,6 +115,12 @@ export ZYDOCK_CHANNEL ZYDOCK_BRANCH
 
 CHANNEL="$(bash scripts/version.sh channel)"
 BRANCH="$(bash scripts/version.sh branch)"
+IMAGE_TAG="$(channel_image_tag "${CHANNEL}")"
+
+if [ -z "${IMAGE_TAG}" ] && [ "${ZYDOCK_BUILD}" != "1" ]; then
+  warn "No published images for channel '${CHANNEL}' — building locally instead."
+  ZYDOCK_BUILD=1
+fi
 
 export ZYDOCK_CHANNEL="${CHANNEL}"
 
@@ -130,6 +158,7 @@ set_env ZYDOCK_VERSION "$(bash scripts/version.sh)"
 set_env ZYDOCK_COMMIT "$(bash scripts/version.sh commit)"
 set_env ZYDOCK_CHANNEL "${CHANNEL}"
 set_env ZYDOCK_INSTALL_DIR "${ZYDOCK_INSTALL_DIR}"
+set_env ZYDOCK_IMAGE_TAG "${IMAGE_TAG}"
 
 . ./.env
 
@@ -137,8 +166,14 @@ COMPOSE_ARGS=(-f docker-compose.prod.yml --env-file .env)
 
 docker network inspect zydock >/dev/null 2>&1 || docker network create zydock
 
-log "Rebuilding and restarting the stack"
-docker compose "${COMPOSE_ARGS[@]}" up -d --build --remove-orphans
+if [ "${ZYDOCK_BUILD}" = "1" ]; then
+  log "Rebuilding the stack locally (ZYDOCK_BUILD=1)"
+  check_build_resources
+  docker compose "${COMPOSE_ARGS[@]}" up -d --build --remove-orphans
+else
+  log "Pulling published images and restarting the stack"
+  docker compose "${COMPOSE_ARGS[@]}" up -d --pull always --remove-orphans
+fi
 
 log "Waiting for the backend to become healthy"
 ATTEMPTS=0

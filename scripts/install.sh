@@ -8,6 +8,7 @@ ZYDOCK_CHANNEL="${ZYDOCK_CHANNEL:-}"
 ZYDOCK_BRANCH="${ZYDOCK_BRANCH:-}"
 ZYDOCK_DOMAIN="${ZYDOCK_DOMAIN:-}"
 ZYDOCK_HOST="${ZYDOCK_HOST:-}"
+ZYDOCK_BUILD="${ZYDOCK_BUILD:-0}"
 
 log() { printf '\n\033[1;36m▸ %s\033[0m\n' "$1"; }
 warn() { printf '\n\033[1;33m⚠ %s\033[0m\n' "$1" >&2; }
@@ -98,6 +99,27 @@ channel_ref() {
   fi
 }
 
+channel_image_tag() {
+  case "$1" in
+  stable) echo "latest" ;;
+  nightly) echo "nightly" ;;
+  *) echo "" ;;
+  esac
+}
+
+check_build_resources() {
+  local mem_kb mem_mb disk_kb disk_mb
+
+  mem_kb="$(awk '/MemTotal/ {print $2}' /proc/meminfo 2>/dev/null || echo 0)"
+  mem_mb="$((mem_kb / 1024))"
+
+  disk_kb="$(df -Pk . 2>/dev/null | awk 'NR==2 {print $4}')"
+  disk_mb="$((${disk_kb:-0} / 1024))"
+
+  [ "${mem_mb}" -ge 2048 ] || fail "Building locally needs at least 2GB RAM (found ${mem_mb}MB). Unset ZYDOCK_BUILD to use the published images instead, or add swap."
+  [ "${disk_mb}" -ge 4096 ] || fail "Building locally needs at least 4GB free disk (found ${disk_mb}MB free). Unset ZYDOCK_BUILD to use the published images instead, or free up space."
+}
+
 migrate_port_urls() {
   [ -f .env ] || return 0
 
@@ -139,6 +161,12 @@ fi
 
 CHANNEL="${ZYDOCK_CHANNEL:-stable}"
 BRANCH="$(channel_branch "${CHANNEL}")"
+IMAGE_TAG="$(channel_image_tag "${CHANNEL}")"
+
+if [ -z "${IMAGE_TAG}" ] && [ "${ZYDOCK_BUILD}" != "1" ]; then
+  warn "No published images for channel '${CHANNEL}' — building locally instead."
+  ZYDOCK_BUILD=1
+fi
 
 [ "$(id -u)" -eq 0 ] || fail "Run as root (or with sudo)."
 command -v apt-get >/dev/null 2>&1 || fail "This installer only supports Debian/Ubuntu (needs apt-get)."
@@ -233,6 +261,7 @@ set_env ZYDOCK_VERSION "$(bash scripts/version.sh)"
 set_env ZYDOCK_COMMIT "$(bash scripts/version.sh commit)"
 set_env ZYDOCK_CHANNEL "${CHANNEL}"
 set_env ZYDOCK_INSTALL_DIR "${ZYDOCK_INSTALL_DIR}"
+set_env ZYDOCK_IMAGE_TAG "${IMAGE_TAG}"
 
 . ./.env
 
@@ -240,8 +269,14 @@ COMPOSE_ARGS=(-f docker-compose.prod.yml --env-file .env)
 
 docker network inspect zydock >/dev/null 2>&1 || docker network create zydock
 
-log "Building and starting the stack"
-docker compose "${COMPOSE_ARGS[@]}" up -d --build
+if [ "${ZYDOCK_BUILD}" = "1" ]; then
+  log "Building the stack locally (ZYDOCK_BUILD=1)"
+  check_build_resources
+  docker compose "${COMPOSE_ARGS[@]}" up -d --build
+else
+  log "Pulling published images and starting the stack"
+  docker compose "${COMPOSE_ARGS[@]}" up -d --pull always
+fi
 
 log "Waiting for the backend to become healthy"
 ATTEMPTS=0
