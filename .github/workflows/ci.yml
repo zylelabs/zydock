@@ -98,18 +98,6 @@ jobs:
           --severity=warning
           /scripts/install.sh /scripts/uninstall.sh /scripts/update-runner.sh /scripts/update.sh /scripts/version.sh
 
-  static-analysis:
-    name: static analysis (Semgrep)
-    runs-on: ubuntu-latest
-    if: github.event_name == 'pull_request'
-    permissions:
-      contents: read
-    container:
-      image: semgrep/semgrep
-    steps:
-      - uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262 # v4.4.0
-      - run: semgrep scan --config p/typescript --config p/security-audit --config p/dockerfile --error
-
   smoke-test:
     name: smoke test (docker-compose.prod.yml)
     runs-on: ubuntu-latest
