@@ -179,9 +179,19 @@ jobs:
     with:
       tag: ${{ needs.tag.outputs.version }}
 
+  images:
+    name: Publish images
+    needs: [tag]
+    uses: ./.github/workflows/images.yml
+    permissions:
+      contents: read
+      packages: write
+    with:
+      tag: ${{ needs.tag.outputs.version }}
+
   summary:
     name: Summary
-    needs: [tag, publish]
+    needs: [tag, publish, images]
     runs-on: ubuntu-latest
     permissions:
       contents: read

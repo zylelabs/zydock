@@ -4,9 +4,21 @@ on:
   push:
     tags: ["v*"]
     branches: [nightly]
+  workflow_dispatch:
+    inputs:
+      tag:
+        description: "Existing tag to build images for (e.g. v0.2.0)."
+        required: true
+        type: string
+  workflow_call:
+    inputs:
+      tag:
+        description: "Existing tag to build images for (e.g. v0.2.0)."
+        required: true
+        type: string
 
 concurrency:
-  group: images-${{ github.ref }}
+  group: images-${{ inputs.tag || github.ref }}
   cancel-in-progress: false
 
 permissions:
@@ -38,22 +50,26 @@ jobs:
             dockerfile: agent/Dockerfile
     steps:
       - uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262 # v4.4.0
+        with:
+          ref: ${{ inputs.tag || github.ref }}
 
       - name: Resolve image tags
         id: tags
+        env:
+          REF: ${{ inputs.tag || github.ref_name }}
         run: |
           IMAGE="${REGISTRY}/${REGISTRY_NAMESPACE}/zydock-${{ matrix.service }}"
 
-          if [ "${GITHUB_REF_TYPE}" = "tag" ]; then
-            VERSION="${GITHUB_REF_NAME#v}"
-            TAGS="${IMAGE}:${VERSION}"
-            case "${GITHUB_REF_NAME}" in
+          case "${REF}" in
+          v[0-9]*)
+            TAGS="${IMAGE}:${REF#v}"
+            case "${REF}" in
             *-*) ;;
             *) TAGS="${TAGS},${IMAGE}:latest" ;;
             esac
-          else
-            TAGS="${IMAGE}:nightly"
-          fi
+            ;;
+          *) TAGS="${IMAGE}:nightly" ;;
+          esac
 
           echo "tags=${TAGS}" >> "$GITHUB_OUTPUT"
 
