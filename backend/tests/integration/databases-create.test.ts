@@ -6,6 +6,7 @@ import { hashPassword } from '../../src/modules/users/user.service';
 import { encryptSecret } from '../../src/utils/crypto';
 import userModel from '../../src/modules/users/user.model';
 import serverModel from '../../src/modules/servers/server.model';
+import { ensureAgentCa } from '../../src/modules/servers/agent-ca.service';
 import mongoose from 'mongoose';
 
 let app: ReturnType<typeof createApp>;
@@ -88,6 +89,7 @@ const installAgentMock = () => {
 
 beforeAll(async () => {
   await connectDatabase();
+  await ensureAgentCa();
 
   const user = await userModel.create({
     email,
@@ -123,7 +125,12 @@ describe('POST /databases', () => {
       organizationId,
       name: 'provisioning-server',
       type: 'ssh',
-      agent: { host: '127.0.0.1', port: 9000, token: encryptSecret('agent-token') },
+      agent: {
+        host: '127.0.0.1',
+        port: 9000,
+        token: encryptSecret('agent-token'),
+        tlsIssuedAt: new Date(),
+      },
     });
 
     serverId = String(server._id);

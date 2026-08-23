@@ -32,7 +32,7 @@ import userModel from '../users/user.model';
 const { router, get, post, delete: del } = createRouter();
 
 const inviteAcceptRateLimiter = createRateLimiter({
-  ...config.rateLimit.inviteAccept,
+  policy: config.rateLimit.inviteAccept,
   identify: c => c.get('auth').sub,
 });
 

@@ -13,16 +13,23 @@ export type AgentTlsMaterial = {
 };
 
 let cached: { caCertPem: string; clientCertPem: string; clientKeyPem: string } | undefined;
+let loading: Promise<void> | undefined;
 
-export const ensureAgentCa = async () => {
-  const existing = await agentCaModel.findOne().select('+caKeyPem +clientKeyPem');
+const findStoredAgentCa = () => agentCaModel.findOne().select('+caKeyPem +clientKeyPem');
+
+const cacheStored = (stored: AgentCa) => {
+  cached = {
+    caCertPem: stored.caCertPem,
+    clientCertPem: stored.clientCertPem,
+    clientKeyPem: decryptSecret(stored.clientKeyPem),
+  };
+};
+
+const loadAgentCa = async () => {
+  const existing = await findStoredAgentCa();
 
   if (existing) {
-    cached = {
-      caCertPem: existing.caCertPem,
-      clientCertPem: existing.clientCertPem,
-      clientKeyPem: decryptSecret(existing.clientKeyPem),
-    };
+    cacheStored(existing);
 
     return;
   }
@@ -31,18 +38,36 @@ export const ensureAgentCa = async () => {
   const authority = await provider.createCertificateAuthority(CA_COMMON_NAME);
   const client = await provider.issueCertificate(BACKEND_CLIENT_COMMON_NAME, authority);
 
-  await agentCaModel.create({
-    caCertPem: authority.certPem,
-    caKeyPem: encryptSecret(authority.keyPem),
-    clientCertPem: client.certPem,
-    clientKeyPem: encryptSecret(client.keyPem),
+  try {
+    await agentCaModel.create({
+      caCertPem: authority.certPem,
+      caKeyPem: encryptSecret(authority.keyPem),
+      clientCertPem: client.certPem,
+      clientKeyPem: encryptSecret(client.keyPem),
+    });
+
+    cached = {
+      caCertPem: authority.certPem,
+      clientCertPem: client.certPem,
+      clientKeyPem: client.keyPem,
+    };
+  } catch (error) {
+    const stored = await findStoredAgentCa();
+
+    if (!stored) {
+      throw error;
+    }
+
+    cacheStored(stored);
+  }
+};
+
+export const ensureAgentCa = () => {
+  loading ??= loadAgentCa().finally(() => {
+    loading = undefined;
   });
 
-  cached = {
-    caCertPem: authority.certPem,
-    clientCertPem: client.certPem,
-    clientKeyPem: client.keyPem,
-  };
+  return loading;
 };
 
 const getCache = () => {

@@ -6,6 +6,7 @@ import jobModel from '../../src/modules/queue/job.model';
 import databaseModel from '../../src/modules/databases/database.model';
 import databaseSampleModel from '../../src/modules/databases/database-sample.model';
 import serverModel from '../../src/modules/servers/server.model';
+import { ensureAgentCa } from '../../src/modules/servers/agent-ca.service';
 import {
   DATABASE_SAMPLE_JOB,
   runDatabaseSampling,
@@ -57,6 +58,7 @@ const restoreFetch = () => {
 
 beforeAll(async () => {
   await connectDatabase();
+  await ensureAgentCa();
 });
 
 afterEach(async () => {
@@ -79,7 +81,12 @@ describe('runDatabaseSampling', () => {
       organizationId,
       name: 'server-with-agent',
       type: 'ssh',
-      agent: { host: '127.0.0.1', port: 9000, token: encryptSecret('agent-token') },
+      agent: {
+        host: '127.0.0.1',
+        port: 9000,
+        token: encryptSecret('agent-token'),
+        tlsIssuedAt: new Date(),
+      },
     });
 
     const serverWithoutAgent = await serverModel.create({
@@ -151,7 +158,12 @@ describe('runDatabaseSampling', () => {
       organizationId,
       name: 'server-mixed',
       type: 'ssh',
-      agent: { host: '127.0.0.1', port: 9000, token: encryptSecret('agent-token') },
+      agent: {
+        host: '127.0.0.1',
+        port: 9000,
+        token: encryptSecret('agent-token'),
+        tlsIssuedAt: new Date(),
+      },
     });
 
     const workingDatabase = await databaseModel.create({

@@ -2,6 +2,7 @@ import { Document, model, Schema } from 'mongoose';
 
 const agentCaSchema = new Schema(
   {
+    singleton: { type: String, unique: true, default: 'agent-ca' },
     caCertPem: { type: String, required: true },
     caKeyPem: { type: String, required: true, select: false },
     clientCertPem: { type: String, required: true },
