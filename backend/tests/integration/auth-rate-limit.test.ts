@@ -4,7 +4,10 @@ import config from '../../src/config';
 import { connectDatabase, disconnectDatabase } from '../../src/config/mongodb';
 import userModel from '../../src/modules/users/user.model';
 import { hashPassword } from '../../src/modules/users/user.service';
-import { resetRateLimitState } from '../../src/utils/rate-limit.middleware';
+import {
+  expireRateLimitWindows,
+  resetRateLimitState,
+} from '../../src/utils/rate-limit.middleware';
 
 const password = 'rate-limit-secret-1';
 const email = `rate-limit-${Date.now()}@zydock.test`;
@@ -65,7 +68,6 @@ describe('POST /auth/signin — rate limiting', () => {
 
   test('the window expires and releases the key', async () => {
     config.rateLimit.signin.max = 1;
-    config.rateLimit.signin.windowMs = 100;
 
     const first = await signinWithWrongPassword('203.0.113.2');
     expect(first.status).toBe(401);
@@ -73,7 +75,7 @@ describe('POST /auth/signin — rate limiting', () => {
     const blocked = await signinWithWrongPassword('203.0.113.2');
     expect(blocked.status).toBe(429);
 
-    await new Promise(resolve => setTimeout(resolve, 150));
+    expireRateLimitWindows();
 
     const afterWindow = await signinWithWrongPassword('203.0.113.2');
     expect(afterWindow.status).toBe(401);

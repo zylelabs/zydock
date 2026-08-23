@@ -23,6 +23,12 @@ export const resetRateLimitState = () => {
   buckets.clear();
 };
 
+export const expireRateLimitWindows = () => {
+  for (const entry of buckets.values()) {
+    entry.resetAt = 0;
+  }
+};
+
 const buildKey = (c: Context, identity: string | undefined) => {
   const { ip } = getClientMeta(c);
 
