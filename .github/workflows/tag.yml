@@ -12,6 +12,11 @@ on:
         description: "Stable only: tag to create (e.g. v0.2.0). Empty = root package.json version."
         required: false
         type: string
+      wait_minutes:
+        description: "Minutes to wait for CI on this commit to finish before giving up."
+        required: false
+        default: "45"
+        type: string
 
 concurrency:
   group: tag
@@ -25,6 +30,7 @@ jobs:
   tag:
     name: Cut ${{ inputs.channel }} tag
     runs-on: ubuntu-latest
+    timeout-minutes: 60
     permissions:
       contents: write
       actions: read
@@ -60,31 +66,50 @@ jobs:
           fetch-depth: 0
           token: ${{ github.token }}
 
-      - name: Check CI status for this commit
+      - name: Wait for CI to be green on this commit
         env:
           GH_TOKEN: ${{ github.token }}
+          WAIT_MINUTES: ${{ inputs.wait_minutes }}
+          POLL_SECONDS: "30"
         run: |
-          CONCLUSIONS="$(gh api "repos/${GITHUB_REPOSITORY}/commits/${GITHUB_SHA}/check-runs" \
-            --paginate --jq '.check_runs[]
-              | select(.details_url | contains("/actions/runs/'"${GITHUB_RUN_ID}"'/") | not)
-              | "\(.name) \(.status):\(.conclusion // "pending")"')"
+          DEADLINE=$(($(date +%s) + WAIT_MINUTES * 60))
 
-          if [ -z "${CONCLUSIONS}" ]; then
-            echo "::error::No check runs found for ${GITHUB_SHA} — CI has not reported on this commit."
-            exit 1
-          fi
+          while :; do
+            CONCLUSIONS="$(gh api "repos/${GITHUB_REPOSITORY}/commits/${GITHUB_SHA}/check-runs" \
+              --paginate --jq '.check_runs[]
+                | select(.details_url | contains("/actions/runs/'"${GITHUB_RUN_ID}"'/") | not)
+                | "\(.name) \(.status):\(.conclusion // "pending")"')"
 
-          PENDING="$(printf '%s\n' "${CONCLUSIONS}" | { grep -v ' completed:' || true; })"
-          if [ -n "${PENDING}" ]; then
-            echo "::error::CI is still running for ${GITHUB_SHA} — wait for it to finish."
-            exit 1
-          fi
+            FAILED="$(printf '%s\n' "${CONCLUSIONS}" | { grep -E ' completed:' || true; } \
+              | { grep -Ev ' completed:(success|skipped)$' || true; })"
+            if [ -n "${FAILED}" ]; then
+              echo "::error::CI is not green for ${GITHUB_SHA} (${FAILED})."
+              exit 1
+            fi
 
-          FAILED="$(printf '%s\n' "${CONCLUSIONS}" | { grep -Ev ' completed:(success|skipped)$' || true; })"
-          if [ -n "${FAILED}" ]; then
-            echo "::error::CI is not green for ${GITHUB_SHA} (${FAILED})."
-            exit 1
-          fi
+            PENDING="$(printf '%s\n' "${CONCLUSIONS}" | { grep -v ' completed:' || true; })"
+            if [ -n "${CONCLUSIONS}" ] && [ -z "${PENDING}" ]; then
+              echo "CI is green for ${GITHUB_SHA}."
+              printf '%s\n' "${CONCLUSIONS}"
+              exit 0
+            fi
+
+            if [ "$(date +%s)" -ge "${DEADLINE}" ]; then
+              if [ -z "${CONCLUSIONS}" ]; then
+                echo "::error::No check runs reported for ${GITHUB_SHA} within ${WAIT_MINUTES}m."
+              else
+                echo "::error::CI did not finish for ${GITHUB_SHA} within ${WAIT_MINUTES}m (${PENDING})."
+              fi
+              exit 1
+            fi
+
+            if [ -z "${CONCLUSIONS}" ]; then
+              echo "No check runs reported yet for ${GITHUB_SHA} — waiting ${POLL_SECONDS}s."
+            else
+              echo "Waiting ${POLL_SECONDS}s for: $(printf '%s\n' "${PENDING}" | tr '\n' ' ')"
+            fi
+            sleep "${POLL_SECONDS}"
+          done
 
       - name: Check nightly is fully merged into main
         if: inputs.channel == 'stable'
