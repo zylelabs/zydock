@@ -12,6 +12,35 @@ services:
       timeout: 5s
       retries: 10
 
+  mongo-test:
+    image: mongo:7
+    profiles: ['test']
+    ulimits:
+      nofile:
+        soft: 64000
+        hard: 64000
+    tmpfs:
+      - /data/db
+    healthcheck:
+      test: ['CMD', 'mongosh', '--quiet', '--eval', "db.adminCommand({ ping: 1 })"]
+      interval: 5s
+      timeout: 5s
+      retries: 10
+
+  backend-test:
+    image: oven/bun:alpine
+    profiles: ['test']
+    working_dir: /app
+    network_mode: 'service:mongo-test'
+    command: sh -c "apk add --no-cache git openssl docker-cli docker-cli-compose && bun install --frozen-lockfile && bun test"
+    depends_on:
+      mongo-test:
+        condition: service_healthy
+    volumes:
+      - ./backend:/app
+      - backend-test-node-modules:/app/node_modules
+      - ./templates:/templates
+
   backend:
     image: oven/bun:alpine
     restart: unless-stopped
@@ -103,6 +132,7 @@ volumes:
   caddy-config-dev:
   caddy-admin-dev:
   backend-node-modules:
+  backend-test-node-modules:
   agent-node-modules:
   frontend-node-modules:
 
