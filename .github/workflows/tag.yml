@@ -71,14 +71,21 @@ jobs:
           GH_TOKEN: ${{ github.token }}
           WAIT_MINUTES: ${{ inputs.wait_minutes }}
           POLL_SECONDS: "30"
+          SELF_WORKFLOW: .github/workflows/tag.yml
         run: |
           DEADLINE=$(($(date +%s) + WAIT_MINUTES * 60))
 
+          SKIP_RUNS="$(gh api "repos/${GITHUB_REPOSITORY}/actions/runs?head_sha=${GITHUB_SHA}&per_page=100" \
+            --paginate --jq ".workflow_runs[] | select(.path == \"${SELF_WORKFLOW}\") | .id")"
+          SKIP_PATTERNS="$(printf '%s\n%s\n' "${SKIP_RUNS}" "${GITHUB_RUN_ID}" \
+            | grep -E '^[0-9]+$' | sort -u | sed 's|^|/actions/runs/|; s|$|/|')"
+          echo "Ignoring check runs from: $(printf '%s\n' "${SKIP_PATTERNS}" | tr '\n' ' ')"
+
           while :; do
             CONCLUSIONS="$(gh api "repos/${GITHUB_REPOSITORY}/commits/${GITHUB_SHA}/check-runs" \
-              --paginate --jq '.check_runs[]
-                | select(.details_url | contains("/actions/runs/'"${GITHUB_RUN_ID}"'/") | not)
-                | "\(.name) \(.status):\(.conclusion // "pending")"')"
+              --paginate --jq '.check_runs[] | "\(.details_url) \(.name) \(.status):\(.conclusion // "pending")"' \
+              | { grep -vF "${SKIP_PATTERNS}" || true; } \
+              | sed 's|^[^ ]* ||')"
 
             FAILED="$(printf '%s\n' "${CONCLUSIONS}" | { grep -E ' completed:' || true; } \
               | { grep -Ev ' completed:(success|skipped)$' || true; })"
