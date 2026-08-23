@@ -1,13 +1,12 @@
 import { afterAll, beforeAll, describe, expect, test } from 'bun:test';
 import mongoose from 'mongoose';
-import { createApp } from '../../src/app-server';
+import { createApp, stopBackgroundWork, waitForBootstrap } from '../../src/app-server';
 import { connectDatabase, disconnectDatabase } from '../../src/config/mongodb';
 import { createMembership } from '../../src/modules/organizations/membership.service';
 import {
   ensureLocalServer,
   getLocalServerId,
 } from '../../src/modules/servers/local-server.service';
-import { stopWorker } from '../../src/modules/queue/queue.service';
 import userModel from '../../src/modules/users/user.model';
 import { hashPassword } from '../../src/modules/users/user.service';
 
@@ -64,6 +63,7 @@ beforeAll(async () => {
   await ensureLocalServer();
   serverId = getLocalServerId()!;
   app = createApp();
+  await waitForBootstrap();
 
   const signup = await json('/auth/signup', 'POST', {
     name: 'Volume Files Owner',
@@ -95,7 +95,7 @@ beforeAll(async () => {
 
 afterAll(async () => {
   restoreFetch();
-  stopWorker();
+  stopBackgroundWork();
   await mongoose.connection.dropDatabase();
   await disconnectDatabase();
 });

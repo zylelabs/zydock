@@ -1,7 +1,6 @@
 import { afterAll, beforeAll, describe, expect, test } from 'bun:test';
-import { createApp } from '../../src/app-server';
+import { createApp, stopBackgroundWork, waitForBootstrap } from '../../src/app-server';
 import { connectDatabase, disconnectDatabase } from '../../src/config/mongodb';
-import { stopWorker } from '../../src/modules/queue/queue.service';
 import { hashPassword } from '../../src/modules/users/user.service';
 import { encryptSecret } from '../../src/utils/crypto';
 import userModel from '../../src/modules/users/user.model';
@@ -100,6 +99,8 @@ beforeAll(async () => {
 
   app = createApp();
 
+  await waitForBootstrap();
+
   const response = await json('/auth/signin', 'POST', { email, password });
   accessToken = ((await response.json()) as { accessToken: string }).accessToken;
 
@@ -108,7 +109,7 @@ beforeAll(async () => {
 
 afterAll(async () => {
   restoreFetch();
-  stopWorker();
+  stopBackgroundWork();
   await mongoose.connection.dropDatabase();
   await disconnectDatabase();
 });

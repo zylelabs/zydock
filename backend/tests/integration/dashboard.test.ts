@@ -1,6 +1,6 @@
 import { afterAll, afterEach, beforeAll, describe, expect, test } from 'bun:test';
 import mongoose from 'mongoose';
-import { createApp } from '../../src/app-server';
+import { createApp, stopBackgroundWork, waitForBootstrap } from '../../src/app-server';
 import config from '../../src/config';
 import { connectDatabase, disconnectDatabase } from '../../src/config/mongodb';
 import {
@@ -109,6 +109,8 @@ beforeAll(async () => {
 
   app = createApp();
 
+  await waitForBootstrap();
+
   superuserToken = await signIn(superuserEmail);
   memberToken = await signIn(memberEmail);
 });
@@ -119,6 +121,8 @@ afterEach(async () => {
 });
 
 afterAll(async () => {
+  stopBackgroundWork();
+
   await dashboardModel.deleteMany({});
   await domainModel.deleteMany({});
   await serverModel.deleteMany({ type: 'local' });

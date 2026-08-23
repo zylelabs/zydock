@@ -1,9 +1,8 @@
 import { afterAll, afterEach, beforeAll, describe, expect, test } from 'bun:test';
 import mongoose from 'mongoose';
-import { createApp } from '../../src/app-server';
+import { createApp, stopBackgroundWork, waitForBootstrap } from '../../src/app-server';
 import { connectDatabase, disconnectDatabase } from '../../src/config/mongodb';
 import { runDeployment } from '../../src/modules/deployments/pipeline.service';
-import { stopWorker } from '../../src/modules/queue/queue.service';
 import applicationModel from '../../src/modules/applications/application.model';
 import {
   ensureLocalServer,
@@ -110,11 +109,12 @@ beforeAll(async () => {
   await connectDatabase();
   await ensureLocalServer();
   app = createApp();
+  await waitForBootstrap();
 });
 
 afterAll(async () => {
   restoreFetch();
-  stopWorker();
+  stopBackgroundWork();
   await mongoose.connection.dropDatabase();
   await disconnectDatabase();
 });

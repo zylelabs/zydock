@@ -1,5 +1,5 @@
 import { afterAll, afterEach, beforeAll, describe, expect, test } from 'bun:test';
-import { createApp, waitForBootstrap } from '../../src/app-server';
+import { createApp, stopBackgroundWork, waitForBootstrap } from '../../src/app-server';
 import { connectDatabase, disconnectDatabase } from '../../src/config/mongodb';
 import { decryptSecret } from '../../src/utils/crypto';
 import {
@@ -18,7 +18,6 @@ import {
   getLocalServerId,
 } from '../../src/modules/servers/local-server.service';
 import serverModel from '../../src/modules/servers/server.model';
-import { stopWorker } from '../../src/modules/queue/queue.service';
 import { allTemplates } from '../../src/modules/templates/catalog.service';
 import { deployTemplateApplication } from '../../src/modules/templates/template.service';
 import userModel from '../../src/modules/users/user.model';
@@ -64,7 +63,7 @@ beforeAll(async () => {
 });
 
 afterAll(async () => {
-  stopWorker();
+  stopBackgroundWork();
   await serverModel.deleteMany({ type: 'local' });
   await userModel.deleteMany({ email });
   await disconnectDatabase();

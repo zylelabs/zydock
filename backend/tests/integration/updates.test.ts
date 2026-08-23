@@ -1,11 +1,10 @@
 import { afterAll, beforeAll, describe, expect, test } from 'bun:test';
-import { createApp } from '../../src/app-server';
+import { createApp, stopBackgroundWork, waitForBootstrap } from '../../src/app-server';
 import config from '../../src/config';
 import { connectDatabase, disconnectDatabase } from '../../src/config/mongodb';
 import notificationChannelModel from '../../src/modules/notifications/notification-channel.model';
 import notificationModel from '../../src/modules/notifications/notification.model';
 import jobModel from '../../src/modules/queue/job.model';
-import { stopWorker } from '../../src/modules/queue/queue.service';
 import { ensureLocalServer } from '../../src/modules/servers/local-server.service';
 import serverModel from '../../src/modules/servers/server.model';
 import updateModel from '../../src/modules/updates/update.model';
@@ -141,12 +140,14 @@ beforeAll(async () => {
 
   app = createApp();
 
+  await waitForBootstrap();
+
   superuserToken = await signIn(superuserEmail);
   memberToken = await signIn(memberEmail);
 });
 
 afterAll(async () => {
-  stopWorker();
+  stopBackgroundWork();
   await jobModel.deleteMany({ type: UPDATE_CHECK_JOB });
   await serverModel.deleteMany({ type: 'local' });
   await updateModel.deleteMany({});

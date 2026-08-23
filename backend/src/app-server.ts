@@ -11,7 +11,10 @@ import routes from './modules/routes';
 import { stopLogStreams } from './modules/logs/log.service';
 import { stopMetricStreams } from './modules/metrics/metric.service';
 import { startWorker, stopWorker } from './modules/queue/queue.service';
-import { ensureDashboardRoutes } from './modules/dashboard/dashboard-route.service';
+import {
+  ensureDashboardRoutes,
+  stopDashboardRoutes,
+} from './modules/dashboard/dashboard-route.service';
 import {
   bootstrapDashboard,
   resolveDashboardCorsOrigins,
@@ -29,6 +32,7 @@ type AppEnv = { Variables: RequestIdVariables };
 
 let isShuttingDown = false;
 let bootstrap: Promise<void> | undefined;
+let dashboardRoutes: Promise<void> | undefined;
 
 const connect = () => {
   bootstrap = connectDatabase()
@@ -39,7 +43,11 @@ const connect = () => {
     .then(bootstrapTemplateSources)
     .then(bootstrapDatabaseMetrics)
     .then(bootstrapDashboard)
-    .then(() => void ensureDashboardRoutes())
+    .then(() => {
+      dashboardRoutes = ensureDashboardRoutes().catch(error => {
+        logError('Failed to ensure the dashboard routes', error);
+      });
+    })
     .then(() =>
       syncAgentBundles().catch(error => {
         logError('Failed to sync the agents', error);
@@ -57,11 +65,17 @@ const connect = () => {
 
 export const waitForBootstrap = () => bootstrap ?? Promise.resolve();
 
+export const stopBackgroundWork = () => {
+  stopWorker();
+  stopLogStreams();
+  stopMetricStreams();
+  stopDashboardRoutes();
+  dashboardRoutes = undefined;
+};
+
 const cleanup = async () => {
   try {
-    stopWorker();
-    stopLogStreams();
-    stopMetricStreams();
+    stopBackgroundWork();
     await disconnectDatabase();
   } catch (error) {
     logError('Failed to release resources during shutdown', error);

@@ -1,9 +1,8 @@
 import { afterAll, beforeAll, describe, expect, test } from 'bun:test';
 import mongoose from 'mongoose';
-import { createApp } from '../../src/app-server';
+import { createApp, stopBackgroundWork, waitForBootstrap } from '../../src/app-server';
 import { connectDatabase, disconnectDatabase } from '../../src/config/mongodb';
 import { createMembership } from '../../src/modules/organizations/membership.service';
-import { stopWorker } from '../../src/modules/queue/queue.service';
 import {
   ensureLocalServer,
   getLocalServerId,
@@ -92,6 +91,8 @@ beforeAll(async () => {
 
   app = createApp();
 
+  await waitForBootstrap();
+
   const response = await json('/auth/signin', 'POST', { email, password });
   accessToken = ((await response.json()) as { accessToken: string }).accessToken;
 
@@ -100,7 +101,7 @@ beforeAll(async () => {
 
 afterAll(async () => {
   restoreFetch();
-  stopWorker();
+  stopBackgroundWork();
   await mongoose.connection.dropDatabase();
   await disconnectDatabase();
 });

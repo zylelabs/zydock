@@ -1,11 +1,10 @@
 import { createHmac } from 'node:crypto';
 import { afterAll, beforeAll, describe, expect, test } from 'bun:test';
 import mongoose from 'mongoose';
-import { createApp } from '../../src/app-server';
+import { createApp, stopBackgroundWork, waitForBootstrap } from '../../src/app-server';
 import { connectDatabase, disconnectDatabase } from '../../src/config/mongodb';
 import applicationModel from '../../src/modules/applications/application.model';
 import gitSourceModel from '../../src/modules/git-sources/git-source.model';
-import { stopWorker } from '../../src/modules/queue/queue.service';
 import config from '../../src/config';
 import { encryptSecret } from '../../src/utils/crypto';
 import {
@@ -39,10 +38,11 @@ beforeAll(async () => {
   await connectDatabase();
   await ensureLocalServer();
   app = createApp();
+  await waitForBootstrap();
 });
 
 afterAll(async () => {
-  stopWorker();
+  stopBackgroundWork();
   await mongoose.connection.dropDatabase();
   await disconnectDatabase();
 });

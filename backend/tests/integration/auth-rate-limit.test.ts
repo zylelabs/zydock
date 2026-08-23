@@ -1,5 +1,5 @@
 import { afterAll, afterEach, beforeAll, describe, expect, test } from 'bun:test';
-import { createApp } from '../../src/app-server';
+import { createApp, stopBackgroundWork, waitForBootstrap } from '../../src/app-server';
 import config from '../../src/config';
 import { connectDatabase, disconnectDatabase } from '../../src/config/mongodb';
 import userModel from '../../src/modules/users/user.model';
@@ -32,6 +32,8 @@ beforeAll(async () => {
   });
 
   app = createApp();
+
+  await waitForBootstrap();
 });
 
 afterEach(() => {
@@ -41,6 +43,8 @@ afterEach(() => {
 });
 
 afterAll(async () => {
+  stopBackgroundWork();
+
   await userModel.deleteMany({ email });
 
   await disconnectDatabase();

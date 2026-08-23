@@ -16,6 +16,19 @@ const DOMAIN_ROUTE_ID = 'system-dashboard-domain';
 const RETRY_DELAY_MS = 10_000;
 const MAX_ATTEMPTS = 30;
 
+let isStopped = false;
+let cancelRetryDelay: (() => void) | undefined;
+
+const sleepUntilRetry = () =>
+  new Promise<void>(resolve => {
+    const timer = setTimeout(resolve, RETRY_DELAY_MS);
+
+    cancelRetryDelay = () => {
+      clearTimeout(timer);
+      resolve();
+    };
+  });
+
 const PANEL_SECURITY_HEADERS = {
   'Content-Security-Policy':
     "default-src 'self'; script-src 'self' 'unsafe-inline'; style-src 'self' 'unsafe-inline'; img-src 'self' data: blob:; connect-src 'self' ws: wss:; frame-ancestors 'none'",
@@ -180,10 +193,16 @@ export const refreshDashboardCertificate = async () => {
 };
 
 export const ensureDashboardRoutes = async () => {
+  isStopped = false;
+
   const document = await getDashboardDocument();
   const domain = document.domain;
 
   for (let attempt = 1; attempt <= MAX_ATTEMPTS; attempt += 1) {
+    if (isStopped) {
+      return;
+    }
+
     try {
       await applyDashboardRoutes(domain);
       logInfo('Dashboard route applied', { domain: domain || '(default)' });
@@ -199,7 +218,13 @@ export const ensureDashboardRoutes = async () => {
         return;
       }
 
-      await Bun.sleep(RETRY_DELAY_MS);
+      await sleepUntilRetry();
     }
   }
+};
+
+export const stopDashboardRoutes = () => {
+  isStopped = true;
+  cancelRetryDelay?.();
+  cancelRetryDelay = undefined;
 };

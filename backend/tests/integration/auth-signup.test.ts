@@ -1,5 +1,5 @@
 import { afterAll, beforeAll, describe, expect, test } from 'bun:test';
-import { createApp } from '../../src/app-server';
+import { createApp, stopBackgroundWork, waitForBootstrap } from '../../src/app-server';
 import { connectDatabase, disconnectDatabase } from '../../src/config/mongodb';
 import userModel from '../../src/modules/users/user.model';
 import { hashPassword } from '../../src/modules/users/user.service';
@@ -48,9 +48,13 @@ beforeAll(async () => {
   );
 
   app = createApp();
+
+  await waitForBootstrap();
 });
 
 afterAll(async () => {
+  stopBackgroundWork();
+
   await userModel.deleteMany({
     email: { $in: [existingSuperuserEmail, regularEmail, codeAttemptEmail] },
   });
