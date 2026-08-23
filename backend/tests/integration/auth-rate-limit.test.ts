@@ -4,10 +4,7 @@ import config from '../../src/config';
 import { connectDatabase, disconnectDatabase } from '../../src/config/mongodb';
 import userModel from '../../src/modules/users/user.model';
 import { hashPassword } from '../../src/modules/users/user.service';
-import {
-  expireRateLimitWindows,
-  resetRateLimitState,
-} from '../../src/utils/rate-limit.middleware';
+import { expireRateLimitWindows, resetRateLimitState } from '../../src/utils/rate-limit.middleware';
 
 const password = 'rate-limit-secret-1';
 const email = `rate-limit-${Date.now()}@zydock.test`;
