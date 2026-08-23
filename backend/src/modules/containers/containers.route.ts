@@ -208,12 +208,10 @@ get(
       }
 
       const applicationId = container.labels[APPLICATION_LABEL];
+      const organizationId = c.req.param('organizationId');
 
-      if (applicationId) {
-        const application = await findApplicationWithSecrets(
-          c.req.param('organizationId'),
-          applicationId,
-        );
+      if (applicationId && organizationId) {
+        const application = await findApplicationWithSecrets(organizationId, applicationId);
 
         secretValues = application ? secretValuesOf(application) : [];
       }
