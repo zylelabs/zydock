@@ -13,10 +13,7 @@ import {
   saveDashboardName,
   serializeDashboardSettings,
 } from './dashboard.service';
-import {
-  updateDashboardSettingsSchema,
-  type UpdateDashboardSettingsDTO,
-} from './dashboard.schema';
+import { updateDashboardSettingsSchema, type UpdateDashboardSettingsDTO } from './dashboard.schema';
 import { dashboardDocs } from './dashboard.docs';
 
 const { router, get, patch, post, delete: del } = createRouter();
