@@ -24,9 +24,9 @@
   const messageOf = (error: unknown, fallback: string) =>
     (error as { message?: string }).message || fallback;
 
-  const { getCachedData, markFetched } = useNavigationCache();
+  const { markFetched } = useNavigationCache();
 
-  const { data, refresh } = useLazyAsyncData(
+  const { data, refresh } = useResourceData(
     () => `database-${databaseId.value}`,
     async () => {
       if (!session.organizationId) {
@@ -43,13 +43,12 @@
       server: false,
       watch: [() => session.organizationId, databaseId],
       default: () => null,
-      getCachedData: key => getCachedData(key),
     },
   );
 
   const database = computed(() => data.value);
 
-  const { data: server } = useLazyAsyncData(
+  const { data: server } = useResourceData(
     () => `database-${databaseId.value}-server`,
     async () => {
       const serverId = database.value?.serverId;

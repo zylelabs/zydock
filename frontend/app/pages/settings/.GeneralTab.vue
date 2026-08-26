@@ -99,7 +99,7 @@
   const domainForm = useSchemaForm(
     z.object({
       name: z.string().trim().min(1, 'Enter a name').max(60),
-      domain: hostnameSchema,
+      domain: z.union([hostnameSchema, z.literal('')]),
     }),
     { name: '', domain: '' },
     {

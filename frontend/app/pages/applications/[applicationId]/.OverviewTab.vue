@@ -31,7 +31,7 @@
 
   const emptyDomains = { items: [], total: 0, page: 1, size: 0, pages: 0 };
 
-  const { data: domainsData } = useLazyAsyncData(
+  const { data: domainsData } = useResourceData(
     () => `application-${props.application.id}-overview-domains`,
     () =>
       session.organizationId
@@ -50,7 +50,7 @@
     return items.find(domain => domain.auto) ?? items[0];
   });
 
-  const { data: server } = useLazyAsyncData(
+  const { data: server } = useResourceData(
     () => `application-${props.application.id}-overview-server`,
     async () => {
       const { server: item } = await serversApi.get(props.application.serverId);
@@ -99,7 +99,7 @@
     setTimeout(() => (domainCopied.value = false), 2000);
   };
 
-  const { data: servicesData } = useLazyAsyncData(
+  const { data: servicesData } = useResourceData(
     () => `application-${props.application.id}-services`,
     () =>
       props.application.source === 'compose'
@@ -136,7 +136,7 @@
 
   const emptyDeployments = { items: [], total: 0, page: 1, size: 0, pages: 0 };
 
-  const { data, status: deploymentsStatus } = useLazyAsyncData(
+  const { data, status: deploymentsStatus } = useResourceData(
     () => `application-${props.application.id}-deployments`,
     () =>
       session.organizationId
@@ -158,7 +158,7 @@
     ),
   );
 
-  const { data: metricsData, status: metricsStatus } = useLazyAsyncData(
+  const { data: metricsData, status: metricsStatus } = useResourceData(
     () => `application-${props.application.id}-metrics`,
     async () => {
       if (!session.organizationId) {

@@ -26,9 +26,9 @@
     });
   };
 
-  const { getCachedData, markFetched } = useNavigationCache();
+  const { markFetched } = useNavigationCache();
 
-  const { data, status, refresh } = useLazyAsyncData(
+  const { data, status, refresh } = useResourceData(
     () => `project-${projectId.value}`,
     async () => {
       if (!session.organizationId) {
@@ -55,7 +55,6 @@
       server: false,
       watch: [() => session.organizationId, projectId],
       default: () => null,
-      getCachedData: key => getCachedData(key),
     },
   );
 

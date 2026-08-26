@@ -28,9 +28,9 @@
     items: [] as Server[],
   };
 
-  const { getCachedData, markFetched } = useNavigationCache();
+  const { markFetched } = useNavigationCache();
 
-  const { data, refresh, status } = useLazyAsyncData(
+  const { data, refresh, status } = useResourceData(
     'servers',
     async () => {
       const result = session.organizationId ? await load() : empty;
@@ -43,7 +43,6 @@
       server: false,
       watch: [() => session.organizationId],
       default: () => empty,
-      getCachedData: key => getCachedData(key),
     },
   );
 
