@@ -15,6 +15,10 @@ on:
         description: "Existing tag to publish (e.g. v0.2.0)."
         required: true
         type: string
+    outputs:
+      url:
+        description: "URL of the draft release, empty when nothing was drafted."
+        value: ${{ jobs.release.outputs.url }}
 
 concurrency:
   group: release-${{ inputs.tag || github.ref_name }}
@@ -22,10 +26,12 @@ concurrency:
 
 jobs:
   release:
-    name: Publish GitHub Release
+    name: Draft GitHub Release
     runs-on: ubuntu-latest
     permissions:
       contents: write
+    outputs:
+      url: ${{ steps.draft.outputs.url }}
     env:
       TAG: ${{ inputs.tag || github.ref_name }}
       CALLED: ${{ github.event_name == 'workflow_call' }}
@@ -78,21 +84,34 @@ jobs:
           echo "tag=${PREVIOUS}" >> "$GITHUB_OUTPUT"
           echo "Comparing ${TAG} against ${PREVIOUS:-the start of history}."
 
-      - name: Publish release
+      - name: Draft release
+        id: draft
         if: steps.verify.outputs.skip != 'true'
         env:
           GH_TOKEN: ${{ github.token }}
           PREVIOUS_TAG: ${{ steps.previous.outputs.tag }}
         run: |
-          if [ -n "${PREVIOUS_TAG}" ]; then
-            git log --oneline --no-decorate "${PREVIOUS_TAG}..${TAG}" > /tmp/release-notes.md
-          else
-            git log --oneline --no-decorate "${TAG}" > /tmp/release-notes.md
-          fi
+          scripts/release-notes.sh "${TAG}" "${PREVIOUS_TAG}" > /tmp/release-notes.md
 
           PRERELEASE_ARGS=()
           case "${TAG}" in
           *-*) PRERELEASE_ARGS=(--prerelease) ;;
           esac
 
-          gh release create "${TAG}" --title "${TAG}" --notes-file /tmp/release-notes.md "${PRERELEASE_ARGS[@]}"
+          URL="$(gh release create "${TAG}" --draft --title "${TAG}" \
+            --notes-file /tmp/release-notes.md "${PRERELEASE_ARGS[@]}")"
+          echo "url=${URL}" >> "$GITHUB_OUTPUT"
+
+      - name: Summarize
+        if: steps.draft.outputs.url != ''
+        env:
+          URL: ${{ steps.draft.outputs.url }}
+        run: |
+          {
+            echo "## Draft release ${TAG}"
+            echo
+            echo "Review the notes and press **Publish release** — the tag is pushed, but nothing"
+            echo "is announced until then."
+            echo
+            echo "- Draft: ${URL}"
+          } >> "$GITHUB_STEP_SUMMARY"
