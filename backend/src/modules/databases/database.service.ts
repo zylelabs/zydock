@@ -14,11 +14,16 @@ import {
   findApplicationWithSecrets,
   listApplicationsOfOrganization,
 } from '../applications/application.service';
+import { findHostPortConflict } from '../applications/port-guard.service';
 import { APPLICATION_LABEL, composeContainerNameOf } from '../deployments/naming';
 import { buildAgentConnection, listServersOfOrganization } from '../servers/server.service';
 import { peakConnectionsOf, recordDatabaseSample } from './database-sample.service';
 import databaseModel from './database.model';
-import type { CreateDatabaseDTO, DatabaseEngineName } from './database.schema';
+import type {
+  CreateDatabaseDTO,
+  DatabaseEngineName,
+  UpdateDatabaseAccessDTO,
+} from './database.schema';
 import { DEFAULT_VERSIONS } from './database.schema';
 
 const ENGINE_DEFAULT_USERNAME: Record<DatabaseEngineName, string> = {
@@ -127,6 +132,49 @@ export const refreshDatabaseStatus = async (database: ManagedDatabase, server: S
   await persistStatus(String(database._id), status);
 
   return status;
+};
+
+export const findDatabaseAccessConflict = (database: ManagedDatabase, hostPort: number) =>
+  findHostPortConflict(String(database.serverId), [{ port: hostPort, protocol: 'tcp' }], {
+    containerName: database.containerName,
+  });
+
+export const applyDatabaseAccess = async (
+  database: ManagedDatabase,
+  server: Server,
+  dto: UpdateDatabaseAccessDTO,
+): Promise<ManagedDatabase> => {
+  const provider = providerOf(server, database.engine);
+  const credentials = await readCredentials(database);
+
+  try {
+    const { instance } = await provider.republish(
+      { name: database.slug, engine: database.engine, version: database.version! },
+      credentials,
+      dto.enabled ? { hostPort: dto.hostPort! } : undefined,
+    );
+
+    const publicAccess: DatabasePublicAccess = dto.enabled
+      ? { enabled: true, hostPort: dto.hostPort!, appliedAt: new Date() }
+      : { enabled: false };
+
+    await databaseModel.updateOne(
+      { _id: database._id },
+      {
+        $set: { containerId: instance.id, status: instance.status, publicAccess },
+        $unset: { lastError: '' },
+      },
+    );
+  } catch (error) {
+    await databaseModel.updateOne(
+      { _id: database._id },
+      { $set: { lastError: errorMessage(error) } },
+    );
+
+    throw error;
+  }
+
+  return (await findDatabase(String(database.organizationId), String(database._id)))!;
 };
 
 export const destroyDatabase = async (
@@ -614,22 +662,29 @@ const connectionOf = (database: ManagedDatabase) => {
   };
 };
 
-export const serializeDatabase = (database: ManagedDatabase) => ({
-  id: String(database._id),
-  organizationId: String(database.organizationId),
-  serverId: String(database.serverId),
-  name: database.name,
-  slug: database.slug,
-  engine: database.engine,
-  version: database.version,
-  status: database.status,
-  source: database.source,
-  containerId: database.containerId,
-  application: database.link
-    ? { id: String(database.link.applicationId), service: database.link.service }
-    : undefined,
-  connection: connectionOf(database),
-  lastError: database.lastError,
-  createdAt: database.createdAt,
-  updatedAt: database.updatedAt,
-});
+export const serializeDatabase = (database: ManagedDatabase, server?: Server | null) => {
+  const publicAccess = database.publicAccess ?? { enabled: false };
+
+  return {
+    id: String(database._id),
+    organizationId: String(database.organizationId),
+    serverId: String(database.serverId),
+    name: database.name,
+    slug: database.slug,
+    engine: database.engine,
+    version: database.version,
+    status: database.status,
+    source: database.source,
+    containerId: database.containerId,
+    application: database.link
+      ? { id: String(database.link.applicationId), service: database.link.service }
+      : undefined,
+    connection: connectionOf(database),
+    publicAccess,
+    externalHost: publicAccess.enabled && server?.publicIp ? server.publicIp : undefined,
+    externalPort: publicAccess.enabled ? publicAccess.hostPort : undefined,
+    lastError: database.lastError,
+    createdAt: database.createdAt,
+    updatedAt: database.updatedAt,
+  };
+};

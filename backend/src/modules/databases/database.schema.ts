@@ -53,3 +53,15 @@ export const removeDatabaseQuerySchema = z.object({
 });
 
 export type RemoveDatabaseQuery = z.infer<typeof removeDatabaseQuerySchema>;
+
+export const updateDatabaseAccessSchema = z
+  .object({
+    enabled: z.boolean(),
+    hostPort: z.number().int().min(1024).max(65535).optional(),
+  })
+  .refine(data => !data.enabled || data.hostPort !== undefined, {
+    message: 'hostPort is required when enabling external access',
+    path: ['hostPort'],
+  });
+
+export type UpdateDatabaseAccessDTO = z.infer<typeof updateDatabaseAccessSchema>;

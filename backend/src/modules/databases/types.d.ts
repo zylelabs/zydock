@@ -20,6 +20,12 @@ interface DatabaseComposeLink {
   database?: DatabaseCredentialRef;
 }
 
+interface DatabasePublicAccess {
+  enabled: boolean;
+  hostPort?: number;
+  appliedAt?: Date;
+}
+
 interface DatabaseData {
   organizationId: string;
   serverId: string;
@@ -34,6 +40,7 @@ interface DatabaseData {
   credentials?: DatabaseCredentialsData;
   link?: DatabaseComposeLink;
   lastError?: string;
+  publicAccess?: DatabasePublicAccess;
 }
 
 type ManagedDatabase = BaseDocument<DatabaseData>;

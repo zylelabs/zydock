@@ -13,10 +13,12 @@ export type HostPortBinding = { port: number; protocol: 'tcp' | 'udp' };
 
 export type HostPortConflict = { port: number; owner: string };
 
+export type HostPortExclude = { applicationId?: string; containerName?: string };
+
 export const findHostPortConflict = async (
   serverId: string,
   hostPorts: HostPortBinding[],
-  excludeApplicationId?: string,
+  exclude?: HostPortExclude,
 ): Promise<HostPortConflict | null> => {
   if (!hostPorts.length) {
     return null;
@@ -39,7 +41,11 @@ export const findHostPortConflict = async (
     const running = await containers.listContainers();
 
     for (const container of running) {
-      if (excludeApplicationId && container.labels[APPLICATION_LABEL] === excludeApplicationId) {
+      if (exclude?.applicationId && container.labels[APPLICATION_LABEL] === exclude.applicationId) {
+        continue;
+      }
+
+      if (exclude?.containerName && container.name === exclude.containerName) {
         continue;
       }
 

@@ -23,6 +23,15 @@ const credentialRefSchema = new Schema(
   { _id: false },
 );
 
+const publicAccessSchema = new Schema(
+  {
+    enabled: { type: Boolean, required: true, default: false },
+    hostPort: { type: Number },
+    appliedAt: { type: Date },
+  },
+  { _id: false },
+);
+
 const composeLinkSchema = new Schema(
   {
     applicationId: {
@@ -79,6 +88,7 @@ const databaseSchema = new Schema(
       },
     },
     lastError: { type: String },
+    publicAccess: { type: publicAccessSchema, default: () => ({ enabled: false }) },
   },
   {
     versionKey: false,

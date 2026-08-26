@@ -9,6 +9,12 @@ export type DatabaseStatus = 'provisioning' | 'running' | 'stopped' | 'failed' |
 
 export type DatabaseSource = 'managed' | 'compose';
 
+export interface DatabasePublicAccess {
+  enabled: boolean;
+  hostPort?: number;
+  appliedAt?: string;
+}
+
 export interface Database {
   id: string;
   organizationId: string;
@@ -22,9 +28,17 @@ export interface Database {
   containerId?: string;
   application?: { id: string; service: string };
   connection: { host: string; port: number; username: string; database: string };
+  publicAccess: DatabasePublicAccess;
+  externalHost?: string;
+  externalPort?: number;
   lastError?: string;
   createdAt: string;
   updatedAt: string;
+}
+
+export interface UpdateDatabaseAccessPayload {
+  enabled: boolean;
+  hostPort?: number;
 }
 
 export interface DatabaseFilter {
@@ -202,6 +216,9 @@ export const useDatabases = () => {
   const remove = (databaseId: string, removeData?: boolean) =>
     api.del<{ message: string }>(`${base()}/${databaseId}`, { query: { removeData } });
 
+  const updateAccess = (databaseId: string, payload: UpdateDatabaseAccessPayload) =>
+    api.patch<{ database: Database }>(`${base()}/${databaseId}/access`, { body: payload });
+
   return {
     list,
     get,
@@ -214,5 +231,6 @@ export const useDatabases = () => {
     stop,
     restart,
     remove,
+    updateAccess,
   };
 };

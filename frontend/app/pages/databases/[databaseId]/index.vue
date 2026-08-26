@@ -218,7 +218,12 @@
 
     <Tabs v-model="activeTab" :tabs="visibleTabs" class="mb-5" />
 
-    <OverviewTab v-if="activeTab === 'overview'" :database="database" />
+    <OverviewTab
+      v-if="activeTab === 'overview'"
+      :database="database"
+      :can-manage="canManage"
+      @refresh="refresh"
+    />
     <ConnectionTab v-else-if="activeTab === 'connection'" :database="database" :server="server" />
     <BackupsTab v-else-if="activeTab === 'backups'" :database="database" :can-manage="canManage" />
 

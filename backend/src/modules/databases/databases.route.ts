@@ -18,12 +18,16 @@ import {
   listDatabasesQuerySchema,
   RemoveDatabaseQuery,
   removeDatabaseQuerySchema,
+  UpdateDatabaseAccessDTO,
+  updateDatabaseAccessSchema,
 } from './database.schema';
 import {
+  applyDatabaseAccess,
   destroyDatabase,
   fetchDatabaseStats,
   fetchOrganizationDatabaseStats,
   findDatabase,
+  findDatabaseAccessConflict,
   findDatabaseConsumers,
   findDatabaseWithSecrets,
   provisionDatabase,
@@ -34,7 +38,7 @@ import {
 } from './database.service';
 import { databasesDocs } from './databases.docs';
 
-const { router, get, post, delete: del } = createRouter();
+const { router, get, post, patch, delete: del } = createRouter();
 
 const failed = (c: Context, error: unknown) =>
   c.json({ error: errorMessage(error) }, agentFailureStatus(error));
@@ -56,7 +60,7 @@ get(
       { page, size, sort, order },
     );
 
-    return c.json({ ...result, items: result.items.map(serializeDatabase) });
+    return c.json({ ...result, items: result.items.map(item => serializeDatabase(item)) });
   },
 );
 
@@ -137,7 +141,7 @@ get(
     }
 
     return c.json({
-      database: serializeDatabase((await findDatabase(organizationId, databaseId))!),
+      database: serializeDatabase((await findDatabase(organizationId, databaseId))!, server),
     });
   },
 );
@@ -208,6 +212,54 @@ get(
     }
 
     return c.json({ credentials: await readCredentials(database) });
+  },
+);
+
+patch(
+  '/:databaseId/access',
+  databasesDocs.updateAccess,
+  authMiddleware,
+  validator('param', databaseIdParamSchema),
+  createOrganizationRoleGuard('admin'),
+  validator('json', updateDatabaseAccessSchema),
+  async (c: Context) => {
+    const { organizationId, databaseId } = c.req.valid('param' as never) as DatabaseIdParam;
+    const body = c.req.valid('json' as never) as UpdateDatabaseAccessDTO;
+
+    const database = await findDatabaseWithSecrets(organizationId, databaseId);
+
+    if (!database) {
+      return c.json({ error: 'Database not found' }, 404);
+    }
+
+    if (database.source !== 'managed') {
+      return c.json({ error: 'Only managed databases support external access' }, 400);
+    }
+
+    const server = await findServerWithAgentToken(organizationId, String(database.serverId));
+
+    if (!server?.agent.token) {
+      return c.json({ error: 'This server has no agent yet' }, 409);
+    }
+
+    if (body.enabled) {
+      const conflict = await findDatabaseAccessConflict(database, body.hostPort!);
+
+      if (conflict) {
+        return c.json(
+          { error: `Host port ${conflict.port} is already in use by ${conflict.owner}` },
+          400,
+        );
+      }
+    }
+
+    try {
+      const updated = await applyDatabaseAccess(database, server, body);
+
+      return c.json({ database: serializeDatabase(updated, server) });
+    } catch (error) {
+      return failed(c, error);
+    }
   },
 );
 

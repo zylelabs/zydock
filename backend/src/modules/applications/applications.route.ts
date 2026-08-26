@@ -300,7 +300,7 @@ patch(
           const conflict = await findHostPortConflict(
             body.serverId ?? String(application.serverId),
             hostPortBindingsOf(parsed),
-            applicationId,
+            { applicationId },
           );
 
           if (conflict) {
@@ -330,7 +330,7 @@ patch(
           port: mapping.hostPort,
           protocol: mapping.protocol,
         })),
-        applicationId,
+        { applicationId },
       );
 
       if (conflict) {
@@ -502,7 +502,7 @@ put(
         const conflict = await findHostPortConflict(
           String(application.serverId),
           hostPortBindingsOf(parsed),
-          applicationId,
+          { applicationId },
         );
 
         if (conflict) {
