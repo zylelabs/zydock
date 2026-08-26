@@ -219,9 +219,10 @@
       >
         <SkeletonRow v-if="logsLoading" />
         <p v-else-if="!logLines.length" class="p-4.25 text-caption text-ink-2">No log lines.</p>
-        <pre v-else class="max-h-100 overflow-y-auto p-4.25 font-mono text-caption text-ink-2">{{
-          logLines.map(line => line.message).join('\n')
-        }}</pre>
+        <pre
+          v-else
+          class="scroll-on-hover max-h-100 overflow-y-auto p-4.25 font-mono text-caption text-ink-2"
+          >{{ logLines.map(line => line.message).join('\n') }}</pre>
       </Card>
     </Modal>
   </div>

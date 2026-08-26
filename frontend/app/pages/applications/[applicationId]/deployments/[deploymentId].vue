@@ -284,7 +284,7 @@
         <div
           v-else
           ref="logBox"
-          class="max-h-100 overflow-auto rounded-card bg-terminal p-4 font-mono text-[12.5px] leading-[1.8]"
+          class="scroll-on-hover max-h-100 overflow-auto rounded-card bg-terminal p-4 font-mono text-[12.5px] leading-[1.8]"
         >
           <p v-if="!entries.length" class="text-terminal-ink-3">
             No build output yet{{ finished ? '.' : ' — waiting for the deployment…' }}
