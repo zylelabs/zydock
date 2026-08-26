@@ -59,8 +59,17 @@ export type DatabaseStats = {
   diskUsedBytes?: number;
 };
 
+export type DatabasePublishOptions = {
+  hostPort: number;
+};
+
 export type DatabaseProvider = {
   provision: (spec: DatabaseSpec) => Promise<ProvisionedDatabase>;
+  republish: (
+    spec: DatabaseSpec,
+    credentials: DatabaseCredentials,
+    publish?: DatabasePublishOptions,
+  ) => Promise<ProvisionedDatabase>;
   start: (id: string) => Promise<void>;
   stop: (id: string) => Promise<void>;
   restart: (id: string) => Promise<void>;

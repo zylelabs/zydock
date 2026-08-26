@@ -71,7 +71,7 @@ const exportConfiguration = async (organizationId: string) => {
     environments: environments.map(serializeEnvironment),
     applications: applications.map(serializeApplication),
     domains: domains.map(serializeDomain),
-    databases: databases.map(serializeDatabase),
+    databases: databases.map(database => serializeDatabase(database)),
     notificationChannels: channels.map(serializeNotificationChannel),
   };
 };

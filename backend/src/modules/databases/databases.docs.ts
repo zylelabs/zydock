@@ -28,6 +28,16 @@ const databaseSchema = {
         database: { type: 'string' },
       },
     },
+    publicAccess: {
+      type: 'object',
+      properties: {
+        enabled: { type: 'boolean' },
+        hostPort: { type: 'integer', nullable: true },
+        appliedAt: { type: 'string', format: 'date-time', nullable: true },
+      },
+    },
+    externalHost: { type: 'string', nullable: true },
+    externalPort: { type: 'integer', nullable: true },
     lastError: { type: 'string', nullable: true },
     createdAt: { type: 'string', format: 'date-time' },
   },
@@ -239,6 +249,25 @@ export const databasesDocs = {
         properties: { credentials: credentialsSchema },
       }),
       404: errorRes('Database not found.'),
+    },
+  },
+  updateAccess: {
+    tags: ['Databases'],
+    summary: 'Enable or disable external access to a managed database',
+    description:
+      'Publishes (or unpublishes) a host port on the server, so the database is reachable from ' +
+      'outside its internal network. Recreates the container to apply the change — the data is ' +
+      'kept, since it lives on a named volume that is reattached to the new container. Only ' +
+      '`managed` databases support this; compose-linked databases do not. Requires the `admin` role.',
+    security: bearerOrApiKeyAuth,
+    responses: {
+      200: jsonRes('Database.', { type: 'object', properties: { database: databaseSchema } }),
+      400: errorRes(
+        'Invalid body, the host port is already in use, or the database is not managed.',
+      ),
+      404: errorRes('Database not found.'),
+      409: errorRes('This server has no agent yet.'),
+      502: unreachable,
     },
   },
   start: {

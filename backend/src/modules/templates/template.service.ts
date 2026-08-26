@@ -793,7 +793,7 @@ export const applyTemplateUpdate = async (
   const conflict = await findHostPortConflict(
     String(application.serverId),
     hostPortBindingsOf(rendered),
-    String(application._id),
+    { applicationId: String(application._id) },
   );
 
   if (conflict) {

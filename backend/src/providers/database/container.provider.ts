@@ -6,6 +6,7 @@ import type {
   DatabaseBackupSpec,
   DatabaseCredentials,
   DatabaseInstance,
+  DatabasePublishOptions,
   DatabaseProvider,
   DatabaseProviderDependencies,
   DatabaseSpec,
@@ -146,6 +147,23 @@ const toInstance = (container: ContainerInfo, spec: DatabaseSpec): DatabaseInsta
   createdAt: container.startedAt ?? new Date().toISOString(),
 });
 
+const buildContainerSpec = (
+  engine: EngineConfig,
+  spec: DatabaseSpec,
+  credentials: EngineCredentials,
+  hostPort?: number,
+): ContainerSpec => ({
+  name: containerNameOf(spec.name),
+  image: engine.image(spec.version),
+  environment: { ...engine.environment(credentials), ...spec.environment },
+  command: engine.command?.(credentials),
+  ports: [{ containerPort: engine.port, protocol: 'tcp', ...(hostPort ? { hostPort } : {}) }],
+  volumes: [{ source: volumeNameOf(spec.name), target: engine.dataPath }],
+  networks: [config.proxy.network],
+  labels: { 'zydock.database': spec.name, 'zydock.autoheal': 'true' },
+  restartPolicy: 'unless-stopped',
+});
+
 export const createContainerDatabaseProvider = (
   engine: EngineConfig,
   { containers, storage }: DatabaseProviderDependencies,
@@ -163,19 +181,7 @@ export const createContainerDatabaseProvider = (
 
     await containers.createNetwork(config.proxy.network);
 
-    const containerSpec: ContainerSpec = {
-      name: containerName,
-      image: engine.image(spec.version),
-      environment: { ...engine.environment(credentials), ...spec.environment },
-      command: engine.command?.(credentials),
-      ports: [{ containerPort: engine.port, protocol: 'tcp' }],
-      volumes: [{ source: volumeNameOf(spec.name), target: engine.dataPath }],
-      networks: [config.proxy.network],
-      labels: { 'zydock.database': spec.name, 'zydock.autoheal': 'true' },
-      restartPolicy: 'unless-stopped',
-    };
-
-    const created = await containers.createContainer(containerSpec);
+    const created = await containers.createContainer(buildContainerSpec(engine, spec, credentials));
 
     await containers.startContainer(created.id);
 
@@ -190,6 +196,43 @@ export const createContainerDatabaseProvider = (
         password: credentials.password,
         database: credentials.database,
         connectionUri: engine.connectionUri({ ...credentials, host: containerName }),
+      },
+    };
+  };
+
+  const republish = async (
+    spec: DatabaseSpec,
+    credentials: DatabaseCredentials,
+    publish?: DatabasePublishOptions,
+  ): Promise<ProvisionedDatabase> => {
+    const containerName = containerNameOf(spec.name);
+    const engineCredentials: EngineCredentials = {
+      username: credentials.username,
+      password: credentials.password,
+      database: credentials.database ?? spec.name,
+      port: engine.port,
+    };
+
+    await containers.stopContainer(containerName).catch(() => undefined);
+    await containers.removeContainer(containerName);
+
+    const created = await containers.createContainer(
+      buildContainerSpec(engine, spec, engineCredentials, publish?.hostPort),
+    );
+
+    await containers.startContainer(created.id);
+
+    const started = await containers.inspectContainer(created.id);
+
+    return {
+      instance: toInstance(started ?? created, spec),
+      credentials: {
+        host: containerName,
+        port: engine.port,
+        username: engineCredentials.username,
+        password: engineCredentials.password,
+        database: engineCredentials.database,
+        connectionUri: engine.connectionUri({ ...engineCredentials, host: containerName }),
       },
     };
   };
@@ -250,6 +293,7 @@ export const createContainerDatabaseProvider = (
 
   return {
     provision,
+    republish,
     start: id => containers.startContainer(id),
     stop: id => containers.stopContainer(id),
     restart: id => containers.restartContainer(id),

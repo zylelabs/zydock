@@ -9,11 +9,99 @@
   } from '~/composables/services/useDatabases';
   import { formatBytes, formatUptime } from '~/utils';
 
-  const props = defineProps<{ database: Database }>();
+  const props = defineProps<{ database: Database; canManage: boolean }>();
+  const emit = defineEmits<{ refresh: [] }>();
 
   const session = useSessionStore();
   const databasesApi = useDatabases();
   const applicationsApi = useApplications();
+
+  const messageOf = (error: unknown, fallback: string) =>
+    (error as { message?: string }).message || fallback;
+
+  const isManaged = computed(() => props.database.source === 'managed');
+
+  const desiredEnabled = ref(props.database.publicAccess.enabled);
+  const hostPortDraft = ref(
+    props.database.publicAccess.hostPort ? String(props.database.publicAccess.hostPort) : '',
+  );
+
+  watch(
+    () => props.database.publicAccess,
+    access => {
+      desiredEnabled.value = access.enabled;
+      hostPortDraft.value = access.hostPort ? String(access.hostPort) : '';
+    },
+  );
+
+  const accessError = ref('');
+  const accessSaving = ref(false);
+  const confirmAccessOpen = ref(false);
+
+  watch(confirmAccessOpen, open => {
+    if (!open && !accessSaving.value) {
+      desiredEnabled.value = props.database.publicAccess.enabled;
+    }
+  });
+
+  const handleAccessToggle = (value: boolean) => {
+    accessError.value = '';
+
+    if (value && !hostPortDraft.value.trim()) {
+      desiredEnabled.value = false;
+      accessError.value = 'Enter a host port before enabling external access.';
+      return;
+    }
+
+    confirmAccessOpen.value = true;
+  };
+
+  const applyAccess = async () => {
+    const hostPort = desiredEnabled.value ? Number(hostPortDraft.value) : undefined;
+
+    if (
+      desiredEnabled.value &&
+      (!hostPort || !Number.isInteger(hostPort) || hostPort < 1024 || hostPort > 65535)
+    ) {
+      accessError.value = 'The port must be a whole number between 1024 and 65535.';
+      return;
+    }
+
+    accessError.value = '';
+    accessSaving.value = true;
+
+    try {
+      await databasesApi.updateAccess(props.database.id, {
+        enabled: desiredEnabled.value,
+        hostPort,
+      });
+      confirmAccessOpen.value = false;
+      emit('refresh');
+    } catch (error) {
+      desiredEnabled.value = props.database.publicAccess.enabled;
+      accessError.value = messageOf(error, 'Failed to update external access.');
+    } finally {
+      accessSaving.value = false;
+    }
+  };
+
+  const externalAddress = computed(() =>
+    props.database.externalHost && props.database.externalPort
+      ? `${props.database.externalHost}:${props.database.externalPort}`
+      : null,
+  );
+
+  const addressCopied = ref(false);
+
+  const copyExternalAddress = async () => {
+    if (!externalAddress.value) {
+      return;
+    }
+
+    await navigator.clipboard.writeText(externalAddress.value);
+    addressCopied.value = true;
+    setTimeout(() => (addressCopied.value = false), 2000);
+  };
 
   const { data: stats, status: statsStatus } = useLazyAsyncData<DatabaseStats>(
     () => `database-${props.database.id}-stats`,
@@ -183,6 +271,58 @@
           Live connections unavailable — {{ consumersDegradedReason }}
         </p>
       </template>
+    </Card>
+
+    <Card v-if="isManaged" title="External access" content-class="flex flex-col gap-3 p-4.25">
+      <Switch
+        :model-value="desiredEnabled"
+        label="Publish to a host port"
+        :disabled="!canManage"
+        @update:model-value="handleAccessToggle"
+      />
+
+      <Alert theme="warning">
+        Exposes the database directly to the internet. Use a strong password and keep the server's
+        firewall in mind.
+      </Alert>
+
+      <Input
+        v-if="desiredEnabled || database.publicAccess.enabled"
+        v-model="hostPortDraft"
+        label="Host port"
+        placeholder="5432"
+        mono
+        boxed
+        :disabled="!canManage || database.publicAccess.enabled"
+      />
+
+      <Alert v-if="accessError" theme="error">{{ accessError }}</Alert>
+
+      <div v-if="externalAddress" class="flex items-center gap-2">
+        <span class="font-mono text-caption text-ink">{{ externalAddress }}</span>
+        <button
+          type="button"
+          title="Copy address"
+          class="cursor-pointer rounded-control p-1.5 text-ink-2 hover:bg-inset hover:text-ink"
+          @click="copyExternalAddress"
+        >
+          <Icon :name="addressCopied ? 'lucide:check' : 'lucide:copy'" class="size-3.5" />
+        </button>
+      </div>
+
+      <Confirm
+        v-model:open="confirmAccessOpen"
+        :title="desiredEnabled ? 'Enable external access' : 'Disable external access'"
+        :message="
+          desiredEnabled
+            ? `This recreates the database container to publish port ${hostPortDraft}. The data is kept on its volume.`
+            : 'This recreates the database container to remove the published port. The data is kept on its volume.'
+        "
+        :confirm-label="desiredEnabled ? 'Enable' : 'Disable'"
+        :danger="desiredEnabled"
+        :loading="accessSaving"
+        @confirm="applyAccess"
+      />
     </Card>
   </div>
 </template>
