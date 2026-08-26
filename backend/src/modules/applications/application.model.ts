@@ -78,6 +78,10 @@ const applicationSchema = new Schema(
         kind: { type: String, enum: ['http', 'tcp', 'udp'], default: 'http' },
         startupTimeoutSeconds: { type: Number },
       },
+      console: {
+        logFile: { type: String, trim: true },
+        tailLines: { type: Number },
+      },
     },
     origin: {
       templateId: { type: String, trim: true },

@@ -14,11 +14,18 @@ export const consoleDocs = {
       '(default) or `bash`. `mode` selects `shell` (default, `docker exec`) or `attach` ' +
       '(`docker attach` to the main process, PID 1) — attach fails if the container was not ' +
       'started with `stdin_open: true`. A container that is part of the Zydock platform refuses ' +
-      'the session: the socket opens and immediately sends an error frame before closing.',
+      'the session: the socket opens and immediately sends an error frame before closing. When ' +
+      '`replay=1`, history is written to the socket before the live session starts: with ' +
+      '`replayFile`, the last `replayTail` lines of that file inside the container (`tail -n ' +
+      '<replayTail> -- <replayFile>`); without it, the last `replayTail` lines of the ' +
+      "container's stdout/stderr. A replay failure is logged and never blocks the live session.",
     security: agentAuth,
     parameters: [
       { name: 'shell', in: 'query', schema: { type: 'string', enum: ['sh', 'bash'] } },
       { name: 'mode', in: 'query', schema: { type: 'string', enum: ['shell', 'attach'] } },
+      { name: 'replay', in: 'query', schema: { type: 'string', enum: ['1'] } },
+      { name: 'replayFile', in: 'query', schema: { type: 'string' } },
+      { name: 'replayTail', in: 'query', schema: { type: 'integer' } },
     ],
     responses: {
       101: { description: 'Protocol switched to WebSocket.' },

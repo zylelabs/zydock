@@ -153,6 +153,7 @@ export const serializeTemplate = (template: Template) => ({
   origin: template.origin,
   deprecated: template.deprecated,
   expose: template.expose,
+  console: template.console,
   databases: template.databases,
   inputs: template.inputs,
   secrets: template.secrets.map(secret => ({ key: secret.key, generate: secret.generate })),
@@ -835,6 +836,9 @@ export const applyTemplateUpdate = async (
           kind: template.expose.kind,
           startupTimeoutSeconds: template.expose.startup_timeout_seconds,
         },
+        console: template.console
+          ? { logFile: template.console.log_file, tailLines: template.console.tail_lines }
+          : undefined,
       },
       variables,
       portMappings: applicationPortMappingsOf(rendered),
@@ -953,6 +957,9 @@ export const deployTemplateApplication = async (params: {
         kind: template.expose.kind,
         startupTimeoutSeconds: template.expose.startup_timeout_seconds,
       },
+      console: template.console
+        ? { logFile: template.console.log_file, tailLines: template.console.tail_lines }
+        : undefined,
     },
     variables,
     resources: body.resources,

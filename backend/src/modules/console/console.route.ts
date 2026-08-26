@@ -3,6 +3,7 @@ import { createRouter, validator } from 'hono-route-docs';
 import { logDebug, logWarn } from '../../utils/logger';
 import { endAuditLog, startAuditLog } from '../audit/audit-log.service';
 import { findActiveSessionById } from '../auth/session.service';
+import { findApplication } from '../applications/application.service';
 import { ContainerIdParam, containerIdParamSchema } from '../containers/containers.schema';
 import { createOrganizationRoleGuard } from '../organizations/organizations.middleware';
 import { buildAgentConnection, findServerWithAgentToken } from '../servers/server.service';
@@ -35,6 +36,7 @@ get(
     const shell = ALLOWED_SHELLS.includes(requestedShell ?? '') ? requestedShell : 'sh';
     const requestedMode = c.req.query('mode');
     const mode = ALLOWED_MODES.includes(requestedMode ?? '') ? requestedMode : 'shell';
+    const applicationId = c.req.query('applicationId');
     const auth = c.get('auth');
 
     let agent: WebSocket | undefined;
@@ -77,7 +79,25 @@ get(
 
           const connection = buildAgentConnection(server);
           const endpoint = connection.endpoint.replace(/^http/, 'ws');
-          const url = `${endpoint}/api/containers/${encodeURIComponent(containerId)}/console?shell=${shell}&mode=${mode}`;
+          const replayParams = new URLSearchParams();
+
+          if (mode === 'attach') {
+            replayParams.set('replay', '1');
+
+            const application = applicationId
+              ? await findApplication(organizationId, applicationId)
+              : null;
+            const replayConsole = application?.compose?.console;
+
+            if (replayConsole) {
+              replayParams.set('replayFile', replayConsole.logFile);
+              replayParams.set('replayTail', String(replayConsole.tailLines));
+            }
+          }
+
+          const url =
+            `${endpoint}/api/containers/${encodeURIComponent(containerId)}/console?shell=${shell}&mode=${mode}` +
+            (replayParams.size ? `&${replayParams.toString()}` : '');
 
           agent = new WebSocket(url, {
             headers: { 'X-Agent-Token': connection.token },

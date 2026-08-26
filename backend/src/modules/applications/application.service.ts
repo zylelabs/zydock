@@ -151,6 +151,7 @@ export const updateTemplateApplication = (
       $set: {
         'compose.content': changes.compose.content,
         'compose.expose': changes.compose.expose,
+        'compose.console': changes.compose.console,
         variables: encryptVariables(changes.variables),
         portMappings: changes.portMappings,
         volumes: changes.volumes,
@@ -353,7 +354,11 @@ export const serializeApplication = (application: Application) => ({
       : undefined,
   compose:
     application.source === 'compose' && application.compose
-      ? { content: application.compose.content, expose: application.compose.expose }
+      ? {
+          content: application.compose.content,
+          expose: application.compose.expose,
+          console: application.compose.console,
+        }
       : undefined,
   port: application.source === 'git' ? application.port : application.compose?.expose.port,
   portMappings: application.portMappings,

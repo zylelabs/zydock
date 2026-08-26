@@ -7,8 +7,9 @@ import { logDebug, logWarn } from '../../utils/logger';
 import { upgradeWebSocket } from '../../utils/ws';
 import { agentAuthMiddleware } from '../agent/agent.middleware';
 import { consoleDocs } from './console.docs';
-import { consoleControlSchema, consoleModeSchema } from './console.schema';
+import { consoleControlSchema, consoleModeSchema, consoleReplaySchema } from './console.schema';
 import { isProtectedContainer, PROTECTED_RESOURCE_MESSAGE } from './protection.service';
+import type { WSContext } from 'hono/ws';
 
 const { router, get } = createRouter();
 
@@ -28,6 +29,37 @@ export const modeOf = (value: string | undefined) => {
 const toText = (data: ArrayBuffer | Uint8Array) =>
   new TextDecoder().decode(data instanceof Uint8Array ? data : new Uint8Array(data));
 
+const REPLAY_SEPARATOR = '\r\n\x1b[90m— reconnected to console —\x1b[0m\r\n';
+
+const replayConsoleHistory = async (
+  id: string,
+  replayFile: string | undefined,
+  replayTail: number,
+  ws: WSContext,
+) => {
+  try {
+    if (replayFile) {
+      const result = await containers.execCommand(id, {
+        command: ['tail', '-n', String(replayTail), '--', replayFile],
+      });
+
+      if (result.stdout) {
+        ws.send(result.stdout.replace(/\n/g, '\r\n'));
+      }
+    } else {
+      const entries = await containers.getLogs(id, { tail: replayTail });
+
+      for (const entry of entries) {
+        ws.send(`${entry.message.replace(/\n/g, '\r\n')}\r\n`);
+      }
+    }
+
+    ws.send(REPLAY_SEPARATOR);
+  } catch (error) {
+    logWarn('Console replay failed', { container: id, error: errorMessage(error) });
+  }
+};
+
 get(
   '/:id/console',
   consoleDocs.connect,
@@ -36,6 +68,11 @@ get(
     const id = c.req.param('id') ?? '';
     const shell = shellOf(c.req.query('shell'));
     const mode = modeOf(c.req.query('mode'));
+    const replay = c.req.query('replay') === '1';
+    const replayQuery = consoleReplaySchema.safeParse({
+      replayFile: c.req.query('replayFile'),
+      replayTail: c.req.query('replayTail'),
+    });
 
     let session: ConsoleSession | undefined;
     const pending: (string | Uint8Array)[] = [];
@@ -79,6 +116,15 @@ get(
               ws.send(`Failed to open the console: ${PROTECTED_RESOURCE_MESSAGE}\r\n`);
               ws.close();
               return;
+            }
+
+            if (replay && replayQuery.success) {
+              await replayConsoleHistory(
+                id,
+                replayQuery.data.replayFile,
+                replayQuery.data.replayTail,
+                ws,
+              );
             }
 
             session = await containers.openConsole(id, {
