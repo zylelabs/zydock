@@ -58,9 +58,9 @@
     lastDeployAt: new Map<string, string>(),
   };
 
-  const { getCachedData, markFetched } = useNavigationCache();
+  const { markFetched } = useNavigationCache();
 
-  const { data, status } = useLazyAsyncData(
+  const { data, status } = useResourceData(
     'applications-list',
     async () => {
       const result = session.organizationId ? await load() : empty;
@@ -73,7 +73,6 @@
       server: false,
       watch: [() => session.organizationId],
       default: () => empty,
-      getCachedData: key => getCachedData(key),
     },
   );
 

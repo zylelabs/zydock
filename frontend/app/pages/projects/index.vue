@@ -50,9 +50,9 @@
     envCount: new Map<string, number>(),
   };
 
-  const { getCachedData, markFetched } = useNavigationCache();
+  const { markFetched } = useNavigationCache();
 
-  const { data, status, refresh } = useLazyAsyncData(
+  const { data, status, refresh } = useResourceData(
     'projects',
     async () => {
       const result = session.organizationId ? await load() : empty;
@@ -65,7 +65,6 @@
       server: false,
       watch: [() => session.organizationId],
       default: () => empty,
-      getCachedData: key => getCachedData(key),
     },
   );
 

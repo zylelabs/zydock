@@ -51,7 +51,7 @@
     };
   };
 
-  const { data, refresh, status } = useLazyAsyncData(
+  const { data, refresh, status } = useResourceData(
     'overview',
     () => (session.organizationId ? load() : Promise.resolve(empty)),
     { server: false, watch: [() => session.organizationId], default: () => empty },

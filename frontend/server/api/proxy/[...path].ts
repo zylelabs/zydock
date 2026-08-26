@@ -13,6 +13,8 @@ const logger = createConsola({
 const REFRESH_TOKEN_ROUTES = new Set(['auth/signin', 'auth/signup', 'auth/refresh']);
 
 export default defineEventHandler(async event => {
+  setResponseHeader(event, 'cache-control', 'no-store');
+
   const path = event.context.params?.path || [];
   const pathString = Array.isArray(path) ? path.join('/') : path;
 

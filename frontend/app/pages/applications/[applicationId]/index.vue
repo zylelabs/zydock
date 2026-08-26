@@ -32,9 +32,9 @@
   const messageOf = (error: unknown, fallback: string) =>
     (error as { message?: string }).message || fallback;
 
-  const { getCachedData, markFetched } = useNavigationCache();
+  const { markFetched } = useNavigationCache();
 
-  const { data, refresh } = useLazyAsyncData(
+  const { data, refresh } = useResourceData(
     () => `application-${applicationId.value}`,
     async () => {
       if (!session.organizationId) {
@@ -51,7 +51,6 @@
       server: false,
       watch: [() => session.organizationId, applicationId],
       default: () => null,
-      getCachedData: key => getCachedData(key),
     },
   );
 
@@ -69,7 +68,7 @@
     });
   });
 
-  const { data: domainsData } = useLazyAsyncData(
+  const { data: domainsData } = useResourceData(
     () => `application-${applicationId.value}-primary-domain`,
     () =>
       session.organizationId
@@ -78,7 +77,7 @@
     { server: false, watch: [() => session.organizationId, applicationId], default: () => null },
   );
 
-  const { data: server } = useLazyAsyncData(
+  const { data: server } = useResourceData(
     () => `application-${applicationId.value}-server`,
     async () => {
       const serverId = application.value?.serverId;
