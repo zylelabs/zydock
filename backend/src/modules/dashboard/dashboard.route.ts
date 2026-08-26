@@ -10,9 +10,13 @@ import {
   getDashboardDocument,
   resolveDnsMismatch,
   saveDashboardDomain,
+  saveDashboardName,
   serializeDashboardSettings,
 } from './dashboard.service';
-import { updateDashboardDomainSchema, type UpdateDashboardDomainDTO } from './dashboard.schema';
+import {
+  updateDashboardSettingsSchema,
+  type UpdateDashboardSettingsDTO,
+} from './dashboard.schema';
 import { dashboardDocs } from './dashboard.docs';
 
 const { router, get, patch, post, delete: del } = createRouter();
@@ -34,9 +38,19 @@ patch(
   dashboardDocs.updateSettings,
   authMiddleware,
   requireSuperuser,
-  validator('json', updateDashboardDomainSchema),
+  validator('json', updateDashboardSettingsSchema),
   async (c: Context) => {
-    const { domain } = c.req.valid('json' as never) as UpdateDashboardDomainDTO;
+    const { domain, name } = c.req.valid('json' as never) as UpdateDashboardSettingsDTO;
+
+    if (name !== undefined) {
+      await saveDashboardName(name);
+    }
+
+    const current = await getDashboardDocument();
+
+    if (domain === undefined || domain === current.domain) {
+      return c.json(await settingsPayload(c, await getDashboardDocument()));
+    }
 
     if (domain && (await hostnameTaken(domain))) {
       return c.json({ error: 'This hostname is already in use by an application domain' }, 409);

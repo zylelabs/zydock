@@ -5,8 +5,8 @@ import { getHealthReport } from './health.service';
 
 const { router, get } = createRouter();
 
-get('/', healthDocs.check, (c: Context) => {
-  const report = getHealthReport();
+get('/', healthDocs.check, async (c: Context) => {
+  const report = await getHealthReport();
 
   if (report.status !== 'ok') {
     return c.json(report, 503);

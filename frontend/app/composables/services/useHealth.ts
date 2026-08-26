@@ -2,6 +2,7 @@ export interface HealthReport {
   status: 'ok' | 'degraded';
   version: string;
   commit: string;
+  panelName: string;
   uptime: number;
   timestamp: string;
   autoDomain: { enabled: boolean; suffix: string };

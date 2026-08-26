@@ -4,6 +4,7 @@ import { DASHBOARD_STATUSES } from './dashboard.schema';
 const dashboardSchema = new Schema(
   {
     domain: { type: String, trim: true, lowercase: true, default: '' },
+    name: { type: String, trim: true, default: 'Zydock' },
     status: { type: String, required: true, enum: DASHBOARD_STATUSES, default: 'disabled' },
     lastError: { type: String },
     certificateIssuer: { type: String },

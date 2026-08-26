@@ -114,6 +114,10 @@ next_nightly() {
   fi
 }
 
+channel_slug() {
+  echo "${CHANNEL}" | tr '[:upper:]' '[:lower:]' | sed -E 's/[^a-z0-9]+/-/g; s/^-+//; s/-+$//'
+}
+
 channel_version() {
   local stable_tag
   local nightly_tag
@@ -138,7 +142,7 @@ channel_version() {
     echo "v$(root_version)-dev.$(commit_short)"
     ;;
   *)
-    echo "v$(root_version)-branch.$(commit_short)"
+    echo "v$(root_version)-$(channel_slug).$(commit_short)"
     ;;
   esac
 }

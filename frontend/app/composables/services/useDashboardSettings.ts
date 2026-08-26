@@ -2,6 +2,7 @@ export type DashboardStatus = 'disabled' | 'pending' | 'active' | 'error';
 
 export interface DashboardSettings {
   domain: string;
+  name: string;
   status: DashboardStatus;
   lastError?: string;
   certificateIssuer?: string;
@@ -19,8 +20,8 @@ export const useDashboardSettings = () => {
 
   const get = () => api.get<DashboardSettings>('/dashboard/settings');
 
-  const save = (domain: string) =>
-    api.patch<DashboardSettings>('/dashboard/settings', { body: { domain } });
+  const save = (dto: { domain?: string; name?: string }) =>
+    api.patch<DashboardSettings>('/dashboard/settings', { body: dto });
 
   const remove = () => api.del<DashboardSettings>('/dashboard/domain');
 

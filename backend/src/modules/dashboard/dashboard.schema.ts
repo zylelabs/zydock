@@ -5,8 +5,9 @@ export const DASHBOARD_STATUSES = ['disabled', 'pending', 'active', 'error'] as 
 
 export type DashboardStatus = (typeof DASHBOARD_STATUSES)[number];
 
-export const updateDashboardDomainSchema = z.object({
-  domain: z.union([hostnameSchema, z.literal('')]),
+export const updateDashboardSettingsSchema = z.object({
+  domain: z.union([hostnameSchema, z.literal('')]).optional(),
+  name: z.string().trim().min(1).max(60).optional(),
 });
 
-export type UpdateDashboardDomainDTO = z.infer<typeof updateDashboardDomainSchema>;
+export type UpdateDashboardSettingsDTO = z.infer<typeof updateDashboardSettingsSchema>;

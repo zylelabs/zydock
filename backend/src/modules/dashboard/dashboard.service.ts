@@ -4,7 +4,7 @@ import { logWarn } from '../../utils/logger';
 import dashboardModel from './dashboard.model';
 import type { DashboardStatus } from './dashboard.schema';
 
-const DEFAULT_DASHBOARD = { domain: '', status: 'disabled' as const };
+const DEFAULT_DASHBOARD = { domain: '', name: config.dashboard.name, status: 'disabled' as const };
 
 export const getDashboardDocument = async () => {
   const document = await dashboardModel.findOneAndUpdate(
@@ -26,7 +26,11 @@ export const bootstrapDashboard = async () => {
 
     const domain = config.dashboard.domain;
 
-    await dashboardModel.create({ domain, status: domain ? 'pending' : 'disabled' });
+    await dashboardModel.create({
+      domain,
+      name: config.dashboard.name,
+      status: domain ? 'pending' : 'disabled',
+    });
   } catch (error) {
     logWarn('The dashboard module could not be bootstrapped', {
       error: error instanceof Error ? error.message : String(error),
@@ -55,6 +59,16 @@ export const saveDashboardDomain = async (domain: string) => {
   return getDashboardDocument();
 };
 
+export const saveDashboardName = async (name: string) => {
+  const current = await getDashboardDocument();
+
+  await dashboardModel.updateOne({ _id: current._id }, { $set: { name } });
+
+  invalidatePublicUrlCache();
+
+  return getDashboardDocument();
+};
+
 export const resolveDnsMismatch = async (domain: string) => {
   if (!domain || !config.localServer.publicIp) {
     return false;
@@ -74,7 +88,7 @@ export const resolveDnsMismatch = async (domain: string) => {
   return !records.includes(config.localServer.publicIp);
 };
 
-let cachedDashboard: { domain: string; status: DashboardStatus } | undefined;
+let cachedDashboard: { domain: string; name: string; status: DashboardStatus } | undefined;
 
 export const invalidatePublicUrlCache = () => {
   cachedDashboard = undefined;
@@ -84,7 +98,7 @@ const cachedDashboardState = async () => {
   if (!cachedDashboard) {
     const document = await getDashboardDocument();
 
-    cachedDashboard = { domain: document.domain, status: document.status };
+    cachedDashboard = { domain: document.domain, name: document.name, status: document.status };
   }
 
   return cachedDashboard;
@@ -103,8 +117,15 @@ export const resolveDashboardCorsOrigins = async () => {
   return domain ? [`https://${domain}`, `http://${domain}`] : [];
 };
 
+export const resolvePanelName = async () => {
+  const { name } = await cachedDashboardState();
+
+  return name;
+};
+
 export const serializeDashboardSettings = (document: Dashboard) => ({
   domain: document.domain,
+  name: document.name,
   status: document.status,
   lastError: document.lastError,
   certificateIssuer: document.certificateIssuer,

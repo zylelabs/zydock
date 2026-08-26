@@ -6,6 +6,7 @@ const settingsSchema = {
   type: 'object',
   properties: {
     domain: { type: 'string' },
+    name: { type: 'string' },
     status: { type: 'string', enum: [...DASHBOARD_STATUSES] },
     lastError: { type: 'string', nullable: true },
     certificateIssuer: { type: 'string', nullable: true },
@@ -33,11 +34,13 @@ export const dashboardDocs = {
   },
   updateSettings: {
     tags: ['Dashboard'],
-    summary: 'Set (or clear) the dashboard domain',
+    summary: 'Set (or clear) the dashboard domain and/or the panel name',
     description:
-      'Superuser only. Persists the domain and tries to apply it on the proxy right away. A DNS ' +
-      "that hasn't propagated yet does not block saving — the domain is stored as `pending` and " +
-      'the certificate is picked up later, on `POST /domain/check`. The IP route is never removed.',
+      'Superuser only. Both fields are optional and independent. Persists the domain (when sent) ' +
+      "and tries to apply it on the proxy right away. A DNS that hasn't propagated yet does not " +
+      'block saving — the domain is stored as `pending` and the certificate is picked up later, on ' +
+      '`POST /domain/check`. The IP route is never removed. Renaming the panel (`name`) never ' +
+      'touches the domain or the certificate.',
     security: bearerOrApiKeyAuth,
     responses: {
       200: jsonRes('Updated settings.', settingsSchema),

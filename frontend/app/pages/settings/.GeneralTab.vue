@@ -51,6 +51,7 @@
 
   const emptyDashboardSettings: DashboardSettings = {
     domain: '',
+    name: 'Zydock',
     status: 'disabled',
     publicIp: '',
     ipUrl: '',
@@ -93,12 +94,17 @@
       'Enter a valid domain, e.g. panel.example.com',
     );
 
+  const { panelName } = usePanelName();
+
   const domainForm = useSchemaForm(
-    z.object({ domain: hostnameSchema }),
-    { domain: '' },
+    z.object({
+      name: z.string().trim().min(1, 'Enter a name').max(60),
+      domain: hostnameSchema,
+    }),
+    { name: '', domain: '' },
     {
       onError: (message, error) => {
-        console.error('Failed to save the panel domain:', error);
+        console.error('Failed to save the panel settings:', error);
         toast.error({ title: 'Error', message });
       },
     },
@@ -112,24 +118,37 @@
     { immediate: true },
   );
 
+  watch(
+    () => dashboardSettings.value?.name,
+    value => {
+      domainForm.values.name = value ?? '';
+    },
+    { immediate: true },
+  );
+
   const editingDomain = ref(false);
 
   const startEditDomain = () => {
+    domainForm.values.name = dashboardSettings.value?.name ?? '';
     domainForm.values.domain = dashboardSettings.value?.domain ?? '';
     editingDomain.value = true;
   };
 
   const cancelEditDomain = () => {
     domainForm.reset();
+    domainForm.values.name = dashboardSettings.value?.name ?? '';
     domainForm.values.domain = dashboardSettings.value?.domain ?? '';
     editingDomain.value = false;
   };
 
   const handleSaveDomain = domainForm.submit(async values => {
-    await save(values.domain);
+    const domainChanged = values.domain !== (dashboardSettings.value?.domain ?? '');
+
+    await save({ name: values.name, domain: domainChanged ? values.domain : undefined });
     await refreshDashboardSettings();
+    panelName.value = values.name;
     editingDomain.value = false;
-    toast.success({ title: 'Saved', message: 'The panel domain was saved.' });
+    toast.success({ title: 'Saved', message: 'The panel settings were saved.' });
   });
 
   const checkingDomain = ref(false);
@@ -265,7 +284,7 @@
         dashboardLoadErrorMessage
       }}</Alert>
 
-      <Card v-else title="Panel URL" :description="panelUrlDescription" rows>
+      <Card v-else title="Panel" :description="panelUrlDescription" rows>
         <template #right>
           <div class="flex items-center justify-end gap-2">
             <Tag
@@ -290,6 +309,11 @@
               The A record of this hostname does not point to this server's IP yet. The proxy keeps
               retrying automatically once DNS propagates.
             </Alert>
+          </Row>
+
+          <Row as="div" class="flex items-center">
+            <div class="w-33 shrink-0 text-caption text-ink-2">Name</div>
+            <div class="truncate text-caption text-ink">{{ dashboardSettings?.name }}</div>
           </Row>
 
           <Row as="div" class="flex flex-wrap items-center gap-y-1.5">
@@ -340,6 +364,14 @@
         </template>
 
         <form v-else class="flex flex-col" @submit.prevent="handleSaveDomain">
+          <Input
+            v-model="domainForm.values.name"
+            label="Name"
+            boxed
+            :disabled="domainForm.loading.value"
+            :call-error="domainForm.errors.value.name"
+          />
+
           <Input
             v-model="domainForm.values.domain"
             label="URL"
