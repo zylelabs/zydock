@@ -193,7 +193,7 @@
     <Alert v-if="error" theme="error">{{ error }}</Alert>
 
     <div
-      class="max-h-[65vh] overflow-auto rounded-card bg-terminal p-4 font-mono text-[12.5px] leading-[1.8]"
+      class="scroll-on-hover max-h-[65vh] overflow-auto rounded-card bg-terminal p-4 font-mono text-[12.5px] leading-[1.8]"
     >
       <div v-if="loading" class="flex flex-col gap-2.5">
         <Skeleton

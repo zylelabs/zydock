@@ -544,7 +544,7 @@
 
         <div
           v-if="templateUpdatePreview.composeDiff"
-          class="max-h-[40vh] overflow-auto rounded-control bg-terminal p-4 font-mono text-[12.5px] leading-[1.7]"
+          class="scroll-on-hover max-h-[40vh] overflow-auto rounded-control bg-terminal p-4 font-mono text-[12.5px] leading-[1.7]"
         >
           <div
             v-for="(line, index) in templateUpdatePreview.composeDiff"
@@ -612,7 +612,7 @@
       </template>
 
       <pre
-        class="max-h-[50vh] overflow-auto rounded-control bg-terminal p-4 font-mono text-[12.5px] leading-[1.7] text-terminal-ink"
+        class="scroll-on-hover max-h-[50vh] overflow-auto rounded-control bg-terminal p-4 font-mono text-[12.5px] leading-[1.7] text-terminal-ink"
         >{{ application.compose?.content }}</pre>
     </Card>
 

@@ -593,7 +593,7 @@
 
         <div
           ref="logBox"
-          class="max-h-80 overflow-auto rounded-card bg-terminal p-4 font-mono text-[12.5px] leading-[1.8] whitespace-pre-wrap text-terminal-ink"
+          class="scroll-on-hover max-h-80 overflow-auto rounded-card bg-terminal p-4 font-mono text-[12.5px] leading-[1.8] whitespace-pre-wrap text-terminal-ink"
         >
           <p v-if="!logLines.length" class="text-terminal-ink-3">Waiting for output…</p>
           <AnsiText v-for="(line, index) in logLines" :key="index" :text="line" class="block" />

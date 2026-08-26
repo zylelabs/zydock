@@ -196,3 +196,22 @@ body {
 ::-webkit-scrollbar-thumb:hover {
   background-color: var(--color-ink-3);
 }
+
+.scroll-on-hover {
+  scrollbar-color: transparent transparent;
+}
+
+.scroll-on-hover::-webkit-scrollbar-thumb {
+  background-color: transparent;
+  transition: background-color 0.15s ease;
+}
+
+.scroll-on-hover:hover,
+.scroll-on-hover:focus-within {
+  scrollbar-color: var(--color-edge-strong) var(--color-hairline);
+}
+
+.scroll-on-hover:hover::-webkit-scrollbar-thumb,
+.scroll-on-hover:focus-within::-webkit-scrollbar-thumb {
+  background-color: var(--color-edge-strong);
+}

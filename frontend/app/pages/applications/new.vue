@@ -62,6 +62,7 @@
   const projects = computed(() => data.value?.projects ?? []);
   const servers = computed(() => data.value?.servers ?? []);
   const environments = ref<Environment[]>([]);
+  const hasProjects = computed(() => projects.value.length > 0);
 
   const baseWizardSchema = z.object({
     sourceMode: z.enum(['github-app', 'token', 'resources']),
@@ -198,7 +199,14 @@
     }
   };
 
+  const lastAppliedTemplateName = ref('');
+
   const handleSelectTemplate = (template: Template) => {
+    if (!form.values.name || form.values.name === lastAppliedTemplateName.value) {
+      form.values.name = template.name;
+      lastAppliedTemplateName.value = template.name;
+    }
+
     selectedTemplate.value = template;
     form.values.templateId = template.id;
     form.values.resourceMode = 'template';
@@ -421,7 +429,7 @@
   });
 
   const nextDisabled = computed(() => {
-    if (form.loading.value) {
+    if (form.loading.value || !hasProjects.value) {
       return true;
     }
 
@@ -725,6 +733,15 @@
       variant="action"
       title="You can't create applications"
       description="Only administrators can create applications in this organization."
+    />
+
+    <EmptyState
+      v-else-if="!wizardContextPending && !hasProjects"
+      variant="action"
+      title="Create a project first"
+      description="Applications belong to a project. Create one before creating an application."
+      action-label="Go to projects"
+      @action="navigateTo('/projects')"
     />
 
     <div v-else class="flex max-w-255 gap-8.5">
