@@ -171,7 +171,7 @@ jobs:
           echo "version=${VERSION}" >> "$GITHUB_OUTPUT"
 
   publish:
-    name: Publish release
+    name: Draft release
     needs: [tag]
     uses: ./.github/workflows/release.yml
     permissions:
@@ -199,11 +199,17 @@ jobs:
       - name: Write summary
         env:
           VERSION: ${{ needs.tag.outputs.version }}
+          DRAFT_URL: ${{ needs.publish.outputs.url }}
         run: |
           {
             echo "## Tag ${VERSION}"
             echo
             echo "- Channel: \`${{ inputs.channel }}\`"
             echo "- Branch: \`${GITHUB_REF_NAME}\`"
-            echo "- Release: ${GITHUB_SERVER_URL}/${GITHUB_REPOSITORY}/releases/tag/${VERSION}"
+            if [ -n "${DRAFT_URL}" ]; then
+              echo "- Draft release (review the notes, then publish): ${DRAFT_URL}"
+            else
+              echo "- Release: ${GITHUB_SERVER_URL}/${GITHUB_REPOSITORY}/releases/tag/${VERSION}"
+            fi
+            echo "- Images are already on ghcr.io — publishing the draft is what announces the version."
           } >> "$GITHUB_STEP_SUMMARY"
