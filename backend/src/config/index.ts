@@ -83,6 +83,7 @@ export default {
   frontendUrl: readString('FRONTEND_URL', 'http://frontend:3000'),
   dashboard: {
     domain: readString('ZYDOCK_DOMAIN', ''),
+    name: readString('PANEL_NAME', 'Zydock'),
   },
   mongodb: {
     uri: readRequired('MONGO_URI'),
