@@ -21,9 +21,15 @@ interface ApplicationComposeExpose {
   startupTimeoutSeconds?: number;
 }
 
+interface ApplicationConsole {
+  logFile: string;
+  tailLines: number;
+}
+
 interface ApplicationCompose {
   content: string;
   expose: ApplicationComposeExpose;
+  console?: ApplicationConsole;
 }
 
 interface ApplicationOrigin {

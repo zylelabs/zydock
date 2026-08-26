@@ -26,6 +26,11 @@ interface TemplateExpose {
   startup_timeout_seconds?: number;
 }
 
+interface TemplateConsole {
+  log_file: string;
+  tail_lines: number;
+}
+
 interface TemplateCredentialRef {
   key?: string;
   value?: string;
@@ -76,6 +81,7 @@ interface TemplateManifest {
   origin: import('./template.schema').TemplateOrigin;
   dockerCompose: string;
   expose: TemplateExpose;
+  console?: TemplateConsole;
   databases: TemplateDatabase[];
   inputs: TemplateInput[];
   secrets: TemplateSecret[];

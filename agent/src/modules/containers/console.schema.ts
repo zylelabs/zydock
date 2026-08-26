@@ -11,3 +11,16 @@ export const consoleControlSchema = z.object({
 });
 
 export type ConsoleControlDTO = z.infer<typeof consoleControlSchema>;
+
+export const consoleReplaySchema = z.object({
+  replayFile: z
+    .string()
+    .trim()
+    .min(1)
+    .max(256)
+    .regex(/^(?!.*\.\.)[^\x00-\x1f\x7f]+$/, 'Invalid "replayFile" path')
+    .optional(),
+  replayTail: z.coerce.number().int().min(1).max(2000).default(200),
+});
+
+export type ConsoleReplayDTO = z.infer<typeof consoleReplaySchema>;

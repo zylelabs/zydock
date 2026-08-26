@@ -27,6 +27,17 @@ const templateSchema = {
         startup_timeout_seconds: { type: 'integer' },
       },
     },
+    console: {
+      type: 'object',
+      description:
+        'Declares where the console Attach mode replays history from, when the stdout stream ' +
+        'the container writes to Docker is not the whole picture (e.g. a log file the process ' +
+        'rotates internally). Absent when the template relies on stdout.',
+      properties: {
+        log_file: { type: 'string' },
+        tail_lines: { type: 'integer' },
+      },
+    },
     memoryLimitMb: {
       type: 'integer',
       description:

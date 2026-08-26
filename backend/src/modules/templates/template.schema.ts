@@ -154,6 +154,18 @@ const templateExposeSchema = z
     }
   });
 
+const NO_TRAVERSAL_OR_CONTROL_CHARS_PATTERN = /^(?!.*\.\.)[^\x00-\x1f\x7f]+$/;
+
+const templateConsoleSchema = z.object({
+  log_file: z
+    .string()
+    .trim()
+    .min(1)
+    .max(256)
+    .regex(NO_TRAVERSAL_OR_CONTROL_CHARS_PATTERN, 'Invalid "log_file" path'),
+  tail_lines: z.coerce.number().int().min(1).max(2000).default(200),
+});
+
 const templateCredentialRefSchema = z.union([
   z.object({ key: templateKeySchema }),
   z.object({ value: z.string().trim().min(1).max(200) }),
@@ -302,6 +314,7 @@ const rawTemplateSchema = z
     origin: z.enum(TEMPLATE_ORIGINS),
     docker_compose: z.string().trim().min(1).max(200),
     expose: templateExposeSchema,
+    console: templateConsoleSchema.optional(),
     databases: z.array(templateDatabaseSchema).max(10).default([]),
     inputs: z.array(templateInputSchema).max(50).default([]),
     secrets: z.array(templateSecretSchema).max(50).default([]),
@@ -372,6 +385,7 @@ export const parseTemplateManifest = (raw: unknown): TemplateManifest => {
     origin: parsed.origin,
     dockerCompose: parsed.docker_compose,
     expose: parsed.expose,
+    console: parsed.console,
     databases: parsed.databases,
     inputs: parsed.inputs,
     secrets: parsed.secrets,

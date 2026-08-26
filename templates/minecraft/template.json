@@ -19,6 +19,10 @@
     "domain": false,
     "startup_timeout_seconds": 600
   },
+  "console": {
+    "log_file": "logs/latest.log",
+    "tail_lines": 200
+  },
   "versions": {
     "key": "IMAGE_TAG",
     "default": "2026.8.0-java25",

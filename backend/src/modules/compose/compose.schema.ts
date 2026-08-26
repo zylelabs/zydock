@@ -17,9 +17,22 @@ export const applicationComposeExposeSchema = z.object({
 
 export type ApplicationComposeExposeDTO = z.infer<typeof applicationComposeExposeSchema>;
 
+export const applicationConsoleSchema = z.object({
+  logFile: z
+    .string()
+    .trim()
+    .min(1)
+    .max(256)
+    .regex(/^(?!.*\.\.)[^\x00-\x1f\x7f]+$/, 'Invalid "logFile" path'),
+  tailLines: z.coerce.number().int().min(1).max(2000),
+});
+
+export type ApplicationConsoleDTO = z.infer<typeof applicationConsoleSchema>;
+
 export const applicationComposeSchema = z.object({
   content: z.string().trim().min(1).max(MAX_COMPOSE_FILE_BYTES),
   expose: applicationComposeExposeSchema,
+  console: applicationConsoleSchema.optional(),
 });
 
 export type ApplicationComposeDTO = z.infer<typeof applicationComposeSchema>;

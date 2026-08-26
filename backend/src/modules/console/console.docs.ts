@@ -14,7 +14,11 @@ export const consoleDocs = {
       "`attach` — `attach` connects to the container's main process (PID 1) instead of a new " +
       'shell, and fails with an explanatory message if the container was not started with ' +
       '`stdin_open: true`. Closing the connection does not stop the attached process; it only ' +
-      'detaches. Requires the `admin` role.',
+      'detaches. In `attach` mode, passing `applicationId` replays recent history before live ' +
+      "output starts: the application's `compose.console` (when its template declares one, e.g. " +
+      "a log file rotated outside of stdout) takes precedence, falling back to the container's " +
+      'own stdout otherwise. The log file path never comes from the client — only the ' +
+      'application id does. Requires the `admin` role.',
     parameters: [
       {
         name: 'token',
@@ -25,6 +29,13 @@ export const consoleDocs = {
       },
       { name: 'shell', in: 'query', schema: { type: 'string', enum: ['sh', 'bash'] } },
       { name: 'mode', in: 'query', schema: { type: 'string', enum: ['shell', 'attach'] } },
+      {
+        name: 'applicationId',
+        in: 'query',
+        description:
+          'Application owning the container, used to resolve replay history in attach mode.',
+        schema: { type: 'string' },
+      },
     ],
     responses: {
       101: { description: 'Protocol switched to WebSocket.' },

@@ -1,5 +1,5 @@
 <script setup lang="ts">
-  import { useApplications } from '~/composables/services/useApplications';
+  import { applicationExposeKind, useApplications } from '~/composables/services/useApplications';
   import { useContainers } from '~/composables/services/useContainers';
   import { useDeployments } from '~/composables/services/useDeployments';
   import { useServers } from '~/composables/services/useServers';
@@ -36,6 +36,7 @@
           name: app.application.name,
           serverId: app.application.serverId,
           serverName: server.server.name,
+          exposeKind: applicationExposeKind(app.application),
           services,
         };
       }
@@ -47,6 +48,7 @@
         name: app.application.name,
         serverId: app.application.serverId,
         serverName: server.server.name,
+        exposeKind: applicationExposeKind(app.application),
         containerId,
         services: [],
       };
@@ -80,12 +82,24 @@
   );
 
   const canAttach = computed(() => container.value?.stdinOpen ?? false);
+  const exposeKind = computed(() => data.value?.exposeKind);
+  const modeInitialized = ref(false);
 
-  watch(canAttach, allowed => {
-    if (!allowed) {
-      mode.value = 'shell';
-    }
-  });
+  watch(
+    [canAttach, exposeKind],
+    ([allowed, kind]) => {
+      if (!allowed) {
+        mode.value = 'shell';
+        return;
+      }
+
+      if (!modeInitialized.value && kind !== undefined) {
+        modeInitialized.value = true;
+        mode.value = kind !== 'http' ? 'attach' : 'shell';
+      }
+    },
+    { immediate: true },
+  );
 
   useHead(() => ({ title: `Console · ${data.value?.name ?? 'Application'}` }));
 
@@ -136,6 +150,8 @@
         :server-id="data.serverId"
         :container-id="containerId"
         :mode="mode"
+        :application-id="applicationId"
+        :replay="mode === 'attach'"
         host-class="min-h-85"
       />
       <p class="text-caption text-ink-2">

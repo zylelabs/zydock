@@ -11,6 +11,8 @@
     containerId: string;
     shell?: string;
     mode?: 'shell' | 'attach';
+    applicationId?: string;
+    replay?: boolean;
     hostClass?: string;
   }>();
 
@@ -50,6 +52,14 @@
       mode: props.mode ?? 'shell',
       token: session.accessToken ?? '',
     });
+
+    if (props.applicationId) {
+      query.set('applicationId', props.applicationId);
+    }
+
+    if (props.replay) {
+      query.set('replay', '1');
+    }
 
     return `${origin}${path}?${query.toString()}`;
   };
