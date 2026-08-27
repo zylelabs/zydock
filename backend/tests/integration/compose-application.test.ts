@@ -110,6 +110,7 @@ beforeAll(async () => {
   await ensureLocalServer();
   app = createApp();
   await waitForBootstrap();
+  stopBackgroundWork();
 });
 
 afterAll(async () => {
