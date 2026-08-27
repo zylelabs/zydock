@@ -4,6 +4,7 @@ import { paginationQuery } from '../../utils/pagination';
 import { countApplicationsOfServer } from '../applications/application.service';
 import { countDatabasesOfServer } from '../databases/database.service';
 import { authMiddleware } from '../auth/auth.middleware';
+import { blockOnStandby } from '../installation/installation.middleware';
 import { OrganizationIdParam, organizationIdParamSchema } from '../organizations/membership.schema';
 import { createOrganizationRoleGuard } from '../organizations/organizations.middleware';
 import { provisionServer, refreshServerResources } from './provisioning.service';
@@ -193,6 +194,7 @@ post(
   authMiddleware,
   validator('param', serverIdParamSchema),
   createOrganizationRoleGuard('admin'),
+  blockOnStandby,
   async (c: Context) => {
     const { organizationId, serverId } = c.req.valid('param' as never) as ServerIdParam;
 

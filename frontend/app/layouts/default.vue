@@ -47,28 +47,32 @@
 
   <div v-if="pageStore.hasLoadingPage" class="absolute top-0 left-0 h-full w-full bg-page" />
 
-  <div v-else class="fixed inset-0 flex h-screen overflow-hidden bg-page text-ink">
-    <Sidebar />
+  <div v-else class="fixed inset-0 flex h-screen flex-col overflow-hidden bg-page text-ink">
+    <StandbyBanner />
 
-    <Transition name="fade">
-      <div v-if="isOpen" class="fixed inset-0 z-30 bg-ink/40 lg:hidden" @click="close"></div>
-    </Transition>
+    <div class="flex min-h-0 w-full flex-1">
+      <Sidebar />
 
-    <div class="flex w-full min-w-0 flex-1 flex-col">
-      <Header
-        :title="navbar.title"
-        :context="navbar.context"
-        :back="navbar.back"
-        :loading="navbar.loading"
-        :action="navbar.action"
-      />
+      <Transition name="fade">
+        <div v-if="isOpen" class="fixed inset-0 z-30 bg-ink/40 lg:hidden" @click="close"></div>
+      </Transition>
 
-      <div
-        id="scroll-container"
-        ref="scrollContainer"
-        class="w-full min-h-0 flex-1 overflow-y-auto"
-      >
-        <slot />
+      <div class="flex w-full min-w-0 flex-1 flex-col">
+        <Header
+          :title="navbar.title"
+          :context="navbar.context"
+          :back="navbar.back"
+          :loading="navbar.loading"
+          :action="navbar.action"
+        />
+
+        <div
+          id="scroll-container"
+          ref="scrollContainer"
+          class="w-full min-h-0 flex-1 overflow-y-auto"
+        >
+          <slot />
+        </div>
       </div>
     </div>
   </div>

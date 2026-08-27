@@ -9,6 +9,7 @@ import {
   PROTECTED_RESOURCE_MESSAGE,
   PROTECTED_RESOURCE_STATUS,
 } from '../containers/protection.service';
+import { blockOnStandby } from '../installation/installation.middleware';
 import { createOrganizationRoleGuard } from '../organizations/organizations.middleware';
 import { serverIdParamSchema } from '../servers/server.schema';
 import { networksDocs } from './networks.docs';
@@ -46,6 +47,7 @@ post(
   authMiddleware,
   validator('param', serverIdParamSchema),
   createOrganizationRoleGuard('admin'),
+  blockOnStandby,
   validator('json', createNetworkSchema),
   serverRuntimeMiddleware,
   async (c: Context) => {
@@ -65,6 +67,7 @@ del(
   authMiddleware,
   validator('param', networkNameParamSchema),
   createOrganizationRoleGuard('admin'),
+  blockOnStandby,
   serverRuntimeMiddleware,
   async (c: Context) => {
     const { name } = c.req.valid('param' as never) as NetworkNameParam;

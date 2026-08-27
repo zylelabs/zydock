@@ -8,6 +8,7 @@ import { findApplicationWithSecrets } from '../applications/application.service'
 import { authMiddleware } from '../auth/auth.middleware';
 import { maskSecrets, secretValuesOf } from '../compose/compose.service';
 import { APPLICATION_LABEL } from '../deployments/naming';
+import { blockOnStandby } from '../installation/installation.middleware';
 import { createOrganizationRoleGuard } from '../organizations/organizations.middleware';
 import { serverIdParamSchema } from '../servers/server.schema';
 import { serverRuntimeMiddleware } from './container.middleware';
@@ -86,6 +87,7 @@ post(
   authMiddleware,
   validator('param', serverIdParamSchema),
   createOrganizationRoleGuard('admin'),
+  blockOnStandby,
   validator('json', createContainerSchema),
   serverRuntimeMiddleware,
   async (c: Context) => {
@@ -129,6 +131,7 @@ post(
   authMiddleware,
   validator('param', containerIdParamSchema),
   createOrganizationRoleGuard('admin'),
+  blockOnStandby,
   serverRuntimeMiddleware,
   async (c: Context) => {
     const { containerId } = c.req.valid('param' as never) as ContainerIdParam;
@@ -149,6 +152,7 @@ post(
   authMiddleware,
   validator('param', containerIdParamSchema),
   createOrganizationRoleGuard('admin'),
+  blockOnStandby,
   validator('query', stopContainerQuerySchema),
   serverRuntimeMiddleware,
   async (c: Context) => {
@@ -171,6 +175,7 @@ post(
   authMiddleware,
   validator('param', containerIdParamSchema),
   createOrganizationRoleGuard('admin'),
+  blockOnStandby,
   serverRuntimeMiddleware,
   async (c: Context) => {
     const { containerId } = c.req.valid('param' as never) as ContainerIdParam;
@@ -277,6 +282,7 @@ del(
   authMiddleware,
   validator('param', containerIdParamSchema),
   createOrganizationRoleGuard('admin'),
+  blockOnStandby,
   validator('query', removeContainerQuerySchema),
   serverRuntimeMiddleware,
   async (c: Context) => {

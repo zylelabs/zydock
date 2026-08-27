@@ -17,6 +17,8 @@ const healthSchema = {
     version: { type: 'string' },
     commit: { type: 'string' },
     panelName: { type: 'string' },
+    role: { type: 'string', enum: ['active', 'standby'] },
+    dataFrom: { type: 'string', format: 'date-time' },
     uptime: { type: 'integer' },
     timestamp: { type: 'string', format: 'date-time' },
     autoDomain: {
@@ -42,9 +44,10 @@ export const healthDocs = {
     tags: ['Health'],
     summary: 'Health check',
     description:
-      'Returns the API status, the installed version and commit, the panel name, uptime and the ' +
-      'state of its dependencies. Anonymous — used by the login screen and the sidebar to show ' +
-      'the panel name before authentication.',
+      'Returns the API status, the installed version and commit, the panel name, its ' +
+      'active/standby role, uptime and the state of its dependencies. Anonymous — used by the ' +
+      'login screen and the sidebar to show the panel name before authentication, and by other ' +
+      'installations to check whether this one is demoted before a promotion.',
     responses: {
       200: jsonRes('The API and all its dependencies are healthy.', healthSchema),
       503: jsonRes('At least one dependency is unavailable.', healthSchema),

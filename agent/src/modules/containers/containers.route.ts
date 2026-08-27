@@ -16,6 +16,8 @@ import {
   execSchema,
   ReachabilityBody,
   reachabilityBodySchema,
+  UpdateRestartPolicyDTO,
+  updateRestartPolicySchema,
 } from './containers.schema';
 import {
   assertUnprotected,
@@ -150,6 +152,27 @@ post(
       clearManualStop(id);
 
       return c.json({ message: 'Container restarted' });
+    } catch (error) {
+      return c.json({ error: errorMessage(error) }, protectedResourceStatus(error) ?? 400);
+    }
+  },
+);
+
+post(
+  '/:id/update',
+  containersDocs.update,
+  agentAuthMiddleware,
+  validator('param', containerIdParamSchema),
+  validator('json', updateRestartPolicySchema),
+  async (c: Context) => {
+    const { id } = c.req.valid('param' as never) as ContainerIdParam;
+    const { restartPolicy } = c.req.valid('json' as never) as UpdateRestartPolicyDTO;
+
+    try {
+      await assertUnprotected('container', id);
+      await containers.updateRestartPolicy(id, restartPolicy);
+
+      return c.json({ message: 'Restart policy updated' });
     } catch (error) {
       return c.json({ error: errorMessage(error) }, protectedResourceStatus(error) ?? 400);
     }

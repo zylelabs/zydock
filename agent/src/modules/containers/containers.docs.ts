@@ -84,6 +84,16 @@ export const containersDocs = {
       423: protectedRes,
     },
   },
+  update: {
+    tags: ['Containers'],
+    summary: "Update a container's restart policy",
+    security: agentAuth,
+    responses: {
+      200: messageRes('Restart policy updated.'),
+      400: errorRes('Operation failed.'),
+      423: protectedRes,
+    },
+  },
   reachability: {
     tags: ['Containers'],
     summary: 'Probe a published port from the host',

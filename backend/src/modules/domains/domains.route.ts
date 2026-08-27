@@ -5,6 +5,7 @@ import { agentFailureStatus } from '../../utils/agent';
 import { paginationQuery } from '../../utils/pagination';
 import { disableAutoDomain, findApplication } from '../applications/application.service';
 import { authMiddleware } from '../auth/auth.middleware';
+import { blockOnStandby } from '../installation/installation.middleware';
 import { OrganizationIdParam, organizationIdParamSchema } from '../organizations/membership.schema';
 import { createOrganizationRoleGuard } from '../organizations/organizations.middleware';
 import domainModel from './domain.model';
@@ -60,6 +61,7 @@ post(
   authMiddleware,
   validator('param', organizationIdParamSchema),
   createOrganizationRoleGuard('admin'),
+  blockOnStandby,
   validator('json', createDomainSchema),
   async (c: Context) => {
     const { organizationId } = c.req.valid('param' as never) as OrganizationIdParam;
@@ -126,6 +128,7 @@ patch(
   authMiddleware,
   validator('param', domainIdParamSchema),
   createOrganizationRoleGuard('admin'),
+  blockOnStandby,
   validator('json', updateDomainSchema),
   async (c: Context) => {
     const { organizationId, domainId } = c.req.valid('param' as never) as DomainIdParam;
@@ -151,6 +154,7 @@ post(
   authMiddleware,
   validator('param', domainIdParamSchema),
   createOrganizationRoleGuard('admin'),
+  blockOnStandby,
   async (c: Context) => {
     const { organizationId, domainId } = c.req.valid('param' as never) as DomainIdParam;
 
@@ -199,6 +203,7 @@ post(
   authMiddleware,
   validator('param', domainIdParamSchema),
   createOrganizationRoleGuard('admin'),
+  blockOnStandby,
   async (c: Context) => {
     const { organizationId, domainId } = c.req.valid('param' as never) as DomainIdParam;
 
@@ -224,6 +229,7 @@ del(
   authMiddleware,
   validator('param', domainIdParamSchema),
   createOrganizationRoleGuard('admin'),
+  blockOnStandby,
   async (c: Context) => {
     const { organizationId, domainId } = c.req.valid('param' as never) as DomainIdParam;
 

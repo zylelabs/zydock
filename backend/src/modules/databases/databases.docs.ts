@@ -302,6 +302,27 @@ export const databasesDocs = {
       502: unreachable,
     },
   },
+  reconcile: {
+    tags: ['Databases'],
+    summary: 'Recreate the container of a managed database if it went missing from the host',
+    description:
+      'Inspects the container by its stored id. When it still exists, this just refreshes the ' +
+      "status. When it doesn't — the host lost it, the volume did not — recreates it from the " +
+      "record's decrypted credentials and the existing data volume, without regenerating the " +
+      'password or touching the volume. Only `managed` databases support this. Requires the ' +
+      '`admin` role.',
+    security: bearerOrApiKeyAuth,
+    responses: {
+      200: jsonRes('Reconciliation result.', {
+        type: 'object',
+        properties: { recreated: { type: 'boolean' }, status: { type: 'string' } },
+      }),
+      400: errorRes('The database is not managed.'),
+      404: errorRes('Database not found.'),
+      409: errorRes('This server has no agent yet.'),
+      502: unreachable,
+    },
+  },
   remove: {
     tags: ['Databases'],
     summary: 'Destroy a managed database',

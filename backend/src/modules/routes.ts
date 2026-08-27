@@ -17,6 +17,7 @@ import authRoute from './auth/auth.route';
 import sessionRoute from './auth/session.route';
 import healthRoute from './health/health.route';
 import imagesRoute from './images/images.route';
+import installationRoute from './installation/installation.route';
 import networksRoute from './networks/networks.route';
 import volumesRoute from './volumes/volumes.route';
 import applicationLogsRoute from './logs/logs.route';
@@ -94,6 +95,8 @@ route('/templates', templatesRoute);
 route('/template-sources', templateSourcesRoute);
 
 route('/updates', updatesRoute);
+
+route('/installation', installationRoute);
 
 route('/dashboard', dashboardRoute);
 

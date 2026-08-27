@@ -5,6 +5,7 @@ import { getConnInfo } from 'hono/bun';
 import config from '../../config';
 import applicationModel from '../applications/application.model';
 import { decryptSecret } from '../../utils/crypto';
+import { getInstallationRole, isStandby } from '../installation/installation.service';
 import { recordServerMetrics } from '../metrics/metric.service';
 import { publish } from '../websocket/websocket.service';
 import { HeartbeatDTO, heartbeatSchema } from './heartbeat.schema';
@@ -89,7 +90,7 @@ post(
       await recordServerMetrics(serverId, body.metrics);
     }
 
-    return c.json({ message: 'Heartbeat accepted' });
+    return c.json({ message: 'Heartbeat accepted', role: await getInstallationRole() });
   },
 );
 
@@ -127,6 +128,10 @@ get('/applications/:applicationId/status', serversDocs.applicationStatus, async 
 
   if (!server?.agent.token || decryptSecret(server.agent.token) !== token) {
     return c.json({ error: 'Invalid agent token' }, 401);
+  }
+
+  if (await isStandby()) {
+    return c.json({ status: 'stopped' });
   }
 
   return c.json({ status: application.status });

@@ -17,6 +17,7 @@ RUN apk add --no-cache docker-cli docker-cli-compose git
 WORKDIR /app
 
 COPY --from=builder /app/dist/agent.js ./dist/agent.js
+COPY src/restore-cli.ts ./restore-cli.ts
 
 EXPOSE 9000
 
