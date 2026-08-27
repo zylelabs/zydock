@@ -8,6 +8,20 @@ const SERVER_NAME = 'zydock';
 const ROUTE_ID_PREFIX = 'zydock-route-';
 const PROBE_TIMEOUT_MS = 5000;
 const UNIX_SCHEME = 'unix:';
+const MIN_COMPRESS_BYTES = 512;
+const COMPRESSIBLE_TYPES = [
+  'text/html*',
+  'text/plain*',
+  'text/css*',
+  'text/javascript*',
+  'text/xml*',
+  'application/json*',
+  'application/javascript*',
+  'application/xml*',
+  'application/manifest+json*',
+  'application/wasm*',
+  'image/svg+xml*',
+];
 
 export type RouteSpec = RouteSpecDTO & { id: string };
 
@@ -27,6 +41,10 @@ type CaddyRoute = {
     upstreams?: { dial?: string }[];
     headers?: { request?: { set?: Record<string, string[]> } };
     response?: { set?: Record<string, string[]> };
+    encodings?: Record<string, Record<string, never>>;
+    prefer?: string[];
+    minimum_length?: number;
+    match?: { headers?: Record<string, string[]> };
   }[];
   terminal?: boolean;
 };
@@ -46,6 +64,14 @@ type CaddyConfig = {
 };
 
 const routeIdOf = (id: string) => `${ROUTE_ID_PREFIX}${id}`;
+
+const encodeHandle = () => ({
+  handler: 'encode',
+  encodings: { zstd: {}, gzip: {} },
+  prefer: ['zstd', 'gzip'],
+  minimum_length: MIN_COMPRESS_BYTES,
+  match: { headers: { 'Content-Type': COMPRESSIBLE_TYPES } },
+});
 
 const firstValue = (value: string | string[] | undefined) =>
   Array.isArray(value) ? value[0] : value;
@@ -124,6 +150,7 @@ export const toCaddyRoute = (spec: RouteSpec): CaddyRoute => {
     '@id': routeIdOf(spec.id),
     ...(match ? { match } : {}),
     handle: [
+      encodeHandle(),
       ...(responseHeaders.length
         ? [
             {

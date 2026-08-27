@@ -66,6 +66,9 @@ export default defineNuxtConfig({
       sizeLimitKb: 512,
     },
   },
+  nitro: {
+    compressPublicAssets: { gzip: true, brotli: true },
+  },
   fonts: {
     defaults: {
       weights: [400, 500, 600],
