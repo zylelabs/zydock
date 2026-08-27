@@ -31,6 +31,7 @@ export interface Database {
   publicAccess: DatabasePublicAccess;
   externalHost?: string;
   externalPort?: number;
+  publicConnectionUriMasked?: string;
   lastError?: string;
   createdAt: string;
   updatedAt: string;
@@ -152,6 +153,7 @@ export interface DatabaseCredentials {
   database: string;
   password: string;
   connectionUri: string;
+  publicConnectionUri?: string;
 }
 
 export const databaseStatusDot = (status: DatabaseStatus): Status => {

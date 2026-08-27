@@ -316,6 +316,32 @@ export const readCredentials = async (database: ManagedDatabase): Promise<Databa
   };
 };
 
+export const reachableHostOf = (server: Server | null | undefined) =>
+  server?.publicIp || (server?.type === 'ssh' ? server.ssh.host : undefined);
+
+export const PASSWORD_MASK = '••••••••••••';
+
+export const publicConnectionUriOf = (
+  database: ManagedDatabase,
+  server: Server | null | undefined,
+  credentials: Pick<DatabaseCredentials, 'username' | 'password' | 'database'>,
+) => {
+  const publicAccess = database.publicAccess;
+  const host = reachableHostOf(server);
+
+  if (!publicAccess?.enabled || !publicAccess.hostPort || !host) {
+    return undefined;
+  }
+
+  return ENGINES[database.engine as DatabaseEngineName].connectionUri({
+    username: credentials.username,
+    password: credentials.password,
+    host,
+    port: publicAccess.hostPort,
+    database: credentials.database ?? '',
+  });
+};
+
 const composeConsumerOf = async (database: ManagedDatabase): Promise<DatabaseConsumer[]> => {
   if (!database.link) {
     return [];
@@ -664,6 +690,7 @@ const connectionOf = (database: ManagedDatabase) => {
 
 export const serializeDatabase = (database: ManagedDatabase, server?: Server | null) => {
   const publicAccess = database.publicAccess ?? { enabled: false };
+  const connection = connectionOf(database);
 
   return {
     id: String(database._id),
@@ -679,10 +706,14 @@ export const serializeDatabase = (database: ManagedDatabase, server?: Server | n
     application: database.link
       ? { id: String(database.link.applicationId), service: database.link.service }
       : undefined,
-    connection: connectionOf(database),
+    connection,
     publicAccess,
-    externalHost: publicAccess.enabled && server?.publicIp ? server.publicIp : undefined,
+    externalHost: publicAccess.enabled ? reachableHostOf(server) : undefined,
     externalPort: publicAccess.enabled ? publicAccess.hostPort : undefined,
+    publicConnectionUriMasked: publicConnectionUriOf(database, server, {
+      ...connection,
+      password: PASSWORD_MASK,
+    }),
     lastError: database.lastError,
     createdAt: database.createdAt,
     updatedAt: database.updatedAt,

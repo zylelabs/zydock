@@ -7,6 +7,7 @@
   import type { Server } from '~/composables/services/useServers';
 
   const props = defineProps<{ database: Database; server?: Server | null }>();
+  const emit = defineEmits<{ refresh: [] }>();
 
   const databasesApi = useDatabases();
 
@@ -51,10 +52,18 @@
     }
   };
 
-  type SecretField = 'password' | 'connectionUri';
+  type SecretField = 'password' | 'connectionUri' | 'publicConnectionUri';
 
-  const revealed = ref<Record<SecretField, boolean>>({ password: false, connectionUri: false });
-  const copied = ref<Record<SecretField, boolean>>({ password: false, connectionUri: false });
+  type SecretFlags = Record<SecretField, boolean>;
+
+  const secretFlags = (): SecretFlags => ({
+    password: false,
+    connectionUri: false,
+    publicConnectionUri: false,
+  });
+
+  const revealed = ref<SecretFlags>(secretFlags());
+  const copied = ref<SecretFlags>(secretFlags());
 
   const toggleReveal = async (field: SecretField) => {
     if (revealed.value[field]) {
@@ -69,20 +78,110 @@
     }
   };
 
-  const copyField = async (field: SecretField) => {
-    const loaded = await loadCredentials();
-
-    if (!loaded) {
+  const copyToClipboard = async (value: string) => {
+    if (navigator.clipboard) {
+      await navigator.clipboard.writeText(value);
       return;
     }
 
-    await navigator.clipboard.writeText(loaded[field]);
-    copied.value[field] = true;
-    setTimeout(() => (copied.value[field] = false), 2000);
+    const textarea = document.createElement('textarea');
+    textarea.value = value;
+    textarea.style.position = 'fixed';
+    textarea.style.opacity = '0';
+    document.body.appendChild(textarea);
+    textarea.select();
+
+    try {
+      document.execCommand('copy');
+    } finally {
+      textarea.remove();
+    }
+  };
+
+  const copyField = async (field: SecretField) => {
+    const loaded = await loadCredentials();
+    const value = loaded?.[field];
+
+    if (!value) {
+      return;
+    }
+
+    try {
+      await copyToClipboard(value);
+      copied.value[field] = true;
+      setTimeout(() => (copied.value[field] = false), 2000);
+    } catch (error) {
+      credentialsError.value = messageOf(error, 'Failed to copy to the clipboard.');
+    }
   };
 
   const shownValue = (field: SecretField) =>
-    revealed.value[field] && credentials.value ? credentials.value[field] : '••••••••';
+    (revealed.value[field] && credentials.value?.[field]) || '••••••••';
+
+  const isManaged = computed(() => props.database.source === 'managed');
+
+  const publicEnabled = computed(() => props.database.publicAccess.enabled);
+
+  const externalAddress = computed(() =>
+    props.database.externalHost && props.database.externalPort
+      ? `${props.database.externalHost}:${props.database.externalPort}`
+      : null,
+  );
+
+  /**
+   * Rendered straight from the serialized database — the password comes masked from the API, so
+   * showing the string costs no secret. `Copy` is what fetches the real one.
+   */
+  const publicUriMasked = computed(() => props.database.publicConnectionUriMasked ?? null);
+
+  const accessError = ref('');
+  const accessSaving = ref(false);
+  const confirmAccessOpen = ref(false);
+
+  /** What the pending confirmation would set the switch to. */
+  const pendingEnabled = ref(false);
+  const hostPortDraft = ref('');
+
+  const handlePublicToggle = (value: boolean) => {
+    accessError.value = '';
+    pendingEnabled.value = value;
+    hostPortDraft.value = String(
+      props.database.publicAccess.hostPort ?? props.database.connection.port,
+    );
+    confirmAccessOpen.value = true;
+  };
+
+  const applyAccess = async () => {
+    const hostPort = Number(hostPortDraft.value);
+
+    if (
+      pendingEnabled.value &&
+      (!hostPort || !Number.isInteger(hostPort) || hostPort < 1024 || hostPort > 65535)
+    ) {
+      accessError.value = 'The port must be a whole number between 1024 and 65535.';
+      return;
+    }
+
+    accessError.value = '';
+    accessSaving.value = true;
+
+    try {
+      await databasesApi.updateAccess(props.database.id, {
+        enabled: pendingEnabled.value,
+        hostPort: pendingEnabled.value ? hostPort : undefined,
+      });
+
+      credentials.value = null;
+      revealed.value = secretFlags();
+      confirmAccessOpen.value = false;
+      emit('refresh');
+    } catch (error) {
+      confirmAccessOpen.value = false;
+      accessError.value = messageOf(error, 'Failed to update the public endpoint.');
+    } finally {
+      accessSaving.value = false;
+    }
+  };
 
   const networkNote = computed(() =>
     props.server
@@ -178,6 +277,92 @@
           Values are only fetched when revealed or copied — never on page load.
         </p>
       </template>
+    </Card>
+
+    <Card
+      v-if="isManaged"
+      title="Public endpoint"
+      description="Only apps inside this project can reach the private host. Turn this on to expose the connection string to clients outside the project."
+      content-class="p-0"
+    >
+      <template #right>
+        <div class="flex justify-end">
+          <Switch :model-value="publicEnabled" @update:model-value="handlePublicToggle" />
+        </div>
+      </template>
+
+      <Alert v-if="accessError && !confirmAccessOpen" theme="error" class="m-4.25">
+        {{ accessError }}
+      </Alert>
+      <Alert v-if="credentialsError" theme="error" class="m-4.25">{{ credentialsError }}</Alert>
+
+      <template v-if="publicEnabled">
+        <div data-row class="border-t border-hairline px-4.25 py-3.25 first:border-t-0">
+          <div class="flex items-center gap-4.25">
+            <div class="min-w-0 flex-1 text-caption text-ink-2">Public connection string</div>
+            <Button
+              theme="secondary"
+              size="xs"
+              :disabled="credentialsLoading || !publicUriMasked"
+              @click="copyField('publicConnectionUri')"
+            >
+              {{ copied.publicConnectionUri ? 'Copied' : 'Copy' }}
+            </Button>
+          </div>
+
+          <p class="mt-2.5 font-mono text-caption break-all text-ink">
+            {{ publicUriMasked ?? '—' }}
+          </p>
+        </div>
+
+        <Row as="div" class="flex items-center">
+          <div class="w-33 shrink-0 text-caption text-ink-2">Address</div>
+          <div class="min-w-0 flex-1 font-mono text-caption break-all text-ink">
+            {{ externalAddress ?? '—' }}
+          </div>
+        </Row>
+
+        <p
+          v-if="!externalAddress"
+          class="border-t border-hairline px-4.25 py-3.25 text-caption text-ink-2"
+        >
+          This server has no known public IP or SSH host, so no reachable address can be shown yet.
+        </p>
+
+        <div class="px-4.25 pb-4.25">
+          <Alert theme="warning">
+            The port is open to the whole internet. Use a strong password and keep the server's
+            firewall in mind.
+          </Alert>
+        </div>
+      </template>
+
+      <Confirm
+        v-model:open="confirmAccessOpen"
+        :title="pendingEnabled ? 'Enable public endpoint' : 'Disable public endpoint'"
+        :message="
+          pendingEnabled
+            ? 'This recreates the database container to publish the port below. The data is kept on its volume.'
+            : 'This recreates the database container to remove the published port. The data is kept on its volume.'
+        "
+        :confirm-label="pendingEnabled ? 'Enable' : 'Disable'"
+        :danger="pendingEnabled"
+        :loading="accessSaving"
+        @confirm="applyAccess"
+      >
+        <Input
+          v-if="pendingEnabled"
+          v-model="hostPortDraft"
+          class="mt-4"
+          label="Host port"
+          placeholder="5432"
+          mono
+          boxed
+          bare
+        />
+
+        <Alert v-if="accessError" theme="error" class="mt-4">{{ accessError }}</Alert>
+      </Confirm>
     </Card>
   </div>
 </template>

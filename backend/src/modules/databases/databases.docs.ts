@@ -38,6 +38,7 @@ const databaseSchema = {
     },
     externalHost: { type: 'string', nullable: true },
     externalPort: { type: 'integer', nullable: true },
+    publicConnectionUriMasked: { type: 'string', nullable: true },
     lastError: { type: 'string', nullable: true },
     createdAt: { type: 'string', format: 'date-time' },
   },
@@ -52,6 +53,7 @@ const credentialsSchema = {
     database: { type: 'string' },
     password: { type: 'string' },
     connectionUri: { type: 'string' },
+    publicConnectionUri: { type: 'string', nullable: true },
   },
 };
 
