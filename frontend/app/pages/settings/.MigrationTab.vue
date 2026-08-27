@@ -203,6 +203,38 @@
     }
   };
 
+  const uploadInput = ref<HTMLInputElement | null>(null);
+  const uploading = ref(false);
+  const uploadProgress = ref(0);
+
+  const openUploadPicker = () => uploadInput.value?.click();
+
+  const uploadSnapshotFile = async (file: File) => {
+    uploading.value = true;
+    uploadProgress.value = 0;
+
+    try {
+      await installationApi.uploadSnapshot(file, percent => (uploadProgress.value = percent));
+      await refreshSnapshots();
+    } catch (error) {
+      notifyError(error, 'Could not upload the snapshot.');
+    } finally {
+      uploading.value = false;
+      uploadProgress.value = 0;
+    }
+  };
+
+  const handleUploadInputChange = (event: Event) => {
+    const input = event.target as HTMLInputElement;
+    const file = input.files?.[0];
+
+    input.value = '';
+
+    if (file) {
+      uploadSnapshotFile(file);
+    }
+  };
+
   const snapshotTag = (snapshot: InstallationSnapshot) => {
     if (snapshot.status === 'completed') {
       return { color: 'live', label: 'Completed' };
@@ -319,6 +351,42 @@
   const restoreLogLines = computed(() =>
     (activeRestoreRun.value?.log ?? '').split('\n').filter(line => line !== ''),
   );
+
+  // Restore straight from a snapshot in the list above — no manual bundle path needed
+  const restoreFromSnapshotOpen = ref(false);
+  const restoreFromSnapshotTarget = ref<InstallationSnapshot | null>(null);
+  const restoreFromSnapshotPassphrase = ref('');
+  const restoringFromSnapshot = ref(false);
+
+  const openRestoreFromSnapshot = (snapshot: InstallationSnapshot) => {
+    restoreFromSnapshotTarget.value = snapshot;
+    restoreFromSnapshotPassphrase.value = '';
+    restoreFromSnapshotOpen.value = true;
+  };
+
+  const restoreFromSnapshot = async () => {
+    if (!restoreFromSnapshotTarget.value) {
+      return;
+    }
+
+    restoringFromSnapshot.value = true;
+
+    try {
+      const run = await installationApi.restoreSnapshot(
+        restoreFromSnapshotTarget.value.id,
+        restoreFromSnapshotPassphrase.value,
+      );
+
+      activeRestoreRun.value = run;
+      restoreFromSnapshotPassphrase.value = '';
+      restoreFromSnapshotOpen.value = false;
+      startRestorePolling();
+    } catch (error) {
+      notifyError(error, 'Could not start the restore.');
+    } finally {
+      restoringFromSnapshot.value = false;
+    }
+  };
 
   // Demote / promote
   const confirmDemoteOpen = ref(false);
@@ -471,6 +539,44 @@
       </Card>
 
       <Card
+        title="Upload snapshot"
+        description="Bring in a bundle generated elsewhere — for example, downloaded from the source before it was decommissioned."
+        rows
+      >
+        <Row as="div" class="flex flex-wrap items-center gap-y-1.5">
+          <div class="w-33 shrink-0 text-caption text-ink-2">File</div>
+          <div class="min-w-0 flex-1 text-caption text-ink">
+            An encrypted <span class="font-mono">.zsnap</span> bundle. Stored as-is — not decrypted
+            or checked here.
+          </div>
+        </Row>
+
+        <Row v-if="uploading" as="div">
+          <Gauge :value="`${uploadProgress}%`" :percent="uploadProgress" />
+        </Row>
+
+        <input
+          ref="uploadInput"
+          type="file"
+          accept=".zsnap"
+          class="hidden"
+          @change="handleUploadInputChange"
+        />
+
+        <template #footer>
+          <div class="flex w-full flex-wrap items-center gap-3">
+            <p class="min-w-0 flex-1 text-caption text-ink-2">
+              It shows up in the snapshot history below once stored.
+            </p>
+            <Button theme="secondary" size="sm" :disabled="uploading" @click="openUploadPicker">
+              <Icon v-if="uploading" name="svg-spinners:tadpole" size="16" />
+              Upload snapshot
+            </Button>
+          </div>
+        </template>
+      </Card>
+
+      <Card
         v-if="snapshots.length"
         title="Snapshot history"
         description="Bundles generated on this installation."
@@ -487,6 +593,7 @@
               {{ formatDate(snapshot.createdAt) }} ·
               {{ snapshot.sizeBytes ? formatBytes(snapshot.sizeBytes) : '—' }}
               <span v-if="snapshot.includesApplicationData">· includes application data</span>
+              <span v-if="snapshot.origin === 'uploaded'">· uploaded</span>
             </div>
             <Alert v-if="snapshot.status === 'failed'" theme="error" class="mt-1.5">
               {{ snapshot.error }}
@@ -503,6 +610,15 @@
             <Icon v-if="busy === `${snapshot.id}:download`" name="svg-spinners:tadpole" size="16" />
             Download
           </Button>
+          <Button
+            v-if="snapshot.status === 'completed'"
+            theme="secondary"
+            size="sm"
+            :disabled="restorePolling"
+            @click="openRestoreFromSnapshot(snapshot)"
+          >
+            Restore
+          </Button>
           <button
             type="button"
             title="Remove snapshot"
@@ -514,7 +630,7 @@
         </div>
       </Card>
 
-      <Card
+      <!-- <Card
         title="Restore a bundle"
         description="For a fresh, empty install that already has the encrypted bundle on disk."
         rows
@@ -589,7 +705,7 @@
             </Button>
           </div>
         </template>
-      </Card>
+      </Card> -->
 
       <Card
         v-if="dnsDomains.length"
@@ -713,6 +829,46 @@
             >
               <Icon v-if="creating" name="svg-spinners:tadpole" size="16" />
               Generate
+            </Button>
+          </div>
+        </template>
+      </Card>
+    </Modal>
+
+    <Modal :open="restoreFromSnapshotOpen" @on-close-modal="restoreFromSnapshotOpen = false">
+      <Card
+        title="Restore from this snapshot"
+        class="w-lg max-w-full"
+        close-button
+        @on-close="restoreFromSnapshotOpen = false"
+      >
+        <p class="text-caption text-ink-2">
+          Stages
+          <span class="font-mono">{{ restoreFromSnapshotTarget?.fileName }}</span>
+          onto this host through the local agent, then tears down and rebuilds the stack from it,
+          leaving it in standby. Runs outside this panel — the API will go away in the middle, which
+          is expected, not a failure.
+        </p>
+        <Input
+          v-model="restoreFromSnapshotPassphrase"
+          type="password"
+          label="Passphrase"
+          boxed
+          bare
+          class="mt-3"
+          placeholder="The one shown when the snapshot was made"
+        />
+
+        <template #footer>
+          <div class="ml-auto flex items-center gap-2">
+            <Button theme="quiet" @click="restoreFromSnapshotOpen = false">Close</Button>
+            <Button
+              theme="attn"
+              :disabled="restoringFromSnapshot || restoreFromSnapshotPassphrase.length < 12"
+              @click="restoreFromSnapshot"
+            >
+              <Icon v-if="restoringFromSnapshot" name="svg-spinners:tadpole" size="16" />
+              Start restore
             </Button>
           </div>
         </template>

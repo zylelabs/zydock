@@ -13,14 +13,21 @@ import {
   serializeInstallation,
 } from './installation.service';
 import { restoreDocs } from './restore.docs';
-import { startRestoreSchema, type StartRestoreDTO } from './restore.schema';
-import { getLastRestoreRun, startRestore } from './restore.service';
+import {
+  restoreFromSnapshotSchema,
+  startRestoreSchema,
+  type RestoreFromSnapshotDTO,
+  type StartRestoreDTO,
+} from './restore.schema';
+import { getLastRestoreRun, startRestore, startRestoreFromSnapshot } from './restore.service';
 import { snapshotsDocs } from './snapshot.docs';
 import {
   createSnapshotSchema,
   snapshotIdParamSchema,
+  uploadSnapshotQuerySchema,
   type CreateSnapshotDTO,
   type SnapshotIdParam,
+  type UploadSnapshotQuery,
 } from './snapshot.schema';
 import {
   createSnapshot,
@@ -29,6 +36,7 @@ import {
   listSnapshots,
   removeSnapshot,
   serializeSnapshot,
+  uploadSnapshot,
 } from './snapshot.service';
 
 const { router, get, post, delete: del } = createRouter();
@@ -100,6 +108,31 @@ post(
   },
 );
 
+post(
+  '/snapshots/upload',
+  snapshotsDocs.upload,
+  authMiddleware,
+  requireSuperuser,
+  validator('query', uploadSnapshotQuerySchema),
+  async (c: Context) => {
+    const { fileName } = c.req.valid('query' as never) as UploadSnapshotQuery;
+    const auth = c.get('auth');
+    const body = c.req.raw.body;
+
+    if (!body) {
+      return c.json({ error: 'The request has no body to upload' }, 400);
+    }
+
+    try {
+      const snapshot = await uploadSnapshot(body, fileName, auth.sub);
+
+      return c.json({ snapshot: serializeSnapshot(snapshot) }, 201);
+    } catch (error) {
+      return failed(c, error);
+    }
+  },
+);
+
 get(
   '/snapshots/:snapshotId/download',
   snapshotsDocs.download,
@@ -148,6 +181,34 @@ del(
     await removeSnapshot(snapshot);
 
     return c.json({ message: 'Snapshot removed successfully' });
+  },
+);
+
+post(
+  '/snapshots/:snapshotId/restore',
+  restoreDocs.runFromSnapshot,
+  authMiddleware,
+  requireSuperuser,
+  validator('param', snapshotIdParamSchema),
+  validator('json', restoreFromSnapshotSchema),
+  async (c: Context) => {
+    const { snapshotId } = c.req.valid('param' as never) as SnapshotIdParam;
+    const { passphrase } = c.req.valid('json' as never) as RestoreFromSnapshotDTO;
+    const snapshot = await findSnapshot(snapshotId);
+
+    if (!snapshot) {
+      return c.json({ error: 'Snapshot not found' }, 404);
+    }
+
+    if (snapshot.status !== 'completed') {
+      return c.json({ error: 'This snapshot has not completed' }, 409);
+    }
+
+    try {
+      return c.json(await startRestoreFromSnapshot(snapshot, passphrase), 202);
+    } catch (error) {
+      return failed(c, error);
+    }
   },
 );
 

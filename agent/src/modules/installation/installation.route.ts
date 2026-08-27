@@ -11,13 +11,20 @@ import { buildInstallationBundle } from './installation.service';
 import { restoreDocs } from './restore.docs';
 import {
   restoreRunIdParamSchema,
+  stageBundleParamSchema,
   startRestoreSchema,
   type RestoreRunIdParam,
+  type StageBundleParam,
   type StartRestoreDTO,
 } from './restore.schema';
-import { readRestoreRun, restoreInstallIssue, startRestoreRun } from './restore.service';
+import {
+  readRestoreRun,
+  restoreInstallIssue,
+  stageSnapshotBundle,
+  startRestoreRun,
+} from './restore.service';
 
-const { router, get, post } = createRouter();
+const { router, get, post, put } = createRouter();
 
 post(
   '/snapshot',
@@ -31,6 +38,29 @@ post(
       const bundle = await buildInstallationBundle(payload);
 
       return new Response(bundle, { headers: { 'Content-Type': 'application/octet-stream' } });
+    } catch (error) {
+      return c.json({ error: errorMessage(error) }, 400);
+    }
+  },
+);
+
+put(
+  '/snapshots/:snapshotId/bundle',
+  restoreDocs.stageBundle,
+  agentAuthMiddleware,
+  validator('param', stageBundleParamSchema),
+  async (c: Context) => {
+    const { snapshotId } = c.req.valid('param' as never) as StageBundleParam;
+    const body = c.req.raw.body;
+
+    if (!body) {
+      return c.json({ error: 'The request has no body to stage' }, 400);
+    }
+
+    try {
+      const { path } = await stageSnapshotBundle(snapshotId, body);
+
+      return c.json({ path }, 201);
     } catch (error) {
       return c.json({ error: errorMessage(error) }, 400);
     }

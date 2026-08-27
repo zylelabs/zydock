@@ -29,9 +29,15 @@ export const SNAPSHOT_STATUSES = ['running', 'completed', 'failed'] as const;
 
 export type SnapshotStatus = (typeof SNAPSHOT_STATUSES)[number];
 
+export const SNAPSHOT_ORIGINS = ['generated', 'uploaded'] as const;
+
+export type SnapshotOrigin = (typeof SNAPSHOT_ORIGINS)[number];
+
 export interface InstallationSnapshot {
   id: string;
   status: SnapshotStatus;
+  origin: SnapshotOrigin;
+  originalFileName?: string;
   includesApplicationData: boolean;
   version?: string;
   commit?: string;
@@ -90,6 +96,7 @@ export const restoreCommandOf = (fileName: string, passphrase: string) =>
 
 export const useInstallation = () => {
   const api = useApi();
+  const session = useSessionStore();
 
   const getStatus = () => api.get<InstallationState>('/installation');
 
@@ -117,7 +124,42 @@ export const useInstallation = () => {
   const startRestore = (payload: StartRestorePayload) =>
     api.post<RestoreRun>('/installation/restore', { body: payload });
 
+  const restoreSnapshot = (snapshotId: string, passphrase: string) =>
+    api.post<RestoreRun>(`/installation/snapshots/${snapshotId}/restore`, {
+      body: { passphrase },
+    });
+
   const getRestoreRun = () => api.get<RestoreRun>('/installation/restore');
+
+  const uploadSnapshot = (file: File, onProgress?: (percent: number) => void) =>
+    new Promise<InstallationSnapshot>((resolve, reject) => {
+      const xhr = new XMLHttpRequest();
+      const query = new URLSearchParams({ fileName: file.name });
+
+      xhr.open('POST', `/api/proxy/installation/snapshots/upload?${query.toString()}`);
+
+      if (session.accessToken) {
+        xhr.setRequestHeader('authorization', `Bearer ${session.accessToken}`);
+      }
+
+      xhr.upload.onprogress = event => {
+        if (event.lengthComputable && onProgress) {
+          onProgress(Math.round((event.loaded / event.total) * 100));
+        }
+      };
+
+      xhr.onload = () => {
+        if (xhr.status >= 200 && xhr.status < 300) {
+          resolve((JSON.parse(xhr.responseText) as { snapshot: InstallationSnapshot }).snapshot);
+        } else {
+          reject(new Error(`Upload failed with status ${xhr.status}`));
+        }
+      };
+
+      xhr.onerror = () => reject(new Error('Upload failed'));
+
+      xhr.send(file);
+    });
 
   return {
     getStatus,
@@ -129,6 +171,8 @@ export const useInstallation = () => {
     removeSnapshot,
     downloadSnapshot,
     startRestore,
+    restoreSnapshot,
     getRestoreRun,
+    uploadSnapshot,
   };
 };

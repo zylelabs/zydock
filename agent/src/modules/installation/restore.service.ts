@@ -1,5 +1,6 @@
 import { randomUUID } from 'node:crypto';
-import { join } from 'node:path';
+import { mkdir } from 'node:fs/promises';
+import { join, resolve, sep } from 'node:path';
 import config from '../../config';
 import { resolveContainerProvider } from '../../providers/container';
 import { errorMessage } from '../../utils';
@@ -18,6 +19,47 @@ const containers = resolveContainerProvider();
 const statePath = () => join(config.installPath, '.zydock-restore.json');
 
 const logPath = () => join(config.installPath, '.zydock-restore.log');
+
+const bundleRoot = () => resolve(config.installPath, '.zydock-snapshots');
+
+const bundlePathOf = (snapshotId: string) => {
+  const target = resolve(bundleRoot(), `${snapshotId}.zsnap`);
+
+  if (!target.startsWith(`${bundleRoot()}${sep}`)) {
+    throw new Error(`Invalid snapshot id "${snapshotId}"`);
+  }
+
+  return target;
+};
+
+export const stageSnapshotBundle = async (snapshotId: string, body: ReadableStream<Uint8Array>) => {
+  const path = bundlePathOf(snapshotId);
+
+  await mkdir(bundleRoot(), { recursive: true });
+
+  const reader = body.getReader();
+  const writer = Bun.file(path).writer();
+
+  let sizeBytes = 0;
+
+  try {
+    for (;;) {
+      const { done, value } = await reader.read();
+
+      if (done) {
+        break;
+      }
+
+      sizeBytes += value.byteLength;
+      writer.write(value);
+      await writer.flush();
+    }
+  } finally {
+    await writer.end();
+  }
+
+  return { path, sizeBytes };
+};
 
 const containerName = (runId: string) => `zydock-restorer-${runId}`;
 

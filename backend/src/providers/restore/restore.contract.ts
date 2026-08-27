@@ -31,6 +31,10 @@ export type RestoreRunDetail = RestoreRun & {
 export type RestoreProvider = {
   startRun: (spec: RestoreRunSpec) => Promise<RestoreRun>;
   getRun: (runId: string) => Promise<RestoreRunDetail | null>;
+  stageBundle: (
+    snapshotId: string,
+    stream: ReadableStream<Uint8Array>,
+  ) => Promise<{ path: string }>;
 };
 
 export type RestoreProviderFactory = (connection: RestoreConnection) => RestoreProvider;

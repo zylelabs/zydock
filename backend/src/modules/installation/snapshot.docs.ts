@@ -1,12 +1,14 @@
 import type { DocOptions } from 'hono-route-docs';
 import { bearerOrApiKeyAuth, errorRes, jsonRes, messageRes } from '../../utils/openapi';
-import { SNAPSHOT_STATUSES } from './snapshot.schema';
+import { SNAPSHOT_ORIGINS, SNAPSHOT_STATUSES } from './snapshot.schema';
 
 const snapshotSchema = {
   type: 'object',
   properties: {
     id: { type: 'string' },
     status: { type: 'string', enum: [...SNAPSHOT_STATUSES] },
+    origin: { type: 'string', enum: [...SNAPSHOT_ORIGINS] },
+    originalFileName: { type: 'string', nullable: true },
     includesApplicationData: { type: 'boolean' },
     version: { type: 'string', nullable: true },
     commit: { type: 'string', nullable: true },
@@ -49,6 +51,23 @@ export const snapshotsDocs = {
     security: bearerOrApiKeyAuth,
     responses: {
       202: jsonRes('Snapshot started.', snapshotBody),
+      403: errorRes('Permission denied.'),
+    },
+  },
+  upload: {
+    tags: ['Installation'],
+    summary: 'Upload an encrypted snapshot bundle',
+    description:
+      'Superuser only. Streams the request body straight to storage — the backend never buffers ' +
+      'the upload in memory. Use this to bring in a `.zsnap` bundle produced on another ' +
+      'installation (for example, downloaded from the source before it was decommissioned) so it ' +
+      "shows up in this installation's snapshot list and can be used with the restore flow. The " +
+      'file is stored as-is; the backend does not decrypt or validate it, so an unrelated or ' +
+      'corrupted upload only surfaces as a failure at restore time.',
+    security: bearerOrApiKeyAuth,
+    responses: {
+      201: jsonRes('Snapshot stored.', snapshotBody),
+      400: errorRes('The request has no body to upload.'),
       403: errorRes('Permission denied.'),
     },
   },
