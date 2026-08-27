@@ -56,6 +56,12 @@ export const execSchema = z.object({
 
 export type ExecDTO = z.infer<typeof execSchema>;
 
+export const updateRestartPolicySchema = z.object({
+  restartPolicy: z.enum(['no', 'always', 'unless-stopped', 'on-failure']),
+});
+
+export type UpdateRestartPolicyDTO = z.infer<typeof updateRestartPolicySchema>;
+
 export const reachabilityBodySchema = z.object({
   port: z.number().int().min(1).max(65535),
   protocol: z.enum(['tcp', 'udp']).default('tcp'),

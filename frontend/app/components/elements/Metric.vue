@@ -1,12 +1,14 @@
 <script setup lang="ts">
-  defineProps<{ label: string; value: string; note?: string; bars?: number[]; sm?: boolean }>();
+  defineProps<{ label: string; value?: string; note?: string; bars?: number[]; sm?: boolean }>();
 </script>
 
 <template>
   <div class="rounded-card border border-edge bg-card px-4.25 py-3.75">
     <div class="text-caption text-ink-2">{{ label }}</div>
     <div class="my-1.5 flex items-baseline gap-2">
-      <span :class="sm ? 'text-metric-sm' : 'text-metric'" class="text-ink">{{ value }}</span>
+      <slot>
+        <span :class="sm ? 'text-metric-sm' : 'text-metric'" class="text-ink">{{ value }}</span>
+      </slot>
       <span v-if="note" class="text-caption text-ink-3">{{ note }}</span>
     </div>
     <div v-if="bars?.length" class="flex h-8.5 items-end gap-0.75">

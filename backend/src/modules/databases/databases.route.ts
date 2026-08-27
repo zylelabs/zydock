@@ -4,6 +4,7 @@ import { errorMessage } from '../../utils';
 import { agentFailureStatus } from '../../utils/agent';
 import { paginationQuery } from '../../utils/pagination';
 import { authMiddleware } from '../auth/auth.middleware';
+import { blockOnStandby } from '../installation/installation.middleware';
 import { OrganizationIdParam, organizationIdParamSchema } from '../organizations/membership.schema';
 import { createOrganizationRoleGuard } from '../organizations/organizations.middleware';
 import { findServerWithAgentToken } from '../servers/server.service';
@@ -24,6 +25,7 @@ import {
 import {
   applyDatabaseAccess,
   destroyDatabase,
+  ensureDatabaseContainer,
   fetchDatabaseStats,
   fetchOrganizationDatabaseStats,
   findDatabase,
@@ -71,6 +73,7 @@ post(
   authMiddleware,
   validator('param', organizationIdParamSchema),
   createOrganizationRoleGuard('admin'),
+  blockOnStandby,
   validator('json', createDatabaseSchema),
   async (c: Context) => {
     const { organizationId } = c.req.valid('param' as never) as OrganizationIdParam;
@@ -230,6 +233,7 @@ patch(
   authMiddleware,
   validator('param', databaseIdParamSchema),
   createOrganizationRoleGuard('admin'),
+  blockOnStandby,
   validator('json', updateDatabaseAccessSchema),
   async (c: Context) => {
     const { organizationId, databaseId } = c.req.valid('param' as never) as DatabaseIdParam;
@@ -282,6 +286,7 @@ const lifecycleRoute = (
     authMiddleware,
     validator('param', databaseIdParamSchema),
     createOrganizationRoleGuard('admin'),
+    blockOnStandby,
     async (c: Context) => {
       const { organizationId, databaseId } = c.req.valid('param' as never) as DatabaseIdParam;
 
@@ -309,12 +314,47 @@ lifecycleRoute('start', databasesDocs.start);
 lifecycleRoute('stop', databasesDocs.stop);
 lifecycleRoute('restart', databasesDocs.restart);
 
+post(
+  '/:databaseId/reconcile',
+  databasesDocs.reconcile,
+  authMiddleware,
+  validator('param', databaseIdParamSchema),
+  createOrganizationRoleGuard('admin'),
+  blockOnStandby,
+  async (c: Context) => {
+    const { organizationId, databaseId } = c.req.valid('param' as never) as DatabaseIdParam;
+
+    const database = await findDatabaseWithSecrets(organizationId, databaseId);
+
+    if (!database) {
+      return c.json({ error: 'Database not found' }, 404);
+    }
+
+    if (database.source !== 'managed') {
+      return c.json({ error: 'Only managed databases support reconciliation' }, 400);
+    }
+
+    const server = await findServerWithAgentToken(organizationId, String(database.serverId));
+
+    if (!server?.agent.token) {
+      return c.json({ error: 'This server has no agent yet' }, 409);
+    }
+
+    try {
+      return c.json(await ensureDatabaseContainer(database, server));
+    } catch (error) {
+      return failed(c, error);
+    }
+  },
+);
+
 del(
   '/:databaseId',
   databasesDocs.remove,
   authMiddleware,
   validator('param', databaseIdParamSchema),
   createOrganizationRoleGuard('admin'),
+  blockOnStandby,
   validator('query', removeDatabaseQuerySchema),
   async (c: Context) => {
     const { organizationId, databaseId } = c.req.valid('param' as never) as DatabaseIdParam;

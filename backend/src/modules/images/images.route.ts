@@ -4,6 +4,7 @@ import { errorMessage } from '../../utils';
 import { agentFailureStatus } from '../../utils/agent';
 import { authMiddleware } from '../auth/auth.middleware';
 import { serverRuntimeMiddleware } from '../containers/container.middleware';
+import { blockOnStandby } from '../installation/installation.middleware';
 import { createOrganizationRoleGuard } from '../organizations/organizations.middleware';
 import { serverIdParamSchema } from '../servers/server.schema';
 import { imagesDocs } from './images.docs';
@@ -36,6 +37,7 @@ post(
   authMiddleware,
   validator('param', serverIdParamSchema),
   createOrganizationRoleGuard('admin'),
+  blockOnStandby,
   validator('json', imageReferenceSchema),
   serverRuntimeMiddleware,
   async (c: Context) => {
@@ -55,6 +57,7 @@ del(
   authMiddleware,
   validator('param', serverIdParamSchema),
   createOrganizationRoleGuard('admin'),
+  blockOnStandby,
   validator('query', imageReferenceSchema),
   serverRuntimeMiddleware,
   async (c: Context) => {

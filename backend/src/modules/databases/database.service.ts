@@ -58,6 +58,8 @@ export const findDatabaseWithSecrets = (organizationId: string, databaseId: stri
 export const countDatabasesOfServer = (serverId: string) =>
   databaseModel.countDocuments({ serverId });
 
+export const listDatabasesOfServer = (serverId: string) => databaseModel.find({ serverId });
+
 export const provisionDatabase = async (
   organizationId: string,
   server: Server,
@@ -132,6 +134,41 @@ export const refreshDatabaseStatus = async (database: ManagedDatabase, server: S
   await persistStatus(String(database._id), status);
 
   return status;
+};
+
+export const ensureDatabaseContainer = async (
+  database: ManagedDatabase,
+  server: Server,
+): Promise<{ recreated: boolean; status: DatabaseStatus }> => {
+  if (database.source !== 'managed') {
+    throw new Error('Only managed databases support reconciliation');
+  }
+
+  if (!database.containerId) {
+    throw new Error('This database has no container yet');
+  }
+
+  const containers = resolveContainerProvider(buildAgentConnection(server));
+  const existing = await containers.inspectContainer(database.containerId);
+
+  if (existing) {
+    return { recreated: false, status: await refreshDatabaseStatus(database, server) };
+  }
+
+  const provider = providerOf(server, database.engine);
+  const credentials = await readCredentials(database);
+
+  const { instance } = await provider.recreate(
+    { name: database.slug, engine: database.engine, version: database.version! },
+    credentials,
+  );
+
+  await databaseModel.updateOne(
+    { _id: database._id },
+    { $set: { containerId: instance.id, status: instance.status }, $unset: { lastError: '' } },
+  );
+
+  return { recreated: true, status: instance.status };
 };
 
 export const findDatabaseAccessConflict = (database: ManagedDatabase, hostPort: number) =>

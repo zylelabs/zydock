@@ -168,20 +168,15 @@ export const createContainerDatabaseProvider = (
   engine: EngineConfig,
   { containers, storage }: DatabaseProviderDependencies,
 ): DatabaseProvider => {
-  const provision = async (spec: DatabaseSpec): Promise<ProvisionedDatabase> => {
+  const launch = async (
+    spec: DatabaseSpec,
+    credentials: EngineCredentials,
+    hostPort?: number,
+  ): Promise<ProvisionedDatabase> => {
     const containerName = containerNameOf(spec.name);
-    const credentials: EngineCredentials = {
-      username: engine.username ?? 'default',
-      password: generatePassword(),
-      database: spec.name,
-      port: engine.port,
-    };
-
-    await containers.createVolume(volumeNameOf(spec.name));
-
-    await containers.createNetwork(config.proxy.network);
-
-    const created = await containers.createContainer(buildContainerSpec(engine, spec, credentials));
+    const created = await containers.createContainer(
+      buildContainerSpec(engine, spec, credentials, hostPort),
+    );
 
     await containers.startContainer(created.id);
 
@@ -200,6 +195,21 @@ export const createContainerDatabaseProvider = (
     };
   };
 
+  const provision = async (spec: DatabaseSpec): Promise<ProvisionedDatabase> => {
+    const credentials: EngineCredentials = {
+      username: engine.username ?? 'default',
+      password: generatePassword(),
+      database: spec.name,
+      port: engine.port,
+    };
+
+    await containers.createVolume(volumeNameOf(spec.name));
+
+    await containers.createNetwork(config.proxy.network);
+
+    return launch(spec, credentials);
+  };
+
   const republish = async (
     spec: DatabaseSpec,
     credentials: DatabaseCredentials,
@@ -216,25 +226,25 @@ export const createContainerDatabaseProvider = (
     await containers.stopContainer(containerName).catch(() => undefined);
     await containers.removeContainer(containerName);
 
-    const created = await containers.createContainer(
-      buildContainerSpec(engine, spec, engineCredentials, publish?.hostPort),
-    );
+    return launch(spec, engineCredentials, publish?.hostPort);
+  };
 
-    await containers.startContainer(created.id);
-
-    const started = await containers.inspectContainer(created.id);
-
-    return {
-      instance: toInstance(started ?? created, spec),
-      credentials: {
-        host: containerName,
-        port: engine.port,
-        username: engineCredentials.username,
-        password: engineCredentials.password,
-        database: engineCredentials.database,
-        connectionUri: engine.connectionUri({ ...engineCredentials, host: containerName }),
-      },
+  const recreate = async (
+    spec: DatabaseSpec,
+    credentials: DatabaseCredentials,
+  ): Promise<ProvisionedDatabase> => {
+    const engineCredentials: EngineCredentials = {
+      username: credentials.username,
+      password: credentials.password,
+      database: credentials.database ?? spec.name,
+      port: engine.port,
     };
+
+    await containers.createVolume(volumeNameOf(spec.name));
+
+    await containers.createNetwork(config.proxy.network);
+
+    return launch(spec, engineCredentials);
   };
 
   const getStatus = async (id: string): Promise<DatabaseStatus> =>
@@ -294,6 +304,7 @@ export const createContainerDatabaseProvider = (
   return {
     provision,
     republish,
+    recreate,
     start: id => containers.startContainer(id),
     stop: id => containers.stopContainer(id),
     restart: id => containers.restartContainer(id),

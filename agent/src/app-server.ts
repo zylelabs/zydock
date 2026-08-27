@@ -4,7 +4,12 @@ import { HTTPException } from 'hono/http-exception';
 import { requestId, type RequestIdVariables } from 'hono/request-id';
 import { openAPIDoc } from 'hono-route-docs';
 import config from './config';
-import { startHeartbeat, stopHeartbeat } from './modules/agent/heartbeat.service';
+import {
+  applyBootRole,
+  getRole,
+  startHeartbeat,
+  stopHeartbeat,
+} from './modules/agent/heartbeat.service';
 import { startHealthMonitor, stopHealthMonitor } from './modules/agent/monitor.service';
 import { resolveOwnContainer } from './modules/containers/protection.service';
 import {
@@ -90,7 +95,15 @@ export const createApp = () => {
 
   resolveOwnContainer();
   startHeartbeat();
-  startHealthMonitor();
+
+  if (getRole() === 'standby') {
+    applyBootRole().catch(error => {
+      logError('Standby sweep failed at boot', error);
+    });
+  } else {
+    startHealthMonitor();
+  }
+
   startAccessAggregation();
   setupShutdownHandlers();
 

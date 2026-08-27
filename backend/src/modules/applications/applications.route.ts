@@ -28,6 +28,7 @@ import {
 import { containerNameOf } from '../deployments/naming';
 import { ensureAutoDomain, refreshAutoDomainAfterUpdate } from '../domains/auto-domain.service';
 import { findGitSource } from '../git-sources/git-source.service';
+import { blockOnStandby } from '../installation/installation.middleware';
 import { OrganizationIdParam, organizationIdParamSchema } from '../organizations/membership.schema';
 import { createOrganizationRoleGuard } from '../organizations/organizations.middleware';
 import { findEnvironmentOfOrganization } from '../projects/environment.service';
@@ -146,6 +147,7 @@ post(
   authMiddleware,
   validator('param', organizationIdParamSchema),
   createOrganizationRoleGuard('admin'),
+  blockOnStandby,
   validator('json', createApplicationSchema),
   async (c: Context) => {
     const { organizationId } = c.req.valid('param' as never) as OrganizationIdParam;
@@ -263,6 +265,7 @@ patch(
   authMiddleware,
   validator('param', applicationIdParamSchema),
   createOrganizationRoleGuard('admin'),
+  blockOnStandby,
   validator('json', updateApplicationSchema),
   async (c: Context) => {
     const { organizationId, applicationId } = c.req.valid('param' as never) as ApplicationIdParam;
@@ -703,6 +706,7 @@ post(
   authMiddleware,
   validator('param', applicationIdParamSchema),
   createOrganizationRoleGuard('admin'),
+  blockOnStandby,
   validator('json', triggerDeploymentSchema),
   async (c: Context) => {
     const { organizationId, applicationId } = c.req.valid('param' as never) as ApplicationIdParam;
@@ -873,6 +877,7 @@ del(
   authMiddleware,
   validator('param', applicationIdParamSchema),
   createOrganizationRoleGuard('admin'),
+  blockOnStandby,
   validator('query', removeApplicationQuerySchema),
   async (c: Context) => {
     const { organizationId, applicationId } = c.req.valid('param' as never) as ApplicationIdParam;

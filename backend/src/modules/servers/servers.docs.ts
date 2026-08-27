@@ -221,7 +221,13 @@ export const serversDocs = {
       'source address (falling back to the address reported in the body) when the server does ' +
       'not have one yet.',
     responses: {
-      200: messageRes('Heartbeat accepted.'),
+      200: jsonRes('Heartbeat accepted.', {
+        type: 'object',
+        properties: {
+          message: { type: 'string' },
+          role: { type: 'string', description: 'Role of this installation: active or standby.' },
+        },
+      }),
       401: errorRes('Invalid agent token.'),
       404: errorRes('Server not found.'),
     },
@@ -248,7 +254,9 @@ export const serversDocs = {
     description:
       'Called by the agent before reviving an exited/unhealthy container, authenticated with the ' +
       'token of the server the application runs on via `X-Agent-Token`. Lets the health sweep ' +
-      'tell an intentional Stop apart from a crash, without keeping any local state.',
+      'tell an intentional Stop apart from a crash, without keeping any local state. Always ' +
+      'reports `stopped` while this installation is in standby, so the auto-heal never revives ' +
+      'an application on a demoted installation.',
     responses: {
       200: jsonRes('Application status.', {
         type: 'object',

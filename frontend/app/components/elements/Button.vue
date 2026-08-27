@@ -1,7 +1,7 @@
 <script setup lang="ts">
   import { mergeClasses } from '~/utils';
 
-  type ButtonTheme = 'primary' | 'secondary' | 'quiet' | 'destructive';
+  type ButtonTheme = 'primary' | 'secondary' | 'quiet' | 'destructive' | 'attn';
   type LegacyButtonTheme = 'danger' | 'accent' | 'ghost';
   type ButtonSize = 'md' | 'sm' | 'xs';
 
@@ -28,6 +28,7 @@
     secondary: 'border border-edge-strong bg-card hover:bg-inset',
     quiet: 'text-ink-2 hover:text-ink',
     destructive: 'border border-failed/40 bg-card text-failed hover:bg-failed/5',
+    attn: 'border border-attn/40 bg-card text-attn-ink hover:bg-attn/10',
   };
 
   const sizes: Record<ButtonSize, string> = {

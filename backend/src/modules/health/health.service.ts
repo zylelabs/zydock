@@ -1,18 +1,22 @@
 import config from '../../config';
 import { getDatabaseStatus } from '../../config/mongodb';
 import { resolvePanelName } from '../dashboard/dashboard.service';
+import { getInstallation } from '../installation/installation.service';
 import { countClients } from '../websocket/websocket.service';
 
 const startedAt = Date.now();
 
 export const getHealthReport = async () => {
   const database = getDatabaseStatus();
+  const installation = database.connected ? await getInstallation() : undefined;
 
   return {
     status: database.connected ? 'ok' : 'degraded',
     version: config.version,
     commit: config.commit,
     panelName: database.connected ? await resolvePanelName() : config.dashboard.name,
+    role: installation?.role,
+    dataFrom: installation?.dataFrom ?? installation?.demotedAt,
     uptime: Math.floor((Date.now() - startedAt) / 1000),
     timestamp: new Date().toISOString(),
     autoDomain: {

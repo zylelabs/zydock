@@ -20,6 +20,7 @@ import {
   resolveDashboardCorsOrigins,
 } from './modules/dashboard/dashboard.service';
 import { bootstrapDatabaseMetrics } from './modules/databases/database-sample.service';
+import { getInstallationRole } from './modules/installation/installation.service';
 import { ensureAgentCa } from './modules/servers/agent-ca.service';
 import { ensureLocalServer } from './modules/servers/local-server.service';
 import { migrateAgentsToMtls, syncAgentBundles } from './modules/servers/provisioning.service';
@@ -35,32 +36,40 @@ let bootstrap: Promise<void> | undefined;
 let dashboardRoutes: Promise<void> | undefined;
 
 const connect = () => {
-  bootstrap = connectDatabase()
-    .then(ensureAgentCa)
-    .then(ensureLocalServer)
-    .then(startWorker)
-    .then(bootstrapUpdates)
-    .then(bootstrapTemplateSources)
-    .then(bootstrapDatabaseMetrics)
-    .then(bootstrapDashboard)
-    .then(() => {
-      dashboardRoutes = ensureDashboardRoutes().catch(error => {
-        logError('Failed to ensure the dashboard routes', error);
-      });
-    })
-    .then(() =>
-      syncAgentBundles().catch(error => {
-        logError('Failed to sync the agents', error);
-      }),
-    )
-    .then(() =>
-      migrateAgentsToMtls().catch(error => {
-        logError('Failed to migrate agents to the protected channel', error);
-      }),
-    )
-    .catch(error => {
-      logError('Failed to connect to MongoDB', error);
+  bootstrap = (async () => {
+    await connectDatabase();
+    await ensureAgentCa();
+    await ensureLocalServer();
+
+    const role = await getInstallationRole();
+
+    if (role === 'active') {
+      await startWorker();
+    }
+
+    await bootstrapUpdates();
+    await bootstrapTemplateSources();
+    await bootstrapDatabaseMetrics();
+    await bootstrapDashboard();
+
+    if (role !== 'active') {
+      return;
+    }
+
+    dashboardRoutes = ensureDashboardRoutes().catch(error => {
+      logError('Failed to ensure the dashboard routes', error);
     });
+
+    await syncAgentBundles().catch(error => {
+      logError('Failed to sync the agents', error);
+    });
+
+    await migrateAgentsToMtls().catch(error => {
+      logError('Failed to migrate agents to the protected channel', error);
+    });
+  })().catch(error => {
+    logError('Failed to connect to MongoDB', error);
+  });
 };
 
 export const waitForBootstrap = () => bootstrap ?? Promise.resolve();

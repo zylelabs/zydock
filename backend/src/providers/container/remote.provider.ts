@@ -59,6 +59,9 @@ export const createRemoteContainerProvider = (
 
     restartContainer: id => discard(`${containerPath(id)}/restart`, { method: 'POST' }),
 
+    updateRestartPolicy: (id, policy) =>
+      discard(`${containerPath(id)}/update`, { method: 'POST', body: { restartPolicy: policy } }),
+
     removeContainer: (id, removeVolumes) =>
       discard(containerPath(id), {
         method: 'DELETE',

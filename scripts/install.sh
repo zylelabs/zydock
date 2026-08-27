@@ -9,6 +9,8 @@ ZYDOCK_BRANCH="${ZYDOCK_BRANCH:-}"
 ZYDOCK_DOMAIN="${ZYDOCK_DOMAIN:-}"
 ZYDOCK_HOST="${ZYDOCK_HOST:-}"
 ZYDOCK_BUILD="${ZYDOCK_BUILD:-0}"
+ZYDOCK_RESTORE="${ZYDOCK_RESTORE:-}"
+ZYDOCK_RESTORE_PASSPHRASE="${ZYDOCK_RESTORE_PASSPHRASE:-}"
 
 log() { printf '\n\033[1;36m▸ %s\033[0m\n' "$1"; }
 warn() { printf '\n\033[1;33m⚠ %s\033[0m\n' "$1" >&2; }
@@ -308,7 +310,11 @@ egress)
 esac
 
 BOOTSTRAP_CODE=""
-if [ "${NEW_INSTALL}" = true ]; then
+if [ -n "${ZYDOCK_RESTORE}" ]; then
+  [ -n "${ZYDOCK_RESTORE_PASSPHRASE}" ] || fail "ZYDOCK_RESTORE_PASSPHRASE is required when ZYDOCK_RESTORE is set."
+  log "Restoring this installation from a snapshot bundle"
+  ZYDOCK_INSTALL_DIR="${ZYDOCK_INSTALL_DIR}" ZYDOCK_RESTORE="${ZYDOCK_RESTORE}" ZYDOCK_RESTORE_PASSPHRASE="${ZYDOCK_RESTORE_PASSPHRASE}" bash scripts/restore.sh
+elif [ "${NEW_INSTALL}" = true ]; then
   log "Provisioning the bootstrap code"
   BOOTSTRAP_OUTPUT="$(docker compose "${COMPOSE_ARGS[@]}" exec -T backend bun run bootstrap:code </dev/null 2>&1)" || true
   echo "${BOOTSTRAP_OUTPUT}"
@@ -319,6 +325,14 @@ else
 fi
 
 log "Done"
+
+if [ -n "${ZYDOCK_RESTORE}" ]; then
+  echo "Zydock ${ZYDOCK_VERSION} (channel: ${CHANNEL}) restored and running in standby."
+  echo "Dashboard (by IP, until DNS is switched): http://${ZYDOCK_HOST}"
+  echo "Validate this installation, then promote it from Settings → Migration when ready."
+  exit 0
+fi
+
 echo "Zydock ${ZYDOCK_VERSION} (channel: ${CHANNEL})"
 echo "Dashboard: ${APP_URL}"
 case "${APP_URL}" in

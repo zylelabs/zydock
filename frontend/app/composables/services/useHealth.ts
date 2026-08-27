@@ -3,6 +3,8 @@ export interface HealthReport {
   version: string;
   commit: string;
   panelName: string;
+  role?: 'active' | 'standby';
+  dataFrom?: string;
   uptime: number;
   timestamp: string;
   autoDomain: { enabled: boolean; suffix: string };
