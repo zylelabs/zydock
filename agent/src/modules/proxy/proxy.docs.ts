@@ -54,7 +54,9 @@ export const proxyDocs = {
       'Idempotent: the route id is stable, so applying the same specification twice leaves a ' +
       'single route. Creates the Zydock server inside the proxy configuration on first use. A ' +
       'new route with a domain is inserted first, ahead of any existing route; a new default ' +
-      'route (isDefault, no domain) is appended last, so it never shadows a domain route.',
+      'route (isDefault, no domain) is appended last, so it never shadows a domain route. Every ' +
+      'applied route is served with zstd/gzip compression for textual content types; ' +
+      'text/event-stream responses and WebSocket connections are never compressed.',
     security: agentAuth,
     responses: {
       200: messageRes('Route applied.'),
