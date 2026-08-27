@@ -38,6 +38,23 @@ export const restoreDocs = {
       409: errorRes('A restore is already running.'),
     },
   },
+  stageBundle: {
+    tags: ['Installation'],
+    summary: 'Stage a snapshot bundle onto the install directory',
+    description:
+      'Streams the request body straight into `.zydock-snapshots/<snapshotId>.zsnap` inside the ' +
+      'install directory, so it is visible to the restorer container the same way a bundle placed ' +
+      'there by hand would be. Overwrites any bundle already staged under that id.',
+    security: agentAuth,
+    responses: {
+      201: jsonRes('The bundle was staged.', {
+        type: 'object',
+        properties: { path: { type: 'string' } },
+      }),
+      400: errorRes('The request has no body to stage.'),
+      401: errorRes('Invalid agent token.'),
+    },
+  },
   read: {
     tags: ['Installation'],
     summary: 'Read the state of a restore run',

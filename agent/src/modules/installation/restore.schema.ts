@@ -17,6 +17,12 @@ export const restoreRunIdParamSchema = z.object({
 
 export type RestoreRunIdParam = z.infer<typeof restoreRunIdParamSchema>;
 
+export const stageBundleParamSchema = z.object({
+  snapshotId: z.string().min(1).max(64),
+});
+
+export type StageBundleParam = z.infer<typeof stageBundleParamSchema>;
+
 export const restoreRunStateSchema = z.object({
   id: z.string().min(1),
   status: z.enum(RESTORE_RUN_STATUSES),

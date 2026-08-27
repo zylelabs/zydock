@@ -25,5 +25,12 @@ export const createRemoteRestoreProvider = (connection: RestoreConnection): Rest
 
       return (await response.json()) as RestoreRunDetail;
     },
+
+    stageBundle: (snapshotId: string, stream: ReadableStream<Uint8Array>) =>
+      json<{ path: string }>(`/installation/snapshots/${encodeURIComponent(snapshotId)}/bundle`, {
+        method: 'PUT',
+        raw: stream,
+        streamed: true,
+      }),
   };
 };
