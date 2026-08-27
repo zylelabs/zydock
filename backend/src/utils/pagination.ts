@@ -31,7 +31,7 @@ export const paginateStatics = {
     const skip = (page - 1) * size;
     const sortOption: Record<string, 1 | -1> = { [sort]: order === 'asc' ? 1 : -1 };
 
-    const query = this.find(filter).sort(sortOption).skip(skip).limit(size);
+    const query = this.find(filter).sort(sortOption).skip(skip).limit(size).lean();
 
     if (select) {
       query.select(select);

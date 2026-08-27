@@ -7,7 +7,6 @@ export default defineNuxtConfig({
     '@nuxt/eslint',
     '@nuxt/fonts',
     '@nuxt/icon',
-    '@nuxt/scripts',
     '@pinia/nuxt',
     'pinia-plugin-persistedstate/nuxt',
     'nuxt-toast',
@@ -61,9 +60,15 @@ export default defineNuxtConfig({
   piniaPluginPersistedstate: {
     storage: 'localStorage',
   },
+  icon: {
+    clientBundle: {
+      scan: true,
+      sizeLimitKb: 512,
+    },
+  },
   fonts: {
     defaults: {
-      weights: [100, 200, 300, 400, 500, 600, 700, 800, 900],
+      weights: [400, 500, 600],
     },
   },
 });

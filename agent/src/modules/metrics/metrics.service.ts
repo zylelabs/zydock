@@ -26,11 +26,99 @@ export type ContainerMetrics = {
   memoryLimitMb: number;
 };
 
+export type ContainerMetricsFilter = {
+  ids?: string[];
+  labels?: Record<string, string>;
+};
+
 const MB = 1024 * 1024;
 const GB = 1024 * 1024 * 1024;
 
 const systemCache = createTtlCache<SystemMetrics>(config.metricsCacheTtlSeconds);
 const containerCache = createTtlCache<ContainerMetrics[]>(config.metricsCacheTtlSeconds);
+
+const DOCKER_API_ORIGIN = 'http://docker';
+
+type DockerStats = {
+  name?: string;
+  cpu_stats: {
+    cpu_usage: { total_usage: number; percpu_usage?: number[] };
+    system_cpu_usage?: number;
+    online_cpus?: number;
+  };
+  precpu_stats: {
+    cpu_usage: { total_usage: number };
+    system_cpu_usage?: number;
+  };
+  memory_stats: {
+    usage?: number;
+    limit?: number;
+    stats?: { cache?: number; inactive_file?: number };
+  };
+};
+
+const cpuPercentOf = (stats: DockerStats) => {
+  const cpuDelta = stats.cpu_stats.cpu_usage.total_usage - stats.precpu_stats.cpu_usage.total_usage;
+  const systemDelta =
+    (stats.cpu_stats.system_cpu_usage ?? 0) - (stats.precpu_stats.system_cpu_usage ?? 0);
+  const onlineCpus =
+    stats.cpu_stats.online_cpus || stats.cpu_stats.cpu_usage.percpu_usage?.length || 1;
+
+  if (cpuDelta <= 0 || systemDelta <= 0) {
+    return 0;
+  }
+
+  return Math.round((cpuDelta / systemDelta) * onlineCpus * 100 * 10) / 10;
+};
+
+const memoryOf = (stats: DockerStats) => {
+  const cache = stats.memory_stats.stats?.cache ?? stats.memory_stats.stats?.inactive_file ?? 0;
+  const used = (stats.memory_stats.usage ?? 0) - cache;
+
+  return {
+    memoryUsedMb: Math.round((used / MB) * 10) / 10,
+    memoryLimitMb: Math.round(((stats.memory_stats.limit ?? 0) / MB) * 10) / 10,
+  };
+};
+
+const readContainerStats = async (id: string): Promise<ContainerMetrics | null> => {
+  const response = await fetch(`${DOCKER_API_ORIGIN}/containers/${id}/stats?stream=false`, {
+    unix: config.dockerSocketPath,
+  });
+
+  if (!response.ok) {
+    return null;
+  }
+
+  const stats = (await response.json()) as DockerStats;
+
+  return {
+    id,
+    name: stats.name?.replace(/^\//, '') ?? '',
+    cpuPercent: cpuPercentOf(stats),
+    ...memoryOf(stats),
+  };
+};
+
+const resolveTargetIds = async (filter: ContainerMetricsFilter) => {
+  if (filter.ids?.length) {
+    return filter.ids;
+  }
+
+  const running = await resolveContainerProvider().listContainers({
+    state: 'running',
+    labels: filter.labels,
+  });
+
+  return running.map(container => container.id);
+};
+
+const readManyContainerStats = async (filter: ContainerMetricsFilter) => {
+  const ids = await resolveTargetIds(filter);
+  const results = await Promise.all(ids.map(readContainerStats));
+
+  return results.filter((entry): entry is ContainerMetrics => entry !== null);
+};
 
 const readLoadPercent = async () => {
   try {
@@ -99,63 +187,13 @@ const readDisk = async () => {
   };
 };
 
-const parseSize = (value: string) => {
-  const match = value.trim().match(/^([\d.]+)\s*([A-Za-z]*)$/);
-
-  if (!match) {
-    return 0;
+export const collectContainerMetrics = (filter: ContainerMetricsFilter = {}) => {
+  if (filter.ids?.length || filter.labels) {
+    return readManyContainerStats(filter);
   }
 
-  const amount = Number(match[1]);
-  const unit = (match[2] ?? '').toLowerCase();
-
-  const factors: Record<string, number> = {
-    b: 1 / MB,
-    kb: 1 / 1024,
-    kib: 1 / 1024,
-    mb: 1,
-    mib: 1,
-    gb: 1024,
-    gib: 1024,
-  };
-
-  return Math.round(amount * (factors[unit] ?? 1) * 10) / 10;
+  return containerCache.resolve(() => readManyContainerStats({}));
 };
-
-export const collectContainerMetrics = () =>
-  containerCache.resolve(async () => {
-    const process = Bun.spawn(
-      [
-        'docker',
-        'stats',
-        '--no-stream',
-        '--format',
-        '{{.ID}}|{{.Name}}|{{.CPUPerc}}|{{.MemUsage}}',
-      ],
-      { stdout: 'pipe', stderr: 'ignore' },
-    );
-
-    const output = await new Response(process.stdout).text();
-
-    await process.exited;
-
-    return output
-      .trim()
-      .split('\n')
-      .filter(Boolean)
-      .map(line => {
-        const [id, name, cpu, memory] = line.split('|');
-        const [used, limit] = (memory ?? '').split('/');
-
-        return {
-          id: id ?? '',
-          name: name ?? '',
-          cpuPercent: Number((cpu ?? '0').replace('%', '')) || 0,
-          memoryUsedMb: parseSize(used ?? '0'),
-          memoryLimitMb: parseSize(limit ?? '0'),
-        };
-      });
-  });
 
 export const collectSystemMetrics = () =>
   systemCache.resolve(async () => {

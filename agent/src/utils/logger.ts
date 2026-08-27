@@ -25,6 +25,8 @@ const LEVEL_WRITER: Record<LogLevel, (...args: unknown[]) => void> = {
 
 const minimumPriority = LEVEL_PRIORITY[config.logLevel];
 
+export const isDebugEnabled = LEVEL_PRIORITY.debug >= minimumPriority;
+
 const isPretty = config.mode === 'dev';
 
 const serializeError = (error: unknown) => {

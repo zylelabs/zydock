@@ -23,5 +23,6 @@ const jobSchema = new Schema(
 );
 
 jobSchema.index({ status: 1, runAt: 1 });
+jobSchema.index({ status: 1, startedAt: 1 });
 
 export default model('jobs', jobSchema) as unknown as PaginateModel<Job & Document>;

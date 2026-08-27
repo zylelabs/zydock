@@ -53,6 +53,8 @@ const readLogLevel = (): LogLevel => {
   return level;
 };
 
+const accessAggregateIntervalSeconds = readNumber('PROXY_ACCESS_AGGREGATE_INTERVAL_SECONDS', 30);
+
 export default {
   port: readNumber('PORT', 9000),
   bindHost: readString('BIND_HOST', '127.0.0.1'),
@@ -64,7 +66,7 @@ export default {
   backendUrl: readString('BACKEND_URL', 'http://localhost:8000'),
   heartbeatIntervalSeconds: readNumber('HEARTBEAT_INTERVAL_SECONDS', 30),
   healthCheckIntervalSeconds: readNumber('HEALTH_CHECK_INTERVAL_SECONDS', 30),
-  metricsCacheTtlSeconds: readNumber('METRICS_CACHE_TTL_SECONDS', 5),
+  metricsCacheTtlSeconds: readNumber('METRICS_CACHE_TTL_SECONDS', 8),
   workspacePath: readString('WORKSPACE_PATH', '/var/lib/zydock/builds'),
   dockerSocketPath: readString('DOCKER_SOCKET_PATH', '/var/run/docker.sock'),
   allowSystemContainerRemoval: readBoolean('ALLOW_SYSTEM_CONTAINER_REMOVAL', false),
@@ -86,6 +88,10 @@ export default {
     httpsHost: readString('PROXY_HTTPS_HOST', '127.0.0.1'),
     httpsPort: readNumber('PROXY_HTTPS_PORT', 443),
     containerService: readString('PROXY_CONTAINER_SERVICE', 'caddy'),
-    accessAggregateIntervalSeconds: readNumber('PROXY_ACCESS_AGGREGATE_INTERVAL_SECONDS', 30),
+    accessAggregateIntervalSeconds,
+    accessAggregateMaxTailLines: readNumber(
+      'PROXY_ACCESS_AGGREGATE_MAX_TAIL_LINES',
+      Math.min(5000, Math.max(200, accessAggregateIntervalSeconds * 50)),
+    ),
   },
 };

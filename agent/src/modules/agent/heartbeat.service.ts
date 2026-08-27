@@ -1,5 +1,6 @@
 import { networkInterfaces } from 'node:os';
 import config from '../../config';
+import { createTtlCache } from '../../utils/cache';
 import { logDebug, logWarn } from '../../utils/logger';
 import { composeVersion } from '../compose/compose.service';
 import { collectSystemMetrics } from '../metrics/metrics.service';
@@ -7,16 +8,21 @@ import { resolveServerId } from './identity.service';
 
 const AGENT_VERSION = '0.1.0';
 
+const COMPOSE_VERSION_TTL_SECONDS = 3600;
+
 let timer: ReturnType<typeof setInterval> | undefined;
 let detectedPublicIp: string | undefined;
 
-const readComposeVersion = async () => {
-  try {
-    return await composeVersion();
-  } catch {
-    return undefined;
-  }
-};
+const composeVersionCache = createTtlCache<string | undefined>(COMPOSE_VERSION_TTL_SECONDS);
+
+const readComposeVersion = () =>
+  composeVersionCache.resolve(async () => {
+    try {
+      return await composeVersion();
+    } catch {
+      return undefined;
+    }
+  });
 
 const isPrivateIpv4 = (value: string) => {
   const [a, b] = value.split('.').map(Number);

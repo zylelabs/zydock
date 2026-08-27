@@ -9,8 +9,18 @@ const handlers = new Map<string, JobHandler>();
 
 const workerId = randomUUID();
 
-let timer: ReturnType<typeof setInterval> | undefined;
+let timer: ReturnType<typeof setTimeout> | undefined;
 let running = 0;
+let pollIntervalMs = config.queue.pollIntervalMs;
+let lastStaleCheckAt = 0;
+
+const resetPollInterval = () => {
+  pollIntervalMs = config.queue.pollIntervalMs;
+};
+
+const growPollInterval = () => {
+  pollIntervalMs = Math.min(pollIntervalMs * 2, config.queue.maxPollIntervalMs);
+};
 
 export const registerJobHandler = (type: string, handler: JobHandler) => {
   handlers.set(type, handler);
@@ -20,8 +30,15 @@ export const enqueueJob = (
   type: string,
   payload: Record<string, unknown>,
   options: { maxAttempts?: number; runAt?: Date } = {},
-) =>
-  jobModel.create({
+) => {
+  resetPollInterval();
+
+  if (timer) {
+    clearTimeout(timer);
+    timer = setTimeout(runCycle, 0);
+  }
+
+  return jobModel.create({
     type,
     payload,
     status: 'pending',
@@ -29,6 +46,7 @@ export const enqueueJob = (
     maxAttempts: options.maxAttempts ?? config.queue.maxAttempts,
     runAt: options.runAt ?? new Date(),
   });
+};
 
 export const cancelPendingJobs = async (type: string) => {
   const result = await jobModel.deleteMany({ type, status: 'pending' });
@@ -48,6 +66,17 @@ const claimJob = () =>
     },
     { sort: { runAt: 1 }, new: true },
   );
+
+const maybeRequeueStaleJobs = async () => {
+  const now = Date.now();
+
+  if (now - lastStaleCheckAt < config.queue.staleCheckIntervalMs) {
+    return;
+  }
+
+  lastStaleCheckAt = now;
+  await requeueStaleJobs();
+};
 
 const requeueStaleJobs = async () => {
   const threshold = new Date(Date.now() - config.queue.jobTimeoutSeconds * 1000);
@@ -114,7 +143,7 @@ const runJob = async (job: Job) => {
 };
 
 export const drainQueue = async () => {
-  await requeueStaleJobs();
+  await maybeRequeueStaleJobs();
 
   const started: Promise<void>[] = [];
 
@@ -134,7 +163,23 @@ export const drainQueue = async () => {
     );
   }
 
+  if (started.length > 0) {
+    resetPollInterval();
+  } else {
+    growPollInterval();
+  }
+
   return started;
+};
+
+const runCycle = () => {
+  drainQueue()
+    .catch(error => logError('Queue worker cycle failed', error))
+    .finally(() => {
+      if (timer) {
+        timer = setTimeout(runCycle, pollIntervalMs);
+      }
+    });
 };
 
 export const startWorker = () => {
@@ -142,14 +187,14 @@ export const startWorker = () => {
     return;
   }
 
-  timer = setInterval(() => {
-    drainQueue().catch(error => logError('Queue worker cycle failed', error));
-  }, config.queue.pollIntervalMs);
+  resetPollInterval();
+  timer = setTimeout(runCycle, 0);
 
   logInfo('Queue worker started', {
     worker: workerId,
     concurrency: config.queue.concurrency,
     pollIntervalMs: config.queue.pollIntervalMs,
+    maxPollIntervalMs: config.queue.maxPollIntervalMs,
   });
 };
 
@@ -158,7 +203,7 @@ export const stopWorker = () => {
     return;
   }
 
-  clearInterval(timer);
+  clearTimeout(timer);
   timer = undefined;
 
   logInfo('Queue worker stopped', { worker: workerId });

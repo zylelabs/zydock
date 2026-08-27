@@ -31,7 +31,24 @@ export const metricsDocs = {
   containers: {
     tags: ['Metrics'],
     summary: 'Per-container metrics',
+    description:
+      'Without filters, samples every running container. Pass `id` and/or `label` to scope the ' +
+      'sample to specific containers instead of the whole host.',
     security: agentAuth,
+    parameters: [
+      {
+        name: 'id',
+        in: 'query',
+        description: 'A container id. Repeat the parameter to sample several containers.',
+        schema: { type: 'array', items: { type: 'string' } },
+      },
+      {
+        name: 'label',
+        in: 'query',
+        description: 'One `key=value` pair; repeat the parameter to filter by several labels.',
+        schema: { type: 'array', items: { type: 'string' } },
+      },
+    ],
     responses: {
       200: jsonRes('Container metrics.', {
         type: 'array',

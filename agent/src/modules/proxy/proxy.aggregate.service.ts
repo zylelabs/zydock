@@ -6,8 +6,6 @@ import { parseLine, resolveContainerId, type AccessLogEntry } from './proxy.acce
 
 const containers = resolveContainerProvider();
 
-const MAX_AGGREGATE_TAIL = 5000;
-
 export type AccessBucket = {
   host: string;
   minute: string;
@@ -132,7 +130,10 @@ const pushBatch = async (buckets: AccessBucket[]) => {
 
 export const flushAccessAggregates = async () => {
   const id = await resolveContainerId();
-  const logs = await containers.getLogs(id, { since: cursor, tail: MAX_AGGREGATE_TAIL });
+  const logs = await containers.getLogs(id, {
+    since: cursor,
+    tail: config.proxy.accessAggregateMaxTailLines,
+  });
   const buckets = new Map<string, AccessBucket>();
 
   let latest = cursor;

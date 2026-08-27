@@ -2,6 +2,9 @@ services:
   mongo:
     image: mongo:7@sha256:b6421fd6d1c5ded6377b397d8983e2f82e2100dc5123332dcfda2065a472be5b
     restart: unless-stopped
+    command: ['mongod', '--wiredTigerCacheSizeGB', '${MONGO_WIRED_TIGER_CACHE_GB:-0.5}']
+    mem_limit: 1g
+    cpus: 1.0
     volumes:
       - mongo-data:/data/db
     environment:
@@ -19,6 +22,8 @@ services:
       context: .
       dockerfile: backend/Dockerfile
     restart: unless-stopped
+    mem_limit: 384m
+    cpus: 1.0
     depends_on:
       mongo:
         condition: service_healthy
@@ -40,6 +45,8 @@ services:
     image: ${ZYDOCK_IMAGE_REGISTRY:-ghcr.io/zylelabs}/zydock-agent:${ZYDOCK_IMAGE_TAG:-latest}
     build: ./agent
     restart: unless-stopped
+    mem_limit: 512m
+    cpus: 1.0
     depends_on:
       backend:
         condition: service_healthy
@@ -67,6 +74,8 @@ services:
     image: ${ZYDOCK_IMAGE_REGISTRY:-ghcr.io/zylelabs}/zydock-frontend:${ZYDOCK_IMAGE_TAG:-latest}
     build: ./frontend
     restart: unless-stopped
+    mem_limit: 192m
+    cpus: 0.5
     depends_on:
       backend:
         condition: service_healthy
@@ -85,6 +94,8 @@ services:
     image: caddy:2@sha256:df7f1c2fb114453b951de51a98efc010db1655a92c2e86be6706714e2417a78d
     restart: unless-stopped
     command: sh -c 'rm -f /var/run/caddy/admin.sock && exec caddy run --config /etc/caddy/Caddyfile --adapter caddyfile --resume'
+    mem_limit: 64m
+    cpus: 0.25
     depends_on:
       - frontend
       - backend
