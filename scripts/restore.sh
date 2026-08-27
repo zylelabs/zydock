@@ -44,6 +44,33 @@ project_name() {
   basename "$(pwd)" | tr '[:upper:]' '[:lower:]' | sed -E 's/[^a-z0-9_-]/_/g; s/^[^a-z0-9]+//'
 }
 
+fix_storage_permissions() {
+  docker compose "${COMPOSE_ARGS[@]}" run --rm --no-deps --user 0:0 --entrypoint sh backend \
+    -c 'mkdir -p /app/storage && chown -R zydock:zydock /app/storage' >/dev/null 2>&1 ||
+    warn "Could not adjust the ownership of the backend storage volume. Backups and installation snapshots may fail to write.
+  Fix it manually with:
+    docker compose -f docker-compose.prod.yml run --rm --no-deps --user 0:0 --entrypoint sh backend -c 'chown -R zydock:zydock /app/storage'"
+}
+
+mongo_auth_args() {
+  local file="$1" username password uri
+
+  username="$(grep -m1 '^MONGO_USERNAME=' "${file}" 2>/dev/null | cut -d= -f2- | tr -d '"' || true)"
+  password="$(grep -m1 '^MONGO_PASSWORD=' "${file}" 2>/dev/null | cut -d= -f2- | tr -d '"' || true)"
+
+  if [ -z "${username}" ] || [ -z "${password}" ]; then
+    uri="$(grep -m1 '^MONGO_URI=' "${file}" 2>/dev/null | cut -d= -f2- | tr -d '"' || true)"
+    username="$(printf '%s' "${uri}" | sed -nE 's#^mongodb(\+srv)?://([^:@/]+):([^@/]+)@.*#\2#p')"
+    password="$(printf '%s' "${uri}" | sed -nE 's#^mongodb(\+srv)?://([^:@/]+):([^@/]+)@.*#\3#p')"
+  fi
+
+  if [ -z "${username}" ] || [ -z "${password}" ]; then
+    return 0
+  fi
+
+  printf '%s\n' --username "${username}" --password "${password}" --authenticationDatabase admin
+}
+
 restore_volume() {
   local volume="$1" archive="$2"
 
@@ -127,17 +154,17 @@ until [ "$(docker compose "${COMPOSE_ARGS[@]}" ps --format '{{.Health}}' mongo)"
 done
 
 log "Restoring the Mongo dump (this replaces the fresh admin user with the origin's)"
+mapfile -t LOCAL_MONGO_AUTH < <(mongo_auth_args .env)
 docker compose "${COMPOSE_ARGS[@]}" exec -T mongo mongorestore \
   --archive --gzip --drop \
-  --username "${MONGO_USERNAME}" --password "${MONGO_PASSWORD}" --authenticationDatabase admin \
+  ${LOCAL_MONGO_AUTH[@]+"${LOCAL_MONGO_AUTH[@]}"} \
   <"${WORK_DIR}/mongodump.archive.gz"
 
-BUNDLE_MONGO_USERNAME="$(grep -m1 '^MONGO_USERNAME=' "${WORK_DIR}/.env" | cut -d= -f2- | tr -d '"')"
-BUNDLE_MONGO_PASSWORD="$(grep -m1 '^MONGO_PASSWORD=' "${WORK_DIR}/.env" | cut -d= -f2- | tr -d '"')"
+mapfile -t BUNDLE_MONGO_AUTH < <(mongo_auth_args "${WORK_DIR}/.env")
 
 log "Marking the restored installation as standby before it ever comes fully up"
 docker compose "${COMPOSE_ARGS[@]}" exec -T mongo mongosh --quiet \
-  --username "${BUNDLE_MONGO_USERNAME}" --password "${BUNDLE_MONGO_PASSWORD}" --authenticationDatabase admin \
+  ${BUNDLE_MONGO_AUTH[@]+"${BUNDLE_MONGO_AUTH[@]}"} \
   zydock --eval "db.installations.updateOne({}, { \$set: { role: 'standby', standbySince: new Date() } }, { upsert: true })"
 
 log "Writing the restored .env, keeping this host's PUBLIC_IP"
@@ -149,6 +176,9 @@ set_env ZYDOCK_INSTALL_DIR "${ZYDOCK_INSTALL_DIR}"
 
 log "Bringing the restored stack up"
 docker compose "${COMPOSE_ARGS[@]}" up -d --remove-orphans
+
+log "Making sure the backend storage volume is writable"
+fix_storage_permissions
 
 log "Waiting for the backend to become healthy"
 ATTEMPTS=0

@@ -112,20 +112,52 @@ const findComposeVolume = async (project: string, shortName: string) => {
   );
 };
 
-const captureMongoDump = async (tempDir: string, project: string) => {
+export const resolveMongoCredentials = (env: Record<string, string>) => {
+  if (env.MONGO_USERNAME && env.MONGO_PASSWORD) {
+    return { username: env.MONGO_USERNAME, password: env.MONGO_PASSWORD };
+  }
+
+  const credentials = /^mongodb(?:\+srv)?:\/\/([^:@/]+):([^@/]+)@/.exec(env.MONGO_URI ?? '');
+
+  if (!credentials) {
+    return null;
+  }
+
+  return {
+    username: decodeURIComponent(credentials[1]!),
+    password: decodeURIComponent(credentials[2]!),
+  };
+};
+
+const mongoAuthArgs = (env: Record<string, string>) => {
+  const credentials = resolveMongoCredentials(env);
+
+  if (!credentials) {
+    logWarn('No Mongo credentials in the install .env: dumping without authentication', {
+      envPath: join(config.installPath, '.env'),
+    });
+
+    return [];
+  }
+
+  return [
+    '--username',
+    credentials.username,
+    '--password',
+    credentials.password,
+    '--authenticationDatabase',
+    'admin',
+  ];
+};
+
+const captureMongoDump = async (tempDir: string, project: string, env: Record<string, string>) => {
   const container = await findComposeContainer(project, 'mongo');
-  const env = await readEnvFile(join(config.installPath, '.env'));
 
   const stream = await containers.archiveFromContainer(container.id, [
     'mongodump',
     '--archive',
     '--gzip',
-    '--username',
-    env.MONGO_USERNAME ?? '',
-    '--password',
-    env.MONGO_PASSWORD ?? '',
-    '--authenticationDatabase',
-    'admin',
+    ...mongoAuthArgs(env),
   ]);
 
   return captureStream(tempDir, 'mongodump.archive.gz', stream);
@@ -168,12 +200,18 @@ const captureApplicationVolumes = async (tempDir: string, volumeNames: string[])
   return parts;
 };
 
+const readInstallEnv = async () => {
+  const path = join(config.installPath, '.env');
+
+  if (!(await Bun.file(path).exists())) {
+    throw new Error(`${path} is missing: the snapshot would carry no secret`);
+  }
+
+  return readEnvFile(path);
+};
+
 const captureEnvFile = async (tempDir: string) => {
   const file = Bun.file(join(config.installPath, '.env'));
-
-  if (!(await file.exists())) {
-    throw new Error(`${config.installPath}/.env is missing: the snapshot would carry no secret`);
-  }
 
   return captureBuffer(tempDir, '.env', new Uint8Array(await file.arrayBuffer()));
 };
@@ -249,10 +287,10 @@ export const buildInstallationBundle = async (
 
   try {
     const project = await resolveOwnProject();
-    const env = await readEnvFile(join(config.installPath, '.env'));
+    const env = await readInstallEnv();
 
     const parts: CapturedPart[] = [
-      await captureMongoDump(tempDir, project),
+      await captureMongoDump(tempDir, project, env),
       ...(await captureCoreVolumes(tempDir, project)),
       await captureEnvFile(tempDir),
     ];

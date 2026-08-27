@@ -27,7 +27,8 @@ COPY --from=agent-bundle /agent/dist/agent.js /agent/dist/agent.js
 
 COPY templates/ /templates
 
-RUN chown -R zydock:zydock /app /agent /templates
+RUN mkdir -p /app/storage \
+  && chown -R zydock:zydock /app /agent /templates
 
 USER zydock
 

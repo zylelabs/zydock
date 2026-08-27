@@ -24,6 +24,14 @@ channel_image_tag() {
   esac
 }
 
+fix_storage_permissions() {
+  docker compose "${COMPOSE_ARGS[@]}" run --rm --no-deps --user 0:0 --entrypoint sh backend \
+    -c 'mkdir -p /app/storage && chown -R zydock:zydock /app/storage' >/dev/null 2>&1 ||
+    warn "Could not adjust the ownership of the backend storage volume. Backups and installation snapshots may fail to write.
+  Fix it manually with:
+    docker compose -f docker-compose.prod.yml run --rm --no-deps --user 0:0 --entrypoint sh backend -c 'chown -R zydock:zydock /app/storage'"
+}
+
 check_build_resources() {
   local mem_kb mem_mb disk_kb disk_mb
 
@@ -174,6 +182,9 @@ else
   log "Pulling published images and restarting the stack"
   docker compose "${COMPOSE_ARGS[@]}" up -d --pull always --remove-orphans
 fi
+
+log "Making sure the backend storage volume is writable"
+fix_storage_permissions
 
 log "Waiting for the backend to become healthy"
 ATTEMPTS=0
