@@ -36,6 +36,25 @@ export const restoreDocs = {
       502: errorRes('The agent of the local server could not be reached.'),
     },
   },
+  runFromSnapshot: {
+    tags: ['Installation'],
+    summary: 'Restore this installation from a snapshot in the snapshot list',
+    description:
+      'Superuser only. Downloads the snapshot from storage and streams it straight to the local ' +
+      "agent, which stages it under the install directory — no manual copy to the host's disk " +
+      'needed. From there it behaves exactly like `POST /installation/restore`: dispatches an ' +
+      'ephemeral restorer container and answers 202 with the run id, tearing down and rebuilding ' +
+      'the stack. Follow it on `GET /installation/restore`.',
+    security: bearerOrApiKeyAuth,
+    responses: {
+      202: jsonRes('The dispatched run.', runSchema),
+      400: errorRes('The installation cannot restore itself from here.'),
+      403: errorRes('Permission denied.'),
+      404: errorRes('Snapshot not found.'),
+      409: errorRes('This snapshot has not completed.'),
+      502: errorRes('The agent of the local server could not be reached.'),
+    },
+  },
   getRun: {
     tags: ['Installation'],
     summary: 'Read the last restore run',

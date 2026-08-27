@@ -123,6 +123,7 @@ export const createSnapshot = async (payload: CreateSnapshotDTO, createdBy?: str
     _id: id,
     storageKey: keyOf(id),
     status: 'running',
+    origin: 'generated',
     includesApplicationData: Boolean(payload.includeApplicationData),
     version: config.version,
     commit: config.commit,
@@ -134,6 +135,46 @@ export const createSnapshot = async (payload: CreateSnapshotDTO, createdBy?: str
   );
 
   return snapshotModel.findById(id);
+};
+
+export const uploadSnapshot = async (
+  body: ReadableStream<Uint8Array>,
+  originalFileName?: string,
+  createdBy?: string,
+) => {
+  const id = String(new Types.ObjectId());
+  const key = keyOf(id);
+  const startedAt = Date.now();
+
+  try {
+    const sizeBytes = await storeArchive(storage(), key, body);
+    const finishedAt = new Date();
+
+    const snapshot = await snapshotModel.create({
+      _id: id,
+      storageKey: key,
+      status: 'completed',
+      origin: 'uploaded',
+      originalFileName,
+      includesApplicationData: false,
+      sizeBytes,
+      finishedAt,
+      durationMs: Date.now() - startedAt,
+      createdBy,
+    });
+
+    await markSnapshotTaken(finishedAt);
+
+    logInfo('Installation snapshot uploaded', { snapshot: id, sizeBytes });
+
+    return snapshot;
+  } catch (error) {
+    await storage()
+      .delete(key)
+      .catch(() => undefined);
+
+    throw error;
+  }
 };
 
 export const downloadSnapshot = (snapshot: InstallationSnapshot) =>
@@ -152,6 +193,8 @@ export const removeSnapshot = async (snapshot: InstallationSnapshot) => {
 export const serializeSnapshot = (snapshot: InstallationSnapshot) => ({
   id: String(snapshot._id),
   status: snapshot.status,
+  origin: snapshot.origin,
+  originalFileName: snapshot.originalFileName,
   includesApplicationData: snapshot.includesApplicationData,
   version: snapshot.version,
   commit: snapshot.commit,

@@ -1,5 +1,5 @@
 import { Document, model, Schema } from 'mongoose';
-import { SNAPSHOT_STATUSES } from './snapshot.schema';
+import { SNAPSHOT_ORIGINS, SNAPSHOT_STATUSES } from './snapshot.schema';
 
 const snapshotSchema = new Schema(
   {
@@ -9,6 +9,8 @@ const snapshotSchema = new Schema(
     version: { type: String },
     commit: { type: String },
     status: { type: String, required: true, enum: SNAPSHOT_STATUSES, default: 'running' },
+    origin: { type: String, required: true, enum: SNAPSHOT_ORIGINS, default: 'generated' },
+    originalFileName: { type: String },
     error: { type: String },
     finishedAt: { type: Date },
     durationMs: { type: Number },

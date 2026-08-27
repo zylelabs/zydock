@@ -6,3 +6,9 @@ export const startRestoreSchema = z.object({
 });
 
 export type StartRestoreDTO = z.infer<typeof startRestoreSchema>;
+
+export const restoreFromSnapshotSchema = z.object({
+  passphrase: z.string().min(12).max(200),
+});
+
+export type RestoreFromSnapshotDTO = z.infer<typeof restoreFromSnapshotSchema>;

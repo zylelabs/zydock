@@ -3,6 +3,7 @@ import { getLocalServerId } from '../servers/local-server.service';
 import { buildAgentConnection, findServerById } from '../servers/server.service';
 import { getInstallation, setLastRestoreRunId } from './installation.service';
 import type { StartRestoreDTO } from './restore.schema';
+import { downloadSnapshot } from './snapshot.service';
 
 const localRestorer = async () => {
   const serverId = getLocalServerId();
@@ -24,6 +25,21 @@ const localRestorer = async () => {
 
 export const startRestore = async (payload: StartRestoreDTO) => {
   const run = await (await localRestorer()).startRun(payload);
+
+  await setLastRestoreRunId(run.id);
+
+  return run;
+};
+
+export const startRestoreFromSnapshot = async (
+  snapshot: InstallationSnapshot,
+  passphrase: string,
+) => {
+  const restorer = await localRestorer();
+  const stream = await downloadSnapshot(snapshot);
+  const { path } = await restorer.stageBundle(String(snapshot._id), stream);
+
+  const run = await restorer.startRun({ bundlePath: path, passphrase });
 
   await setLastRestoreRunId(run.id);
 

@@ -26,6 +26,8 @@ interface InstallationSnapshotData {
   version?: string;
   commit?: string;
   status: import('./snapshot.schema').SnapshotStatus;
+  origin: import('./snapshot.schema').SnapshotOrigin;
+  originalFileName?: string;
   error?: string;
   finishedAt?: Date;
   durationMs?: number;
