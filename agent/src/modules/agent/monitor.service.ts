@@ -1,5 +1,5 @@
 import config from '../../config';
-import type { ContainerInfo } from '../../providers/container/container.contract';
+import type { ContainerInfo, RestartPolicy } from '../../providers/container/container.contract';
 import { resolveContainerProvider } from '../../providers/container';
 import { logError, logInfo, logWarn } from '../../utils/logger';
 import { isProtectedContainer } from '../containers/protection.service';
@@ -7,6 +7,8 @@ import { isProtectedContainer } from '../containers/protection.service';
 export const AUTOHEAL_LABEL = 'zydock.autoheal';
 
 const APPLICATION_LABEL = 'zydock.application';
+
+const DATABASE_LABEL = 'zydock.database';
 
 let timer: ReturnType<typeof setInterval> | undefined;
 
@@ -101,6 +103,49 @@ export const runHealthSweep = async () => {
   }
 
   return healed;
+};
+
+const isManagedContainer = (container: ContainerInfo) =>
+  container.labels[APPLICATION_LABEL] !== undefined ||
+  container.labels[DATABASE_LABEL] !== undefined;
+
+const listManagedContainers = async () => {
+  const containers = resolveContainerProvider();
+  const all = await containers.listContainers();
+
+  return all.filter(isManagedContainer).filter(container => !isProtectedContainer(container));
+};
+
+export const runStandbySweep = async () => {
+  const containers = resolveContainerProvider();
+  const managed = await listManagedContainers();
+
+  for (const container of managed) {
+    if (container.state !== 'running') {
+      continue;
+    }
+
+    try {
+      await containers.stopContainer(container.id);
+
+      logInfo('Container stopped for standby', { container: container.name });
+    } catch (error) {
+      logError('Standby sweep failed to stop container', error, { container: container.name });
+    }
+  }
+};
+
+export const applyRestartPolicy = async (policy: RestartPolicy) => {
+  const containers = resolveContainerProvider();
+  const managed = await listManagedContainers();
+
+  for (const container of managed) {
+    try {
+      await containers.updateRestartPolicy(container.id, policy);
+    } catch (error) {
+      logError('Failed to update restart policy', error, { container: container.name });
+    }
+  }
 };
 
 export const startHealthMonitor = () => {

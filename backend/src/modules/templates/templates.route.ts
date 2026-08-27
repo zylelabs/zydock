@@ -4,6 +4,7 @@ import { paginationQuery } from '../../utils/pagination';
 import { serializeApplication } from '../applications/application.service';
 import { authMiddleware } from '../auth/auth.middleware';
 import { serializeDeployment } from '../deployments/deployment.service';
+import { blockOnStandby } from '../installation/installation.middleware';
 import { hasRole } from '../organizations/membership.service';
 import { resolveOrganizationRole } from '../organizations/organizations.middleware';
 import { findEnvironmentOfOrganization } from '../projects/environment.service';
@@ -107,6 +108,7 @@ post(
   templatesDocs.deploy,
   authMiddleware,
   validator('param', templateIdParamSchema),
+  blockOnStandby,
   validator('json', deployTemplateSchema),
   async (c: Context) => {
     const { templateId } = c.req.valid('param' as never) as TemplateIdParam;

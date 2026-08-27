@@ -7,6 +7,7 @@ import containersRoute from './containers/containers.route';
 import filesRoute from './files/files.route';
 import healthRoute from './health/health.route';
 import imagesRoute from './images/images.route';
+import installationRoute from './installation/installation.route';
 import metricsRoute from './metrics/metrics.route';
 import networksRoute from './networks/networks.route';
 import proxyAccessRoute from './proxy/proxy.access.route';
@@ -32,5 +33,6 @@ route('/compose', composeRoute);
 route('/backups', backupsRoute);
 route('/commands', commandsRoute);
 route('/updates', updatesRoute);
+route('/installation', installationRoute);
 
 export default router;

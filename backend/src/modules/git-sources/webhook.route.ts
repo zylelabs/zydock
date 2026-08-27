@@ -1,6 +1,7 @@
 import type { Context } from 'hono';
 import { createRouter } from 'hono-route-docs';
 import { logWarn } from '../../utils/logger';
+import { isStandby } from '../installation/installation.service';
 import gitSourceModel from './git-source.model';
 import { gitSourceWebhookDocs } from './webhook.docs';
 import { handleGitSourcePush } from './webhook.service';
@@ -8,6 +9,13 @@ import { handleGitSourcePush } from './webhook.service';
 const { router, post } = createRouter();
 
 post('/github-app/:gitSourceId', gitSourceWebhookDocs.receive, async (c: Context) => {
+  if (await isStandby()) {
+    return c.json(
+      { message: 'This installation is in standby, the deployment(s) were not queued' },
+      202,
+    );
+  }
+
   const gitSourceId = c.req.param('gitSourceId');
   const body = await c.req.text();
 

@@ -1,14 +1,68 @@
+import { readFileSync } from 'node:fs';
 import { networkInterfaces } from 'node:os';
+import { join } from 'node:path';
 import config from '../../config';
 import { createTtlCache } from '../../utils/cache';
-import { logDebug, logWarn } from '../../utils/logger';
+import { logDebug, logInfo, logWarn } from '../../utils/logger';
 import { composeVersion } from '../compose/compose.service';
 import { collectSystemMetrics } from '../metrics/metrics.service';
 import { resolveServerId } from './identity.service';
+import {
+  applyRestartPolicy,
+  runStandbySweep,
+  startHealthMonitor,
+  stopHealthMonitor,
+} from './monitor.service';
 
 const AGENT_VERSION = '0.1.0';
 
 const COMPOSE_VERSION_TTL_SECONDS = 3600;
+
+const INSTALLATION_ROLES = ['active', 'standby'] as const;
+
+type InstallationRole = (typeof INSTALLATION_ROLES)[number];
+
+const rolePath = () => join(config.installPath, '.zydock-role');
+
+const readPersistedRole = (): InstallationRole => {
+  try {
+    const value = readFileSync(rolePath(), 'utf8').trim();
+
+    return value === 'standby' ? 'standby' : 'active';
+  } catch {
+    return 'active';
+  }
+};
+
+let role: InstallationRole = readPersistedRole();
+
+export const getRole = () => role;
+
+const applyRole = async (nextRole: InstallationRole) => {
+  if (nextRole === role) {
+    return;
+  }
+
+  role = nextRole;
+  await Bun.write(rolePath(), role);
+
+  if (role === 'standby') {
+    stopHealthMonitor();
+    await runStandbySweep();
+    await applyRestartPolicy('no');
+  } else {
+    await applyRestartPolicy('unless-stopped');
+    startHealthMonitor();
+  }
+
+  logInfo('Installation role changed', { role });
+};
+
+export const applyBootRole = async () => {
+  if (role === 'standby') {
+    await runStandbySweep();
+  }
+};
 
 let timer: ReturnType<typeof setInterval> | undefined;
 let detectedPublicIp: string | undefined;
@@ -77,6 +131,12 @@ const sendHeartbeat = async () => {
 
   if (!response.ok) {
     throw new Error(`backend answered ${response.status}`);
+  }
+
+  const body = (await response.json()) as { role?: string };
+
+  if (body.role === 'active' || body.role === 'standby') {
+    await applyRole(body.role);
   }
 
   logDebug('Heartbeat delivered');

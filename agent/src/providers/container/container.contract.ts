@@ -162,6 +162,7 @@ export type ContainerProvider = {
   startContainer: (id: string) => Promise<void>;
   stopContainer: (id: string, timeoutSeconds?: number) => Promise<void>;
   restartContainer: (id: string) => Promise<void>;
+  updateRestartPolicy: (id: string, policy: RestartPolicy) => Promise<void>;
   removeContainer: (id: string, removeVolumes?: boolean) => Promise<void>;
   inspectContainer: (id: string) => Promise<ContainerInfo | null>;
   listContainers: (filter?: ContainerFilter) => Promise<ContainerInfo[]>;

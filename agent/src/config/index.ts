@@ -72,6 +72,7 @@ export default {
   allowSystemContainerRemoval: readBoolean('ALLOW_SYSTEM_CONTAINER_REMOVAL', false),
   installPath: readString('ZYDOCK_INSTALL_DIR', '/data/zydock'),
   updaterImage: readString('UPDATER_IMAGE', 'docker:cli'),
+  restorerImage: readString('RESTORER_IMAGE', 'docker:cli'),
   files: {
     maxUploadBytes: readNumber('FILES_MAX_UPLOAD_BYTES', 500 * 1024 * 1024),
     maxReadAsTextBytes: readNumber('FILES_MAX_READ_AS_TEXT_BYTES', 2 * 1024 * 1024),

@@ -66,3 +66,19 @@ export const ensureLocalServer = async () => {
     });
   }
 };
+
+export const forceLocalServerPublicIp = async () => {
+  if (!localServerId || !isPublicIp(config.localServer.publicIp)) {
+    return;
+  }
+
+  await serverModel.updateOne(
+    { _id: localServerId },
+    { $set: { publicIp: config.localServer.publicIp } },
+  );
+
+  logInfo('Local server public IP forced after promotion', {
+    serverId: localServerId,
+    publicIp: config.localServer.publicIp,
+  });
+};

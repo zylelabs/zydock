@@ -299,6 +299,8 @@ export const listApplicationsOfOrganization = (organizationId: string) =>
     .select(VERSION_VARIABLE_PROJECTION)
     .sort({ createdAt: 1 });
 
+export const listApplicationsOfServer = (serverId: string) => applicationModel.find({ serverId });
+
 const currentVersionOf = (application: Application) => {
   if (application.source !== 'compose' || !application.origin?.templateId) {
     return undefined;

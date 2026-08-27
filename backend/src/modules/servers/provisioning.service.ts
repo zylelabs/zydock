@@ -5,6 +5,7 @@ import config from '../../config';
 import type { SshSession } from '../../providers/ssh';
 import { decryptSecret, encryptSecret } from '../../utils/crypto';
 import { logError, logInfo, logWarn } from '../../utils/logger';
+import { enqueueJob, registerJobHandler } from '../queue/queue.service';
 import { publish } from '../websocket/websocket.service';
 import { getAgentCaCertPem, issueServerCertificate } from './agent-ca.service';
 import serverModel from './server.model';
@@ -377,6 +378,32 @@ export const provisionServer = async (server: Server & Document) => {
   } finally {
     session?.close();
   }
+};
+
+const REPROVISION_JOB = 'servers.reprovision';
+
+registerJobHandler(REPROVISION_JOB, async payload => {
+  const serverId = payload.serverId as string;
+
+  const server = await serverModel
+    .findById(serverId)
+    .select('+ssh.privateKey +ssh.password +ssh.passphrase +agent.token');
+
+  if (!server) {
+    return;
+  }
+
+  await provisionServer(server);
+});
+
+export const reprovisionRemoteServers = async () => {
+  const servers = await serverModel.find({ type: 'ssh' });
+
+  await Promise.all(
+    servers.map(server =>
+      enqueueJob(REPROVISION_JOB, { serverId: String(server._id) }, { maxAttempts: 1 }),
+    ),
+  );
 };
 
 const pushAgentBundle = async (server: Server & Document, bundle: AgentBundle) => {

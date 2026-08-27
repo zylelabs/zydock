@@ -314,6 +314,25 @@ const parseLabelsJson = (raw: string | undefined): Record<string, string> => {
   }
 };
 
+const parseLabelsList = (raw: string | undefined): Record<string, string> => {
+  if (!raw) {
+    return {};
+  }
+
+  return Object.fromEntries(
+    raw
+      .split(',')
+      .filter(Boolean)
+      .map(pair => {
+        const separator = pair.indexOf('=');
+
+        return separator === -1
+          ? [pair, '']
+          : [pair.slice(0, separator), pair.slice(separator + 1)];
+      }),
+  );
+};
+
 const parseHealth = (raw: unknown): ContainerHealth => {
   if (raw === 'healthy' || raw === 'unhealthy' || raw === 'starting') {
     return raw;
@@ -531,6 +550,10 @@ export const createDockerProvider = (): ContainerProvider => ({
 
   restartContainer: async id => {
     await runChecked(['restart', id], `Failed to restart container ${id}`);
+  },
+
+  updateRestartPolicy: async (id, policy) => {
+    await dockerApi(`/containers/${id}/update`, { RestartPolicy: { Name: policy } });
   },
 
   removeContainer: async (id, removeVolumes) => {
@@ -933,7 +956,7 @@ export const createDockerProvider = (): ContainerProvider => ({
 
   listVolumes: async () => {
     const raw = await runChecked(
-      ['volume', 'ls', '--format', '{{.Name}}|{{.Driver}}|{{.Mountpoint}}|{{json .Labels}}'],
+      ['volume', 'ls', '--format', '{{.Name}}|{{.Driver}}|{{.Mountpoint}}|{{.Labels}}'],
       'Failed to list volumes',
     );
 
@@ -947,7 +970,7 @@ export const createDockerProvider = (): ContainerProvider => ({
           name: name ?? '',
           driver: driver ?? '',
           mountpoint: mountpoint ?? '',
-          labels: parseLabelsJson(labelParts.join('|')),
+          labels: parseLabelsList(labelParts.join('|')),
         };
       });
   },

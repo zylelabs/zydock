@@ -70,6 +70,7 @@ export type DatabaseProvider = {
     credentials: DatabaseCredentials,
     publish?: DatabasePublishOptions,
   ) => Promise<ProvisionedDatabase>;
+  recreate: (spec: DatabaseSpec, credentials: DatabaseCredentials) => Promise<ProvisionedDatabase>;
   start: (id: string) => Promise<void>;
   stop: (id: string) => Promise<void>;
   restart: (id: string) => Promise<void>;

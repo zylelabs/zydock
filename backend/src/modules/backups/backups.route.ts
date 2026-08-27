@@ -4,6 +4,7 @@ import { errorMessage } from '../../utils';
 import { paginationQuery } from '../../utils/pagination';
 import { authMiddleware } from '../auth/auth.middleware';
 import { findDatabase } from '../databases/database.service';
+import { blockOnStandby } from '../installation/installation.middleware';
 import { OrganizationIdParam, organizationIdParamSchema } from '../organizations/membership.schema';
 import { createOrganizationRoleGuard } from '../organizations/organizations.middleware';
 import { findServerWithAgentToken } from '../servers/server.service';
@@ -157,6 +158,7 @@ post(
   authMiddleware,
   validator('param', backupIdParamSchema),
   createOrganizationRoleGuard('admin'),
+  blockOnStandby,
   async (c: Context) => {
     const { organizationId, backupId } = c.req.valid('param' as never) as BackupIdParam;
 

@@ -9,6 +9,7 @@ import { decryptSecret, encryptSecret } from '../../utils/crypto';
 import { logInfo } from '../../utils/logger';
 import applicationModel from '../applications/application.model';
 import deploymentModel from '../deployments/deployment.model';
+import { isStandby } from '../installation/installation.service';
 import { enqueueJob, registerJobHandler } from '../queue/queue.service';
 import notificationChannelModel from './notification-channel.model';
 import notificationModel from './notification.model';
@@ -119,6 +120,10 @@ const deliverToChannels = async (
   event: NotificationEvent,
   message: Omit<NotificationMessage, 'severity'>,
 ) => {
+  if (await isStandby()) {
+    return 0;
+  }
+
   for (const channel of channels) {
     const notification = await notificationModel.create({
       organizationId: channel.organizationId,
