@@ -1,6 +1,6 @@
 import type { AccessLogEntry, AccessLogFilters, AccessLogPage } from './services/useProxyAccess';
 
-const POLL_INTERVAL_MS = 4000;
+const POLL_INTERVAL_MS = 8000;
 const MAX_ENTRIES = 500;
 const LOAD_TAIL = 200;
 const POLL_TAIL = 50;
@@ -13,6 +13,7 @@ export const useAccessLogFeed = (
   const error = ref('');
   const filtered = ref(false);
   const live = ref(true);
+  const visible = usePageVisibility();
 
   let timer: ReturnType<typeof setInterval> | undefined;
   let activeFilters: AccessLogFilters = {};
@@ -62,13 +63,26 @@ export const useAccessLogFeed = (
       loading.value = false;
     }
 
-    if (live.value) {
+    if (live.value && visible.value) {
       startPolling();
     }
   };
 
   watch(live, value => {
+    if (value && visible.value) {
+      startPolling();
+    } else {
+      stopPolling();
+    }
+  });
+
+  watch(visible, value => {
+    if (!live.value) {
+      return;
+    }
+
     if (value) {
+      void poll();
       startPolling();
     } else {
       stopPolling();

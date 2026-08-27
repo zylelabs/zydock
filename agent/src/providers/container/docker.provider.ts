@@ -1,5 +1,5 @@
 import config from '../../config';
-import { logDebug } from '../../utils/logger';
+import { isDebugEnabled, logDebug } from '../../utils/logger';
 import type {
   ArchiveStream,
   BuildImageSpec,
@@ -48,7 +48,9 @@ const run = async (args: string[]): Promise<DockerResult> => {
     process.exited,
   ]);
 
-  logDebug('docker command', { args: args.slice(0, 2), code });
+  if (isDebugEnabled) {
+    logDebug('docker command', { args: args.slice(0, 2), code });
+  }
 
   return { code, stdout, stderr };
 };
@@ -223,11 +225,11 @@ const DOCKER_API_ORIGIN = 'http://docker';
 
 const HEADER_SEPARATOR = '\r\n\r\n';
 
-const dockerApi = async <T>(path: string, body?: unknown): Promise<T> => {
+const dockerApiRequest = async <T>(method: string, path: string, body?: unknown): Promise<T> => {
   const response = await fetch(`${DOCKER_API_ORIGIN}${path}`, {
-    method: 'POST',
+    method,
     unix: config.dockerSocketPath,
-    headers: { 'Content-Type': 'application/json' },
+    headers: body === undefined ? undefined : { 'Content-Type': 'application/json' },
     body: body === undefined ? undefined : JSON.stringify(body),
   });
 
@@ -239,6 +241,10 @@ const dockerApi = async <T>(path: string, body?: unknown): Promise<T> => {
 
   return (response.status === 204 ? undefined : await response.json()) as T;
 };
+
+const dockerApi = <T>(path: string, body?: unknown) => dockerApiRequest<T>('POST', path, body);
+
+const dockerApiGet = <T>(path: string) => dockerApiRequest<T>('GET', path);
 
 const hijackConnect = async (path: string, payload: string, request: ConsoleRequest) => {
   const decoder = new TextDecoder();
@@ -397,9 +403,11 @@ const inspectMany = async (ids: string[]): Promise<ContainerInfo[]> => {
     return [];
   }
 
-  const raw = await runChecked(['inspect', ...ids], 'Failed to inspect containers');
+  const inspected = await Promise.all(
+    ids.map(id => dockerApiGet<DockerInspect>(`/containers/${id}/json`)),
+  );
 
-  return (JSON.parse(raw) as DockerInspect[]).map(toContainerInfo);
+  return inspected.map(toContainerInfo);
 };
 
 const buildCreateArgs = (spec: ContainerSpec) => {
@@ -548,23 +556,33 @@ export const createDockerProvider = (): ContainerProvider => ({
   },
 
   listContainers: async (filter: ContainerFilter = {}) => {
-    const args = ['ps', '--all', '--quiet', '--no-trunc'];
+    const dockerFilters: Record<string, string[]> = {};
 
-    for (const [key, value] of Object.entries(filter.labels ?? {})) {
-      args.push('--filter', `label=${key}=${value}`);
+    const labelFilters = Object.entries(filter.labels ?? {}).map(
+      ([key, value]) => `${key}=${value}`,
+    );
+
+    if (labelFilters.length) {
+      dockerFilters.label = labelFilters;
     }
 
     if (filter.state) {
-      args.push('--filter', `status=${filter.state}`);
+      dockerFilters.status = [filter.state];
     }
 
     if (filter.namePrefix) {
-      args.push('--filter', `name=^${filter.namePrefix}`);
+      dockerFilters.name = [`^${filter.namePrefix}`];
     }
 
-    const ids = (await runChecked(args, 'Failed to list containers')).split('\n').filter(Boolean);
+    const query = new URLSearchParams({ all: 'true' });
 
-    return inspectMany(ids);
+    if (Object.keys(dockerFilters).length) {
+      query.set('filters', JSON.stringify(dockerFilters));
+    }
+
+    const summaries = await dockerApiGet<{ Id: string }[]>(`/containers/json?${query.toString()}`);
+
+    return inspectMany(summaries.map(summary => summary.Id));
   },
 
   getLogs: async (id, query) => {

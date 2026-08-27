@@ -152,6 +152,8 @@ export default {
   queue: {
     enabled: readBoolean('QUEUE_ENABLED', true),
     pollIntervalMs: readNumber('QUEUE_POLL_INTERVAL_MS', 1000),
+    maxPollIntervalMs: readNumber('QUEUE_MAX_POLL_INTERVAL_MS', 15000),
+    staleCheckIntervalMs: readNumber('QUEUE_STALE_CHECK_INTERVAL_MS', 60000),
     concurrency: readNumber('QUEUE_CONCURRENCY', 2),
     maxAttempts: readNumber('QUEUE_MAX_ATTEMPTS', 3),
     retryDelayMs: readNumber('QUEUE_RETRY_DELAY_MS', 5000),
@@ -186,6 +188,8 @@ export default {
   metrics: {
     retentionHours: readNumber('METRICS_RETENTION_HOURS', 168),
     streamIntervalSeconds: readNumber('METRICS_STREAM_INTERVAL_SECONDS', 5),
+    streamMaxIntervalSeconds: readNumber('METRICS_STREAM_MAX_INTERVAL_SECONDS', 60),
+    resolutionCacheTtlSeconds: readNumber('METRICS_RESOLUTION_CACHE_TTL_SECONDS', 30),
   },
   databaseMetrics: {
     enabled: readBoolean('DATABASE_METRICS_ENABLED', true),
