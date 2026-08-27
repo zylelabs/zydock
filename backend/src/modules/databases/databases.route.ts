@@ -31,6 +31,7 @@ import {
   findDatabaseConsumers,
   findDatabaseWithSecrets,
   provisionDatabase,
+  publicConnectionUriOf,
   readCredentials,
   refreshDatabaseStatus,
   runLifecycle,
@@ -211,7 +212,15 @@ get(
       return c.json({ error: 'Database not found' }, 404);
     }
 
-    return c.json({ credentials: await readCredentials(database) });
+    const credentials = await readCredentials(database);
+    const server = await findServerWithAgentToken(organizationId, String(database.serverId));
+
+    return c.json({
+      credentials: {
+        ...credentials,
+        publicConnectionUri: publicConnectionUriOf(database, server, credentials),
+      },
+    });
   },
 );
 
