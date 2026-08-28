@@ -11,6 +11,8 @@ export const buildImageSchema = z.object({
   contextPath: z.string().min(1).max(1024),
   dockerfilePath: z.string().min(1).max(1024).optional(),
   buildArgs: z.record(z.string(), z.string()).optional(),
+  buildSecrets: z.record(z.string(), z.string()).optional(),
+  injectBuildArgs: z.boolean().default(false),
   target: z.string().min(1).max(128).optional(),
 });
 

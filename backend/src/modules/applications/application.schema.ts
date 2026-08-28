@@ -65,6 +65,7 @@ const gitBaseSchema = z.object({
   dockerfilePath: z.string().trim().min(1).max(512),
   buildContext: z.string().trim().min(1).max(512),
   autoDeploy: z.boolean(),
+  injectBuildArgs: z.boolean(),
   token: z.string().min(1).max(512).optional(),
   source: z.enum(APPLICATION_GIT_SOURCES),
   gitSourceId: z.string().length(24).optional(),
@@ -104,6 +105,7 @@ const gitSchema = refineGithubApp(
     dockerfilePath: gitBaseSchema.shape.dockerfilePath.default('Dockerfile'),
     buildContext: gitBaseSchema.shape.buildContext.default('.'),
     autoDeploy: gitBaseSchema.shape.autoDeploy.default(true),
+    injectBuildArgs: gitBaseSchema.shape.injectBuildArgs.default(false),
     source: gitBaseSchema.shape.source.default('pat'),
   }),
 );
@@ -154,6 +156,7 @@ const variableSchema = z.object({
   value: z.string().max(8192),
   secret: z.boolean().default(false),
   build: z.boolean().default(false),
+  buildSecret: z.boolean().default(false),
 });
 
 const gitApplicationSchema = z.object({

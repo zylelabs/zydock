@@ -1,8 +1,14 @@
 import config from '../../config';
 import { isDebugEnabled, logDebug } from '../../utils/logger';
+import {
+  undeclaredBuildArgs,
+  undeclaredBuildSecrets,
+  withInjectedArgs,
+} from '../../utils/dockerfile';
 import type {
   ArchiveStream,
   BuildImageSpec,
+  BuildResult,
   ConsoleRequest,
   ConsoleSession,
   ContainerFilter,
@@ -747,11 +753,69 @@ export const createDockerProvider = (): ContainerProvider => ({
     };
   },
 
-  buildImage: async (spec: BuildImageSpec) => {
+  buildImage: async (spec: BuildImageSpec): Promise<BuildResult> => {
+    const dockerfilePath = spec.dockerfilePath ?? `${spec.contextPath}/Dockerfile`;
+
+    let unconsumedArgs: string[] = [];
+    let unconsumedSecrets: string[] = [];
+    let dockerfileContents: string | null = null;
+
+    try {
+      dockerfileContents = await Bun.file(dockerfilePath).text();
+    } catch {
+      dockerfileContents = null;
+    }
+
+    if (dockerfileContents !== null) {
+      unconsumedArgs = undeclaredBuildArgs(dockerfileContents, Object.keys(spec.buildArgs ?? {}));
+      unconsumedSecrets = undeclaredBuildSecrets(
+        dockerfileContents,
+        Object.keys(spec.buildSecrets ?? {}),
+      );
+    }
+
+    if (unconsumedArgs.length > 0 && !spec.injectBuildArgs) {
+      spec.onLog?.({
+        timestamp: new Date().toISOString(),
+        stream: 'stdout',
+        message:
+          `[zydock] build args not declared in the Dockerfile: ${unconsumedArgs.join(', ')}. ` +
+          `Add "ARG <KEY>" to the relevant build stage, or enable automatic injection.`,
+      });
+    }
+
+    let buildDockerfilePath = spec.dockerfilePath;
+
+    if (unconsumedArgs.length > 0 && spec.injectBuildArgs && dockerfileContents !== null) {
+      const injectedContents = withInjectedArgs(dockerfileContents, unconsumedArgs);
+      const injectedPath = `${dockerfilePath}.zydock`;
+
+      await Bun.write(injectedPath, injectedContents);
+
+      buildDockerfilePath = injectedPath;
+      unconsumedArgs = [];
+
+      spec.onLog?.({
+        timestamp: new Date().toISOString(),
+        stream: 'stdout',
+        message: `[zydock] building from a generated Dockerfile with injected ARG declarations: ${injectedPath}`,
+      });
+    }
+
+    if (unconsumedSecrets.length > 0) {
+      spec.onLog?.({
+        timestamp: new Date().toISOString(),
+        stream: 'stdout',
+        message:
+          `[zydock] build secrets not mounted in the Dockerfile: ${unconsumedSecrets.join(', ')}. ` +
+          `Add "RUN --mount=type=secret,id=<KEY>" to the relevant instruction.`,
+      });
+    }
+
     const args = ['build', '--tag', spec.tag];
 
-    if (spec.dockerfilePath) {
-      args.push('--file', spec.dockerfilePath);
+    if (buildDockerfilePath) {
+      args.push('--file', buildDockerfilePath);
     }
 
     if (spec.target) {
@@ -762,9 +826,21 @@ export const createDockerProvider = (): ContainerProvider => ({
       args.push('--build-arg', `${key}=${value}`);
     }
 
+    const buildSecrets = spec.buildSecrets ?? {};
+
+    for (const key of Object.keys(buildSecrets)) {
+      args.push('--secret', `id=${key},env=${key}`);
+    }
+
     args.push(spec.contextPath);
 
-    const process = Bun.spawn(['docker', ...args], { stdout: 'pipe', stderr: 'pipe' });
+    const hasSecrets = Object.keys(buildSecrets).length > 0;
+
+    const child = Bun.spawn(['docker', ...args], {
+      stdout: 'pipe',
+      stderr: 'pipe',
+      ...(hasSecrets ? { env: { ...process.env, DOCKER_BUILDKIT: '1', ...buildSecrets } } : {}),
+    });
 
     const pumpBuildOutput = async (
       readable: ReadableStream<Uint8Array>,
@@ -794,11 +870,11 @@ export const createDockerProvider = (): ContainerProvider => ({
     };
 
     await Promise.all([
-      pumpBuildOutput(process.stdout, 'stdout'),
-      pumpBuildOutput(process.stderr, 'stderr'),
+      pumpBuildOutput(child.stdout, 'stdout'),
+      pumpBuildOutput(child.stderr, 'stderr'),
     ]);
 
-    const code = await process.exited;
+    const code = await child.exited;
 
     if (code !== 0) {
       throw new Error(`Failed to build image ${spec.tag}`);
@@ -816,6 +892,8 @@ export const createDockerProvider = (): ContainerProvider => ({
       tag: spec.tag,
       sizeBytes: Number(size) || 0,
       createdAt: created ?? new Date().toISOString(),
+      unconsumedArgs,
+      unconsumedSecrets,
     };
   },
 

@@ -805,6 +805,7 @@ export const applyTemplateUpdate = async (
     value,
     secret: secretKeys.has(key),
     build: false,
+    buildSecret: false,
   }));
 
   const inputKeys = new Set(template.inputs.map(input => input.key));
@@ -944,6 +945,7 @@ export const deployTemplateApplication = async (params: {
     value,
     secret: secretKeys.has(key),
     build: false,
+    buildSecret: false,
   }));
 
   const applicationBody: CreateApplicationDTO = {

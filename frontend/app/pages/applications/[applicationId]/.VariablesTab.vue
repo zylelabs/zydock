@@ -6,6 +6,7 @@
   } from '~/composables/services/useApplications';
 
   const props = defineProps<{ application: Application; canManage: boolean }>();
+  const emit = defineEmits<{ refresh: [] }>();
 
   const session = useSessionStore();
   const applicationsApi = useApplications();
@@ -50,8 +51,15 @@
     editingVars.value = true;
   };
 
-  const addVar = () => draft.value.push({ key: '', value: '', secret: false, build: false });
+  const addVar = () =>
+    draft.value.push({ key: '', value: '', secret: false, build: false, buildSecret: false });
   const removeVar = (index: number) => draft.value.splice(index, 1);
+
+  const onBuildToggle = (variable: ApplicationVariable) => {
+    if (!variable.build) {
+      variable.buildSecret = false;
+    }
+  };
 
   const saveVars = async () => {
     varsError.value = '';
@@ -71,10 +79,85 @@
       savingVars.value = false;
     }
   };
+
+  const injectingArgs = ref(false);
+  const injectError = ref('');
+
+  const setInjectBuildArgs = async (value: boolean) => {
+    injectError.value = '';
+    injectingArgs.value = true;
+
+    try {
+      await applicationsApi.update(props.application.id, { git: { injectBuildArgs: value } });
+      emit('refresh');
+    } catch (error) {
+      injectError.value = messageOf(error, 'Failed to update the setting.');
+    } finally {
+      injectingArgs.value = false;
+    }
+  };
 </script>
 
 <template>
   <div class="max-w-205">
+    <Alert v-if="application.unconsumedBuildArgs?.length" theme="warning" class="mb-4.5">
+      <p>
+        The Dockerfile does not declare
+        <b>{{ application.unconsumedBuildArgs.join(', ') }}</b>
+        as <code>ARG</code>, so the build passes the value but Docker discards it.
+      </p>
+
+      <p v-if="application.git?.injectBuildArgs" class="mt-2">
+        Automatic <code>ARG</code> injection is <b>on</b> for this application.
+        <Button
+          theme="secondary"
+          size="xs"
+          :disabled="injectingArgs"
+          @click="setInjectBuildArgs(false)"
+        >
+          <Icon v-if="injectingArgs" name="svg-spinners:tadpole" size="16" />
+          Turn off
+        </Button>
+      </p>
+      <template v-else>
+        <p class="mt-2">
+          Zydock can build from a <b>copy</b> of the Dockerfile with
+          <code>ARG &lt;KEY&gt;</code> added after each <code>FROM</code>. The repository is not
+          touched, and this only takes effect on the next deploy.
+        </p>
+        <Button
+          class="mt-2"
+          theme="secondary"
+          size="xs"
+          :disabled="injectingArgs"
+          @click="setInjectBuildArgs(true)"
+        >
+          <Icon v-if="injectingArgs" name="svg-spinners:tadpole" size="16" />
+          Declare ARG automatically
+        </Button>
+      </template>
+
+      <p v-if="injectError" class="mt-2 text-failed">{{ injectError }}</p>
+    </Alert>
+
+    <Alert v-if="application.unconsumedBuildSecrets?.length" theme="warning" class="mb-4.5">
+      <p>
+        The Dockerfile does not mount
+        <b>{{ application.unconsumedBuildSecrets.join(', ') }}</b>
+        as a BuildKit secret, so the value never reaches the build.
+      </p>
+      <p class="mt-2">
+        Add this to the stage that needs it:
+        <code
+          v-for="key in application.unconsumedBuildSecrets"
+          :key="key"
+          class="mt-1 block w-fit rounded bg-canvas-2 px-2 py-1"
+        >
+          RUN --mount=type=secret,id={{ key }} ...
+        </code>
+      </p>
+    </Alert>
+
     <Card title="Environment variables" content-class="p-0">
       <template v-if="canManage" #right>
         <Button v-if="!editingVars" theme="secondary" size="xs" @click="startEditVars">Edit</Button>
@@ -99,7 +182,8 @@
           <div class="min-w-0 flex-1 truncate font-mono text-caption text-ink-2">
             {{ shownValue(variable) }}
           </div>
-          <Tag v-if="variable.build">build</Tag>
+          <Tag v-if="variable.buildSecret">build secret</Tag>
+          <Tag v-else-if="variable.build">build</Tag>
           <Button
             v-if="variable.secret"
             theme="secondary"
@@ -113,9 +197,11 @@
         <Row as="div" class="flex items-center">
           <p class="text-caption text-ink-3">
             Values are encrypted at rest on the server that runs the container. Variables marked
-            <b>build</b> are also passed as <code>--build-arg</code> during the image build, and
-            their value stays visible in the image history; changes only take effect on the next
-            deploy.
+            <b>build</b> are passed as <code>--build-arg</code> during the image build, and their
+            value stays visible in <code>docker history</code>. Variables marked
+            <b>build secret</b> are passed as a BuildKit <code>--secret</code> instead — they never
+            land in an image layer, but the Dockerfile must mount them with
+            <code>RUN --mount=type=secret</code>. Changes only take effect on the next deploy.
           </p>
         </Row>
       </template>
@@ -138,8 +224,16 @@
             v-if="application.source === 'git'"
             class="flex cursor-pointer items-center gap-1.5 text-caption text-ink-2"
           >
-            <Checkbox v-model="variable.build" />
+            <Checkbox v-model="variable.build" @change="onBuildToggle(variable)" />
             build
+          </label>
+          <label
+            v-if="application.source === 'git'"
+            class="flex cursor-pointer items-center gap-1.5 text-caption text-ink-2"
+            :class="{ 'opacity-40': !variable.build }"
+          >
+            <Checkbox v-model="variable.buildSecret" :disabled="!variable.build" />
+            as BuildKit secret
           </label>
           <button
             type="button"

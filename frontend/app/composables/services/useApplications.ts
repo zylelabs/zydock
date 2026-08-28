@@ -30,6 +30,7 @@ export interface ApplicationGit {
   dockerfilePath: string;
   buildContext: string;
   autoDeploy: boolean;
+  injectBuildArgs: boolean;
   hasToken?: boolean;
   token?: string;
   hasWebhook?: boolean;
@@ -50,6 +51,7 @@ export interface ApplicationVariable {
   value?: string;
   secret: boolean;
   build: boolean;
+  buildSecret: boolean;
 }
 
 export interface ApplicationPortMapping {
@@ -183,6 +185,8 @@ export interface Application {
   templateStatus?: TemplateStatus;
   lastError?: string;
   autoDomainDisabled: boolean;
+  unconsumedBuildArgs?: string[];
+  unconsumedBuildSecrets?: string[];
   createdAt: string;
   updatedAt: string;
 }
