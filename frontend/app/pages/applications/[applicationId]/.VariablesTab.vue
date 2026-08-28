@@ -96,6 +96,11 @@
       injectingArgs.value = false;
     }
   };
+
+  const injectBuildArgs = computed({
+    get: () => Boolean(props.application.git?.injectBuildArgs),
+    set: (value: boolean) => void setInjectBuildArgs(value),
+  });
 </script>
 
 <template>
@@ -104,40 +109,9 @@
       <p>
         The Dockerfile does not declare
         <b>{{ application.unconsumedBuildArgs.join(', ') }}</b>
-        as <code>ARG</code>, so the build passes the value but Docker discards it.
+        as <code>ARG</code>, so the build passes the value but Docker discards it. Declare it in the
+        build stage, or turn on <b>Declare missing ARG automatically</b> below.
       </p>
-
-      <p v-if="application.git?.injectBuildArgs" class="mt-2">
-        Automatic <code>ARG</code> injection is <b>on</b> for this application.
-        <Button
-          theme="secondary"
-          size="xs"
-          :disabled="injectingArgs"
-          @click="setInjectBuildArgs(false)"
-        >
-          <Icon v-if="injectingArgs" name="svg-spinners:tadpole" size="16" />
-          Turn off
-        </Button>
-      </p>
-      <template v-else>
-        <p class="mt-2">
-          Zydock can build from a <b>copy</b> of the Dockerfile with
-          <code>ARG &lt;KEY&gt;</code> added after each <code>FROM</code>. The repository is not
-          touched, and this only takes effect on the next deploy.
-        </p>
-        <Button
-          class="mt-2"
-          theme="secondary"
-          size="xs"
-          :disabled="injectingArgs"
-          @click="setInjectBuildArgs(true)"
-        >
-          <Icon v-if="injectingArgs" name="svg-spinners:tadpole" size="16" />
-          Declare ARG automatically
-        </Button>
-      </template>
-
-      <p v-if="injectError" class="mt-2 text-failed">{{ injectError }}</p>
     </Alert>
 
     <Alert v-if="application.unconsumedBuildSecrets?.length" theme="warning" class="mb-4.5">
@@ -194,14 +168,33 @@
           </Button>
         </Row>
 
+        <Row
+          v-if="application.source === 'git' && canManage"
+          as="div"
+          class="flex items-start justify-between gap-4.25"
+        >
+          <div class="flex min-w-0 flex-col gap-1">
+            <div class="flex items-center gap-2">
+              <span class="text-body text-ink">Declare missing ARG automatically</span>
+              <Icon v-if="injectingArgs" name="svg-spinners:tadpole" size="16" class="text-ink-3" />
+            </div>
+            <p class="text-caption text-ink-3">
+              Builds from a copy of the Dockerfile with <code>ARG &lt;KEY&gt;</code> after each
+              <code>FROM</code>, for every build variable it does not already declare — the
+              repository is never modified. Turn it off to declare the <code>ARG</code> yourself and
+              control where it sits in the cache.
+            </p>
+            <p v-if="injectError" class="text-caption text-failed">{{ injectError }}</p>
+          </div>
+          <Switch v-model="injectBuildArgs" class="mt-0.5 shrink-0" />
+        </Row>
+
         <Row as="div" class="flex items-center">
           <p class="text-caption text-ink-3">
-            Values are encrypted at rest on the server that runs the container. Variables marked
-            <b>build</b> are passed as <code>--build-arg</code> during the image build, and their
-            value stays visible in <code>docker history</code>. Variables marked
-            <b>build secret</b> are passed as a BuildKit <code>--secret</code> instead — they never
-            land in an image layer, but the Dockerfile must mount them with
-            <code>RUN --mount=type=secret</code>. Changes only take effect on the next deploy.
+            Values are encrypted at rest and take effect on the next deploy. <b>build</b> goes in as
+            <code>--build-arg</code> and stays visible in <code>docker history</code>;
+            <b>build secret</b> goes in as a BuildKit <code>--secret</code>, which never lands in a
+            layer but needs <code>RUN --mount=type=secret</code> in the Dockerfile.
           </p>
         </Row>
       </template>
