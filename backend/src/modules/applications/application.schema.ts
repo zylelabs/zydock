@@ -153,6 +153,7 @@ const variableSchema = z.object({
     .regex(/^[A-Za-z_][A-Za-z0-9_]*$/, 'Invalid environment variable name'),
   value: z.string().max(8192),
   secret: z.boolean().default(false),
+  build: z.boolean().default(false),
 });
 
 const gitApplicationSchema = z.object({

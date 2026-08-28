@@ -50,7 +50,7 @@
     editingVars.value = true;
   };
 
-  const addVar = () => draft.value.push({ key: '', value: '', secret: false });
+  const addVar = () => draft.value.push({ key: '', value: '', secret: false, build: false });
   const removeVar = (index: number) => draft.value.splice(index, 1);
 
   const saveVars = async () => {
@@ -99,6 +99,7 @@
           <div class="min-w-0 flex-1 truncate font-mono text-caption text-ink-2">
             {{ shownValue(variable) }}
           </div>
+          <Tag v-if="variable.build">build</Tag>
           <Button
             v-if="variable.secret"
             theme="secondary"
@@ -111,7 +112,10 @@
 
         <Row as="div" class="flex items-center">
           <p class="text-caption text-ink-3">
-            Values are encrypted at rest on the server that runs the container.
+            Values are encrypted at rest on the server that runs the container. Variables marked
+            <b>build</b> are also passed as <code>--build-arg</code> during the image build, and
+            their value stays visible in the image history; changes only take effect on the next
+            deploy.
           </p>
         </Row>
       </template>
@@ -129,6 +133,13 @@
           <label class="flex cursor-pointer items-center gap-1.5 text-caption text-ink-2">
             <Checkbox v-model="variable.secret" />
             secret
+          </label>
+          <label
+            v-if="application.source === 'git'"
+            class="flex cursor-pointer items-center gap-1.5 text-caption text-ink-2"
+          >
+            <Checkbox v-model="variable.build" />
+            build
           </label>
           <button
             type="button"
