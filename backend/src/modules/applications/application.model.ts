@@ -64,7 +64,7 @@ const applicationSchema = new Schema(
       dockerfilePath: { type: String, required: true, trim: true, default: 'Dockerfile' },
       buildContext: { type: String, required: true, trim: true, default: '.' },
       autoDeploy: { type: Boolean, required: true, default: true },
-      injectBuildArgs: { type: Boolean, required: true, default: false },
+      injectBuildArgs: { type: Boolean, required: true, default: true },
       token: { type: String, select: false },
       hasToken: { type: Boolean, required: true, default: false },
       webhookId: { type: String },

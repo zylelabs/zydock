@@ -105,7 +105,7 @@ const gitSchema = refineGithubApp(
     dockerfilePath: gitBaseSchema.shape.dockerfilePath.default('Dockerfile'),
     buildContext: gitBaseSchema.shape.buildContext.default('.'),
     autoDeploy: gitBaseSchema.shape.autoDeploy.default(true),
-    injectBuildArgs: gitBaseSchema.shape.injectBuildArgs.default(false),
+    injectBuildArgs: gitBaseSchema.shape.injectBuildArgs.default(true),
     source: gitBaseSchema.shape.source.default('pat'),
   }),
 );
