@@ -1,3 +1,4 @@
+import { createHash } from 'node:crypto';
 import config from '../../config';
 import { errorMessage } from '../../utils';
 import { resolveComposeProvider, type ComposeServiceStatus } from '../../providers/compose';
@@ -106,11 +107,31 @@ type CloneResult = {
   committedAt: string;
 };
 
-const imageTagOf = (slug: string, commit: string) => `zydock/${slug}:${commit.slice(0, 7)}`;
+const imageTagOf = (slug: string, commit: string, buildArgs: Record<string, string>) => {
+  const entries = Object.entries(buildArgs).sort(([a], [b]) => a.localeCompare(b));
+
+  if (entries.length === 0) {
+    return `zydock/${slug}:${commit.slice(0, 7)}`;
+  }
+
+  const argsHash = createHash('sha256')
+    .update(entries.map(([key, value]) => `${key}=${value}`).join('\n'))
+    .digest('hex')
+    .slice(0, 7);
+
+  return `zydock/${slug}:${commit.slice(0, 7)}-${argsHash}`;
+};
 
 const environmentOf = (application: Application) =>
   Object.fromEntries(
     decryptVariables(application.variables).map(variable => [variable.key, variable.value]),
+  );
+
+const buildArgsOf = (application: Application) =>
+  Object.fromEntries(
+    decryptVariables(application.variables)
+      .filter(variable => variable.build)
+      .map(variable => [variable.key, variable.value]),
   );
 
 const healthcheckCommandOf = (application: Application) => {
@@ -622,7 +643,9 @@ export const runDeployment = async (deploymentId: string) => {
 
         startStep('build');
 
-        image = imageTagOf(application.slug, clone.commit);
+        const buildArgs = buildArgsOf(application);
+
+        image = imageTagOf(application.slug, clone.commit, buildArgs);
 
         const buildLog = makeLogPublisher(deploymentId, 'build');
 
@@ -633,6 +656,7 @@ export const runDeployment = async (deploymentId: string) => {
             tag: image,
             contextPath: `${clone.path}/${application.git.buildContext}`.replace(/\/\.$/, ''),
             dockerfilePath: `${clone.path}/${application.git.dockerfilePath}`,
+            ...(Object.keys(buildArgs).length > 0 ? { buildArgs } : {}),
             onLog: entry => buildLog.push(entry.message),
           });
         } finally {
@@ -711,11 +735,16 @@ export const runDeployment = async (deploymentId: string) => {
       deployment.compose?.envContent !== undefined
     ) {
       const rollbackVariables = parseEnvContent(deployment.compose.envContent).map(
-        ({ key, value }) => ({
-          key,
-          value,
-          secret: application.variables.find(candidate => candidate.key === key)?.secret ?? false,
-        }),
+        ({ key, value }) => {
+          const existing = application.variables.find(candidate => candidate.key === key);
+
+          return {
+            key,
+            value,
+            secret: existing?.secret ?? false,
+            build: existing?.build ?? false,
+          };
+        },
       );
 
       await replaceVariables(String(application._id), rollbackVariables);

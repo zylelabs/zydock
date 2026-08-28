@@ -49,6 +49,7 @@ export interface ApplicationVariable {
   key: string;
   value?: string;
   secret: boolean;
+  build: boolean;
 }
 
 export interface ApplicationPortMapping {

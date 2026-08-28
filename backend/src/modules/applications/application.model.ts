@@ -13,6 +13,7 @@ const variableSchema = new Schema(
     key: { type: String, required: true, trim: true },
     value: { type: String, required: true, select: false },
     secret: { type: Boolean, required: true, default: false },
+    build: { type: Boolean, required: true, default: false },
   },
   { _id: false },
 );
