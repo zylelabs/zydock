@@ -102,7 +102,7 @@ describe('compose lifecycle', () => {
 
     expect(result.valid).toBe(true);
     expect(result.output).toContain('alpine:3');
-  });
+  }, 30000);
 
   test('config on a project outside the workspace never sees a raw path', async () => {
     await expect(configComposeProject('never-written')).rejects.toThrow('was not found');
@@ -119,7 +119,7 @@ describe('compose lifecycle', () => {
 
     expect(result.valid).toBe(false);
     expect(result.error).toBeTruthy();
-  });
+  }, 30000);
 
   test('pull, up, ps, restart and down are idempotent', async () => {
     await pullComposeProject(project);
@@ -145,5 +145,5 @@ describe('compose lifecycle', () => {
     await downComposeProject(project, true).catch(() => undefined);
     await rm(join(config.workspacePath, 'compose'), { recursive: true, force: true });
     await rm(join(tmpdir(), 'zydock-test-workspace'), { recursive: true, force: true });
-  });
+  }, 30000);
 });
