@@ -25,6 +25,7 @@ const encryptVariables = (variables: CreateApplicationDTO['variables']) =>
     key: variable.key,
     value: encryptSecret(variable.value),
     secret: variable.secret,
+    build: variable.build,
   }));
 
 export const decryptVariables = (variables: ApplicationVariable[]) =>
@@ -32,6 +33,7 @@ export const decryptVariables = (variables: ApplicationVariable[]) =>
     key: variable.key,
     value: decryptSecret(variable.value),
     secret: variable.secret,
+    build: variable.build,
   }));
 
 export const VERSION_VARIABLE_PROJECTION = '+variables.value';
@@ -367,6 +369,7 @@ export const serializeApplication = (application: Application) => ({
   variables: application.variables.map(variable => ({
     key: variable.key,
     secret: variable.secret,
+    build: variable.build,
   })),
   volumes: application.volumes,
   networks: application.source === 'git' ? application.networks : undefined,

@@ -43,6 +43,7 @@ interface ApplicationVariable {
   key: string;
   value: string;
   secret: boolean;
+  build: boolean;
 }
 
 interface ApplicationVolume {
