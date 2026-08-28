@@ -17,6 +17,7 @@ jobs:
   package:
     name: ${{ matrix.package }} (lint · test · build)
     runs-on: ubuntu-latest
+    timeout-minutes: 20
     strategy:
       fail-fast: false
       matrix:
@@ -40,9 +41,12 @@ jobs:
         run: |
           docker run -d --name mongo -p 27017:27017 mongo:7
           for i in $(seq 1 30); do
-            docker exec mongo mongosh --quiet --eval 'db.adminCommand({ ping: 1 })' >/dev/null 2>&1 && break
+            docker exec mongo mongosh --quiet --eval 'db.adminCommand({ ping: 1 })' >/dev/null 2>&1 && exit 0
             sleep 2
           done
+          echo "Mongo never answered a ping after 60s" >&2
+          docker logs mongo >&2
+          exit 1
       - run: bun install --frozen-lockfile
       - run: bun run lint
       - run: bun run test
@@ -51,6 +55,7 @@ jobs:
   docker-build:
     name: build ${{ matrix.service }} image
     runs-on: ubuntu-latest
+    timeout-minutes: 30
     if: github.event_name == 'pull_request'
     strategy:
       fail-fast: false
@@ -79,6 +84,7 @@ jobs:
   hadolint:
     name: hadolint (${{ matrix.dockerfile }})
     runs-on: ubuntu-latest
+    timeout-minutes: 10
     strategy:
       fail-fast: false
       matrix:
@@ -90,6 +96,7 @@ jobs:
   shellcheck:
     name: shellcheck (scripts)
     runs-on: ubuntu-latest
+    timeout-minutes: 10
     steps:
       - uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262 # v4.4.0
       - run: >
@@ -101,6 +108,7 @@ jobs:
   smoke-test:
     name: smoke test (docker-compose.prod.yml)
     runs-on: ubuntu-latest
+    timeout-minutes: 30
     steps:
       - uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262 # v4.4.0
       - name: Generate test secrets
