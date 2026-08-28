@@ -270,7 +270,9 @@
         <div class="min-w-0">
           <div class="flex flex-wrap items-center gap-2">
             <span class="truncate text-body font-semibold text-ink">{{ application.name }}</span>
-            <Tag v-if="application.origin">Template · {{ application.origin.templateId }}</Tag>
+            <Tag v-if="application.origin?.templateId"
+              >Template · {{ application.origin.templateId }}</Tag
+            >
           </div>
 
           <div class="flex min-w-0 items-center gap-1.5 font-mono text-caption text-ink-2">
