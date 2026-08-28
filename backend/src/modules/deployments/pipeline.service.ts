@@ -4,8 +4,8 @@ import { errorMessage } from '../../utils';
 import { resolveComposeProvider, type ComposeServiceStatus } from '../../providers/compose';
 import {
   resolveContainerProvider,
+  type BuildResult,
   type ContainerSpec,
-  type ImageInfo,
 } from '../../providers/container';
 import { resolveGitProvider } from '../../providers/git';
 import {
@@ -107,8 +107,15 @@ type CloneResult = {
   committedAt: string;
 };
 
-const imageTagOf = (slug: string, commit: string, buildArgs: Record<string, string>) => {
-  const entries = Object.entries(buildArgs).sort(([a], [b]) => a.localeCompare(b));
+const imageTagOf = (
+  slug: string,
+  commit: string,
+  buildArgs: Record<string, string>,
+  buildSecrets: Record<string, string>,
+) => {
+  const entries = [...Object.entries(buildArgs), ...Object.entries(buildSecrets)].sort(([a], [b]) =>
+    a.localeCompare(b),
+  );
 
   if (entries.length === 0) {
     return `zydock/${slug}:${commit.slice(0, 7)}`;
@@ -130,7 +137,14 @@ const environmentOf = (application: Application) =>
 const buildArgsOf = (application: Application) =>
   Object.fromEntries(
     decryptVariables(application.variables)
-      .filter(variable => variable.build)
+      .filter(variable => variable.build && !variable.buildSecret)
+      .map(variable => [variable.key, variable.value]),
+  );
+
+const buildSecretsOf = (application: Application) =>
+  Object.fromEntries(
+    decryptVariables(application.variables)
+      .filter(variable => variable.build && variable.buildSecret)
       .map(variable => [variable.key, variable.value]),
   );
 
@@ -644,12 +658,13 @@ export const runDeployment = async (deploymentId: string) => {
         startStep('build');
 
         const buildArgs = buildArgsOf(application);
+        const buildSecrets = buildSecretsOf(application);
 
-        image = imageTagOf(application.slug, clone.commit, buildArgs);
+        image = imageTagOf(application.slug, clone.commit, buildArgs, buildSecrets);
 
         const buildLog = makeLogPublisher(deploymentId, 'build');
 
-        let built: ImageInfo;
+        let built: BuildResult;
 
         try {
           built = await containers.buildImage({
@@ -657,13 +672,35 @@ export const runDeployment = async (deploymentId: string) => {
             contextPath: `${clone.path}/${application.git.buildContext}`.replace(/\/\.$/, ''),
             dockerfilePath: `${clone.path}/${application.git.dockerfilePath}`,
             ...(Object.keys(buildArgs).length > 0 ? { buildArgs } : {}),
+            ...(Object.keys(buildSecrets).length > 0 ? { buildSecrets } : {}),
+            injectBuildArgs: application.git.injectBuildArgs,
             onLog: entry => buildLog.push(entry.message),
           });
         } finally {
           buildLog.drain();
         }
 
-        await finishStep(`${built.tag} (${Math.round(built.sizeBytes / 1024 / 1024)} MB)`);
+        await applicationModel.updateOne(
+          { _id: application._id },
+          {
+            $set: {
+              unconsumedBuildArgs: built.unconsumedArgs,
+              unconsumedBuildSecrets: built.unconsumedSecrets,
+            },
+          },
+        );
+
+        const unconsumedDetail = [
+          ...built.unconsumedArgs.map(key => `unconsumed build arg: ${key}`),
+          ...built.unconsumedSecrets.map(key => `unconsumed build secret: ${key}`),
+        ];
+
+        await finishStep(
+          [
+            `${built.tag} (${Math.round(built.sizeBytes / 1024 / 1024)} MB)`,
+            ...unconsumedDetail,
+          ].join(' — '),
+        );
       }
 
       startStep('container');
@@ -743,6 +780,7 @@ export const runDeployment = async (deploymentId: string) => {
             value,
             secret: existing?.secret ?? false,
             build: existing?.build ?? false,
+            buildSecret: existing?.buildSecret ?? false,
           };
         },
       );

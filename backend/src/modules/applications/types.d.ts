@@ -5,6 +5,7 @@ interface ApplicationGit {
   dockerfilePath: string;
   buildContext: string;
   autoDeploy: boolean;
+  injectBuildArgs: boolean;
   token?: string;
   hasToken: boolean;
   webhookId?: string;
@@ -44,6 +45,7 @@ interface ApplicationVariable {
   value: string;
   secret: boolean;
   build: boolean;
+  buildSecret: boolean;
 }
 
 interface ApplicationVolume {
@@ -93,6 +95,8 @@ interface ApplicationData {
   restartPolicy: import('./application.schema').ApplicationRestartPolicy;
   lastError?: string;
   autoDomainDisabled: boolean;
+  unconsumedBuildArgs: string[];
+  unconsumedBuildSecrets: string[];
 }
 
 type Application = BaseDocument<ApplicationData>;

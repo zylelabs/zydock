@@ -386,6 +386,7 @@
       v-else-if="activeTab === 'variables'"
       :application="application"
       :can-manage="canManage"
+      @refresh="refresh"
     />
     <FilesTab
       v-else-if="activeTab === 'files'"

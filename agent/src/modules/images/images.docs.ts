@@ -37,8 +37,12 @@ export const imagesDocs = {
     summary: 'Build an image',
     description:
       'Always answers with a `text/event-stream`: `log` events carry the build output, and the ' +
-      'stream ends with a single `result` event (the image) or an `error` event (the failure). ' +
-      'The build context is a path on this server.',
+      'stream ends with a single `result` event or an `error` event (the failure). The `result` ' +
+      'event carries the built image plus `unconsumedArgs`/`unconsumedSecrets` — build args and ' +
+      'secrets the Dockerfile does not declare. `buildSecrets` values travel through the build ' +
+      "process's environment, never as a `docker` argument. `injectBuildArgs` builds from a copy " +
+      'of the Dockerfile with `ARG` declared after each `FROM`, instead of the original file. The ' +
+      'build context is a path on this server.',
     security: agentAuth,
     responses: {
       200: {

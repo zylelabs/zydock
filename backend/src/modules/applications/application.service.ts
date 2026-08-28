@@ -26,6 +26,7 @@ const encryptVariables = (variables: CreateApplicationDTO['variables']) =>
     value: encryptSecret(variable.value),
     secret: variable.secret,
     build: variable.build,
+    buildSecret: variable.buildSecret,
   }));
 
 export const decryptVariables = (variables: ApplicationVariable[]) =>
@@ -34,6 +35,7 @@ export const decryptVariables = (variables: ApplicationVariable[]) =>
     value: decryptSecret(variable.value),
     secret: variable.secret,
     build: variable.build,
+    buildSecret: variable.buildSecret,
   }));
 
 export const VERSION_VARIABLE_PROJECTION = '+variables.value';
@@ -344,6 +346,7 @@ export const serializeApplication = (application: Application) => ({
           dockerfilePath: application.git.dockerfilePath,
           buildContext: application.git.buildContext,
           autoDeploy: application.git.autoDeploy,
+          injectBuildArgs: application.git.injectBuildArgs,
           hasToken: application.git.hasToken,
           hasWebhook: Boolean(application.git.webhookId),
           webhookUrl: application.git.webhookId
@@ -370,6 +373,7 @@ export const serializeApplication = (application: Application) => ({
     key: variable.key,
     secret: variable.secret,
     build: variable.build,
+    buildSecret: variable.buildSecret,
   })),
   volumes: application.volumes,
   networks: application.source === 'git' ? application.networks : undefined,
@@ -384,6 +388,12 @@ export const serializeApplication = (application: Application) => ({
   templateStatus: templateStatusOf(application),
   lastError: application.lastError,
   autoDomainDisabled: application.autoDomainDisabled,
+  ...(application.source === 'git' && application.unconsumedBuildArgs?.length
+    ? { unconsumedBuildArgs: application.unconsumedBuildArgs }
+    : {}),
+  ...(application.source === 'git' && application.unconsumedBuildSecrets?.length
+    ? { unconsumedBuildSecrets: application.unconsumedBuildSecrets }
+    : {}),
   createdAt: application.createdAt,
   updatedAt: application.updatedAt,
 });
