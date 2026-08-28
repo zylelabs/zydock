@@ -376,7 +376,7 @@ export const serializeApplication = (application: Application) => ({
       : undefined,
   resources: application.resources,
   restartPolicy: application.restartPolicy,
-  origin: application.origin,
+  origin: application.origin?.templateId ? application.origin : undefined,
   version: currentVersionOf(application),
   templateStatus: templateStatusOf(application),
   lastError: application.lastError,

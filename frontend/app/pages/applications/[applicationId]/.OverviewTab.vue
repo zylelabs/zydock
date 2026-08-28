@@ -461,7 +461,9 @@
             <div class="w-33 shrink-0 text-caption text-ink-2">Origin</div>
             <div class="truncate font-mono text-caption text-ink">
               {{
-                application.origin ? `Template · ${application.origin.templateId}` : 'Compose file'
+                application.origin?.templateId
+                  ? `Template · ${application.origin.templateId}`
+                  : 'Compose file'
               }}
             </div>
           </Row>
