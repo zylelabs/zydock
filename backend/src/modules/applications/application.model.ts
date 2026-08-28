@@ -14,6 +14,7 @@ const variableSchema = new Schema(
     value: { type: String, required: true, select: false },
     secret: { type: Boolean, required: true, default: false },
     build: { type: Boolean, required: true, default: false },
+    buildSecret: { type: Boolean, required: true, default: false },
   },
   { _id: false },
 );
@@ -63,6 +64,7 @@ const applicationSchema = new Schema(
       dockerfilePath: { type: String, required: true, trim: true, default: 'Dockerfile' },
       buildContext: { type: String, required: true, trim: true, default: '.' },
       autoDeploy: { type: Boolean, required: true, default: true },
+      injectBuildArgs: { type: Boolean, required: true, default: false },
       token: { type: String, select: false },
       hasToken: { type: Boolean, required: true, default: false },
       webhookId: { type: String },
@@ -114,6 +116,8 @@ const applicationSchema = new Schema(
     },
     lastError: { type: String },
     autoDomainDisabled: { type: Boolean, required: true, default: false },
+    unconsumedBuildArgs: { type: [String], default: [] },
+    unconsumedBuildSecrets: { type: [String], default: [] },
   },
   {
     versionKey: false,

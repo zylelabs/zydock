@@ -105,6 +105,8 @@ export type BuildImageSpec = {
   dockerfilePath?: string;
   tag: string;
   buildArgs?: Record<string, string>;
+  buildSecrets?: Record<string, string>;
+  injectBuildArgs?: boolean;
   target?: string;
   onLog?: (entry: LogEntry) => void;
 };
@@ -114,6 +116,11 @@ export type ImageInfo = {
   tag: string;
   sizeBytes: number;
   createdAt: string;
+};
+
+export type BuildResult = ImageInfo & {
+  unconsumedArgs: string[];
+  unconsumedSecrets: string[];
 };
 
 export type NetworkInfo = {
@@ -170,7 +177,7 @@ export type ContainerProvider = {
   streamLogs: (id: string, query?: LogStreamQuery) => AsyncIterable<LogEntry>;
   execCommand: (id: string, request: ExecRequest) => Promise<ExecResult>;
   openConsole: (id: string, request: ConsoleRequest) => Promise<ConsoleSession>;
-  buildImage: (spec: BuildImageSpec) => Promise<ImageInfo>;
+  buildImage: (spec: BuildImageSpec) => Promise<BuildResult>;
   pullImage: (reference: string) => Promise<ImageInfo>;
   removeImage: (reference: string) => Promise<void>;
   listImages: () => Promise<ImageInfo[]>;

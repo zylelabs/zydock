@@ -2,6 +2,7 @@ import { createAgentClient, isAbortError, readAgentEvents, searchParams } from '
 import type {
   ArchiveStream,
   BuildImageSpec,
+  BuildResult,
   ContainerConnection,
   ContainerFilter,
   ContainerInfo,
@@ -138,14 +139,14 @@ export const createRemoteContainerProvider = (
         streamed: true,
       });
 
-      let image: ImageInfo | null = null;
+      let image: BuildResult | null = null;
       let failure: string | null = null;
 
       for await (const entry of readAgentEvents(response)) {
         if (entry.event === 'log') {
           onLog?.(JSON.parse(entry.data) as LogEntry);
         } else if (entry.event === 'result') {
-          image = JSON.parse(entry.data) as ImageInfo;
+          image = JSON.parse(entry.data) as BuildResult;
         } else if (entry.event === 'error') {
           failure = (JSON.parse(entry.data) as { error: string }).error;
         }
