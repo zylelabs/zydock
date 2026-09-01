@@ -21,7 +21,7 @@
   },
   "dependencies": {
     "@scalar/hono-api-reference": "^0.11.9",
-    "bson": "^6.10.4",
+    "bson": "^7.3.2",
     "hono": "^4.12.28",
     "hono-route-docs": "^1.0.1",
     "mongoose": "^8.24.1",
