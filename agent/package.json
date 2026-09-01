@@ -15,7 +15,7 @@
     "fix": "bun run prettier:fix && bun run typecheck && bun outdated"
   },
   "dependencies": {
-    "@scalar/hono-api-reference": "^0.11.9",
+    "@scalar/hono-api-reference": "^0.12.0",
     "hono": "^4.12.28",
     "hono-route-docs": "^1.0.1",
     "zod": "^4.4.3"
