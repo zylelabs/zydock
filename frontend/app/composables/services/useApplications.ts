@@ -29,6 +29,7 @@ export interface ApplicationGit {
   branch: string;
   dockerfilePath: string;
   buildContext: string;
+  watchPaths?: string[];
   autoDeploy: boolean;
   injectBuildArgs: boolean;
   hasToken?: boolean;

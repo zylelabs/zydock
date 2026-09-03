@@ -48,6 +48,8 @@ export type GitPushEvent = {
   commitMessage: string;
   author: string;
   pushedAt: string;
+  /** Paths touched by the push. Empty means unknown, not "nothing changed". */
+  changedPaths: string[];
 };
 
 export type GitProvider = {

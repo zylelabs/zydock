@@ -39,18 +39,55 @@ type WebhookResponse = {
   config: { url?: string };
 };
 
+type PushCommitPaths = {
+  added?: string[];
+  removed?: string[];
+  modified?: string[];
+};
+
 type PushPayload = {
   ref?: string;
   after?: string;
   deleted?: boolean;
   repository?: { full_name?: string };
   pusher?: { name?: string };
-  head_commit?: {
-    id?: string;
-    message?: string;
-    timestamp?: string;
-    author?: { name?: string; username?: string };
-  } | null;
+  commits?: Array<PushCommitPaths>;
+  head_commit?:
+    | ({
+        id?: string;
+        message?: string;
+        timestamp?: string;
+        author?: { name?: string; username?: string };
+      } & PushCommitPaths)
+    | null;
+};
+
+const MAX_COMMITS_WITH_FULL_PATHS = 20;
+
+const collectChangedPaths = (payload: PushPayload): string[] => {
+  const commits = payload.commits ?? [];
+
+  if (commits.length === 0 || commits.length >= MAX_COMMITS_WITH_FULL_PATHS) {
+    return [];
+  }
+
+  const allCommits = [...commits, payload.head_commit].filter(
+    (commit): commit is PushCommitPaths => commit != null,
+  );
+
+  const changedPaths = new Set<string>();
+
+  for (const commit of allCommits) {
+    for (const path of [
+      ...(commit.added ?? []),
+      ...(commit.removed ?? []),
+      ...(commit.modified ?? []),
+    ]) {
+      changedPaths.add(path);
+    }
+  }
+
+  return [...changedPaths];
 };
 
 const signBody = (body: string, secret: string) =>
@@ -205,6 +242,7 @@ export const createGithubProvider = (credentials: GitCredentials): GitProvider =
           payload.pusher?.name ??
           '',
         pushedAt: payload.head_commit?.timestamp ?? new Date().toISOString(),
+        changedPaths: collectChangedPaths(payload),
       };
     },
   };

@@ -77,6 +77,7 @@
     environmentId: z.string().min(1, 'Choose an environment'),
     serverId: z.string().min(1, 'Choose a server'),
     dockerfilePath: z.string().trim().min(1, 'Enter a Dockerfile path'),
+    buildContext: z.string().trim().min(1, 'Enter the build context'),
     port: z.string().regex(/^\d+$/, 'Invalid port'),
     autoDeploy: z.boolean(),
     templateId: z.string().trim(),
@@ -132,6 +133,7 @@
       environmentId: '',
       serverId: '',
       dockerfilePath: 'Dockerfile',
+      buildContext: '.',
       port: '3000',
       autoDeploy: true,
       templateId: '',
@@ -605,7 +607,7 @@
               installationId: values.installationId,
               branch: values.branch,
               dockerfilePath: values.dockerfilePath,
-              buildContext: '.',
+              buildContext: values.buildContext,
               autoDeploy: values.autoDeploy,
             }
           : {
@@ -614,7 +616,7 @@
               repository: values.repository,
               branch: values.branch,
               dockerfilePath: values.dockerfilePath,
-              buildContext: '.',
+              buildContext: values.buildContext,
               autoDeploy: values.autoDeploy,
               token: values.token || undefined,
             },
@@ -959,6 +961,13 @@
             <template v-else>
               <Input v-model="form.values.branch" label="Branch" mono boxed />
               <Input v-model="form.values.dockerfilePath" label="Dockerfile" mono boxed />
+              <Input
+                v-model="form.values.buildContext"
+                label="Build context"
+                mono
+                boxed
+                :call-error="form.errors.value.buildContext"
+              />
               <Input
                 v-model="form.values.port"
                 label="Port"

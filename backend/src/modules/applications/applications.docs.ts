@@ -27,6 +27,12 @@ const applicationSchema = {
         dockerfilePath: { type: 'string' },
         buildContext: { type: 'string' },
         autoDeploy: { type: 'boolean' },
+        watchPaths: {
+          type: 'array',
+          items: { type: 'string' },
+          description:
+            'Paths that gate auto deploy on push. Empty means the whole repository is watched.',
+        },
         hasToken: { type: 'boolean' },
       },
     },

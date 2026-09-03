@@ -347,6 +347,7 @@ export const serializeApplication = (application: Application) => ({
           buildContext: application.git.buildContext,
           autoDeploy: application.git.autoDeploy,
           injectBuildArgs: application.git.injectBuildArgs,
+          watchPaths: application.git.watchPaths ?? [],
           hasToken: application.git.hasToken,
           hasWebhook: Boolean(application.git.webhookId),
           webhookUrl: application.git.webhookId

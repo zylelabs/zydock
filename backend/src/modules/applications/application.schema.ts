@@ -53,6 +53,12 @@ export const applicationServiceParamSchema = applicationIdParamSchema.extend({
 
 export type ApplicationServiceParam = z.infer<typeof applicationServiceParamSchema>;
 
+const watchPathSchema = z
+  .string()
+  .trim()
+  .transform(value => value.replace(/^\.\//, '').replace(/^\/+/, '').replace(/\/+$/, ''))
+  .pipe(z.string().min(1).max(512));
+
 const gitBaseSchema = z.object({
   host: z.enum(GIT_HOSTS),
   repository: z
@@ -66,6 +72,7 @@ const gitBaseSchema = z.object({
   buildContext: z.string().trim().min(1).max(512),
   autoDeploy: z.boolean(),
   injectBuildArgs: z.boolean(),
+  watchPaths: z.array(watchPathSchema).max(20),
   token: z.string().min(1).max(512).optional(),
   source: z.enum(APPLICATION_GIT_SOURCES),
   gitSourceId: z.string().length(24).optional(),
@@ -106,6 +113,7 @@ const gitSchema = refineGithubApp(
     buildContext: gitBaseSchema.shape.buildContext.default('.'),
     autoDeploy: gitBaseSchema.shape.autoDeploy.default(true),
     injectBuildArgs: gitBaseSchema.shape.injectBuildArgs.default(true),
+    watchPaths: gitBaseSchema.shape.watchPaths.default([]),
     source: gitBaseSchema.shape.source.default('pat'),
   }),
 );

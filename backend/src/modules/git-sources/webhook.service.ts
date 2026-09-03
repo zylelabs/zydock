@@ -2,6 +2,7 @@ import { resolveGitProvider, type GitWebhookRequest } from '../../providers/git'
 import { decryptSecret } from '../../utils/crypto';
 import { logInfo } from '../../utils/logger';
 import applicationModel from '../applications/application.model';
+import { matchesWatchPaths } from '../applications/webhook.service';
 import { enqueueDeployment } from '../deployments/pipeline.service';
 
 export type GitSourceWebhookOutcome =
@@ -44,7 +45,18 @@ export const handleGitSourcePush = async (
     return { accepted: false, reason: 'No application listens to this repository and branch' };
   }
 
-  for (const application of applications) {
+  const matchingApplications = applications.filter(application =>
+    matchesWatchPaths(application.git.watchPaths ?? [], event.changedPaths),
+  );
+
+  if (!matchingApplications.length) {
+    return {
+      accepted: false,
+      reason: 'No application watches the paths touched by this push',
+    };
+  }
+
+  for (const application of matchingApplications) {
     await enqueueDeployment({
       application,
       trigger: 'webhook',
@@ -57,8 +69,9 @@ export const handleGitSourcePush = async (
     gitSource: String(gitSource._id),
     repository: event.repositoryFullName,
     branch: event.branch,
-    queued: applications.length,
+    queued: matchingApplications.length,
+    skippedByPath: applications.length - matchingApplications.length,
   });
 
-  return { accepted: true, queued: applications.length };
+  return { accepted: true, queued: matchingApplications.length };
 };

@@ -15,6 +15,18 @@ export type WebhookOutcome =
 const gitProviderOf = async (application: Application) =>
   resolveGitProvider(await resolveGitCredentials(application));
 
+export const matchesWatchPaths = (watchPaths: string[], changedPaths: string[]) => {
+  if (!watchPaths.length || !changedPaths.length) {
+    return true;
+  }
+
+  return changedPaths.some(changedPath =>
+    watchPaths.some(
+      watchPath => changedPath === watchPath || changedPath.startsWith(`${watchPath}/`),
+    ),
+  );
+};
+
 export const callbackUrlOf = (applicationId: string) =>
   `${config.backendUrl}/api/webhooks/git/${applicationId}`;
 
@@ -93,6 +105,10 @@ export const handleGitWebhook = async (
 
   if (!application.git.autoDeploy) {
     return { accepted: false, reason: 'Auto deploy is disabled for this application' };
+  }
+
+  if (!matchesWatchPaths(application.git.watchPaths ?? [], event.changedPaths)) {
+    return { accepted: false, reason: 'Push does not touch the paths watched by this application' };
   }
 
   const deployment = await enqueueDeployment({
