@@ -6,6 +6,7 @@ interface ApplicationGit {
   buildContext: string;
   autoDeploy: boolean;
   injectBuildArgs: boolean;
+  watchPaths: string[];
   token?: string;
   hasToken: boolean;
   webhookId?: string;
