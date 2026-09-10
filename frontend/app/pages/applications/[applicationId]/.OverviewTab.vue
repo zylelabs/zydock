@@ -231,6 +231,7 @@
       branch: z.string().trim().min(1, 'Enter the branch'),
       dockerfilePath: z.string().trim().min(1, 'Enter the Dockerfile'),
       buildContext: z.string().trim().min(1, 'Enter the build context'),
+      watchPaths: z.string().trim(),
       port: z.string().regex(/^\d+$/, 'Invalid port'),
       autoDeploy: z.enum(['on', 'off']),
       restartPolicy: z.string().trim().min(1, 'Choose a restart policy'),
@@ -241,6 +242,7 @@
       branch: 'main',
       dockerfilePath: 'Dockerfile',
       buildContext: '.',
+      watchPaths: '',
       port: '3000',
       autoDeploy: 'on',
       restartPolicy: 'unless-stopped',
@@ -259,6 +261,7 @@
     configForm.values.branch = app.git.branch;
     configForm.values.dockerfilePath = app.git.dockerfilePath;
     configForm.values.buildContext = app.git.buildContext;
+    configForm.values.watchPaths = (app.git.watchPaths ?? []).join('\n');
     configForm.values.port = String(app.port);
     configForm.values.autoDeploy = app.git.autoDeploy ? 'on' : 'off';
     configForm.values.restartPolicy = app.restartPolicy;
@@ -275,6 +278,10 @@
         branch: values.branch,
         dockerfilePath: values.dockerfilePath,
         buildContext: values.buildContext,
+        watchPaths: values.watchPaths
+          .split('\n')
+          .map(path => path.trim())
+          .filter(Boolean),
         autoDeploy: values.autoDeploy === 'on',
       },
     });
@@ -515,6 +522,16 @@
             </div>
           </Row>
           <Row as="div" class="flex items-center">
+            <div class="w-33 shrink-0 text-caption text-ink-2">Watched paths</div>
+            <div class="truncate font-mono text-caption text-ink">
+              {{
+                application.git?.watchPaths?.length
+                  ? application.git.watchPaths.join(', ')
+                  : 'whole repository'
+              }}
+            </div>
+          </Row>
+          <Row as="div" class="flex items-center">
             <div class="w-33 shrink-0 text-caption text-ink-2">Port</div>
             <div class="font-mono text-caption text-ink">{{ application.port }}</div>
           </Row>
@@ -571,6 +588,19 @@
             boxed
             :call-error="configForm.errors.value.buildContext"
           />
+          <Input
+            v-model="configForm.values.watchPaths"
+            type="textarea"
+            :rows="3"
+            label="Watched paths"
+            placeholder="One path per line. Leave empty to watch the whole repository."
+            mono
+            boxed
+            :call-error="configForm.errors.value.watchPaths"
+          />
+          <p class="px-4.25 pb-2.5 text-caption text-ink-3">
+            Only affects auto-deploy from a push. Manual deploy always ignores this filter.
+          </p>
           <Input
             v-model="configForm.values.port"
             label="Port"

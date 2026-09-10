@@ -65,6 +65,7 @@ const applicationSchema = new Schema(
       buildContext: { type: String, required: true, trim: true, default: '.' },
       autoDeploy: { type: Boolean, required: true, default: true },
       injectBuildArgs: { type: Boolean, required: true, default: true },
+      watchPaths: { type: [String], default: [] },
       token: { type: String, select: false },
       hasToken: { type: Boolean, required: true, default: false },
       webhookId: { type: String },
